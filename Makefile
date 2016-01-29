@@ -1,15 +1,21 @@
 
 all: libapron.so
 
-OBJS = apron.o
+OBJS = apron.o src/Value.o
 
 APRON_INSTALL=/home/oanson/Documents/ProgramAnalysis/Project/apron-install
 CXXFLAGS=$(shell llvm-config --cxxflags)
-CXXFLAGS+=-I${APRON_INSTALL}/include
+CXXFLAGS+= -I${APRON_INSTALL}/include
+CXXFLAGS+= -Iinclude -fPIC -g
 LDFLAGS=$(shell llvm-config --ldflags)
-LDFLAGS+=-L${APRON_INSTALL}/lib -lapron
+LDFLAGS+= -L${APRON_INSTALL}/lib -lapron
+LDFLAGS+= -shared -fPIC 
+CC=gcc
 %.so: ${OBJS}
-	gcc -shared -fPIC -Wl,-soname,$@ -o $@ $^ ${LDFLAGS}
+	@ ${CC} -Wl,-soname,$@ -o $@ $^ ${LDFLAGS}
 
 %.o: %.c
-	gcc -c -fPIC -o $@ $^ ${CXXFLAGS}
+	@ ${CC} -o $@ $^ ${CXXFLAGS}
+
+clean:
+	@ rm -f ${OBJS} libapron.so
