@@ -429,8 +429,9 @@ std::string CastOperationValue::getValueString() {
 }
 
 Value::Value(llvm::Value * value) : m_value(value),
-		m_name(llvmValueName(value)) {
-}
+		m_name(llvmValueName(value)),
+		m_abst_value(AbstractManagerSingleton::getInstance().bottom())
+	{}
 
 int Value::valuesIndex = 0;
 std::string Value::llvmValueName(llvm::Value * value) {
@@ -461,13 +462,101 @@ std::string Value::toString()  {
 	return oss.str();
 }
 
+bool Value::update() {
+	// Do some work
+	// ...
+	ap_manager_t * manager =
+			AbstractManagerSingleton::getInstance().getManager();
+	ap_abstract1_fprint(stdout, manager, &m_abst_value);
+	return false;
+}
+
 bool Value::isSkip() {
 	return false;
+}
+
+bool Value::join(Value & value) {
+	ap_abstract1_t prev = m_abst_value;
+	m_abst_value = ap_abstract1_join(
+			AbstractManagerSingleton::getInstance().getManager(),
+			false,
+			&m_abst_value,
+			&(value.m_abst_value));
+	ap_manager_t * manager =
+			AbstractManagerSingleton::getInstance().getManager();
+	printf("Prev value: ");
+	ap_abstract1_fprint(stdout, manager, &prev);
+	printf("Curr value: ");
+	ap_abstract1_fprint(stdout, manager, &m_abst_value);
+	return is_eq(prev);
+}
+
+bool Value::meet(Value & value) {
+	ap_abstract1_t prev = m_abst_value;
+	m_abst_value = ap_abstract1_meet(
+			AbstractManagerSingleton::getInstance().getManager(),
+			false,
+			&m_abst_value,
+			&(value.m_abst_value));
+	return is_eq(prev);
+}
+
+bool Value::isTop() {
+	return ap_abstract1_is_top(
+			AbstractManagerSingleton::getInstance().getManager(),
+			&m_abst_value);
+}
+
+bool Value::isBottom() {
+	return ap_abstract1_is_bottom(
+			AbstractManagerSingleton::getInstance().getManager(),
+			&m_abst_value);
+}
+
+bool Value::operator==(Value & value) {
+	return is_eq(value.m_abst_value);
+}
+
+bool Value::is_eq(ap_abstract1_t & value) {
+	return ap_abstract1_is_eq(
+			AbstractManagerSingleton::getInstance().getManager(),
+			&m_abst_value,
+			&value);
+}
+
+AbstractManagerSingleton * AbstractManagerSingleton::instance;
+AbstractManagerSingleton & AbstractManagerSingleton::getInstance() {
+	if (!instance) {
+		instance = new AbstractManagerSingleton();
+	}
+	return *instance;
+}
+
+AbstractManagerSingleton::AbstractManagerSingleton() : 
+		m_ap_manager(box_manager_alloc()),
+		m_ap_environment(ap_environment_alloc_empty()) {}
+
+ap_manager_t * AbstractManagerSingleton::getManager() {
+	return m_ap_manager;
+}
+
+ap_environment_t * AbstractManagerSingleton::getEnvironment() {
+	return m_ap_environment;
+}
+
+ap_abstract1_t AbstractManagerSingleton::bottom() {
+	return ap_abstract1_bottom(getManager(), getEnvironment());
 }
 
 std::ostream& operator<<(std::ostream& os, Value& value)
 {
     os << value.toString();
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, Value* value)
+{
+    os << value->toString();
     return os;
 }
 

@@ -169,13 +169,14 @@ namespace {
 			ValueFactory * factory = ValueFactory::getInstance();
 			Value * value = factory->getValue(&inst);
 			if (value && !value->isSkip()) {
-				llvm::errs() << "\t\tApron: instruction: "
+				std::cout << "\t\tApron: instruction: "
 						/*<< scope->getFilename()
 						<< ": " */
 						<< debugLoc.getLine()
 						<< ": "
 						<< value->toString()
 						<< "\n";
+				value->update();
 			}
 			return false;
 		}
@@ -282,6 +283,9 @@ namespace {
 		}
 
 		virtual bool runOnFunction(llvm::Function &F) {
+			if (F.getName().equals("main")) {
+				return false; /* Skip */
+			}
 			llvm::errs() << "Apron: Function: ";
 			llvm::errs().write_escaped(F.getName()) << '\n';
 			llvm::BasicBlock * first =  &F.getEntryBlock();

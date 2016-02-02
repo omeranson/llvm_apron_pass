@@ -7,6 +7,14 @@
 
 #include <llvm/IR/Instruction.h>
 
+#include <ap_global0.h>
+#include <ap_global1.h>
+#include <ap_abstract1.h>
+#include <box.h>
+#include <oct.h>
+#include <pk.h>
+#include <pkeq.h>
+
 class Value;
 
 class ValueFactory {
@@ -22,22 +30,45 @@ public:
 	static ValueFactory * getInstance();
 };
 
+class AbstractManagerSingleton {
+protected:
+	static AbstractManagerSingleton * instance;
+	ap_manager_t * m_ap_manager;
+	ap_environment_t *m_ap_environment;
+	AbstractManagerSingleton();
+public:
+	static AbstractManagerSingleton & getInstance();
+	ap_manager_t * getManager();
+	ap_environment_t * getEnvironment();
+	ap_abstract1_t bottom();
+};
+
 class Value { 
-friend std::ostream& operator<<(std::ostream& os,  Value& value);
 friend class ValueFactory;
 protected:
 	static int valuesIndex;
 	llvm::Value * m_value;
 	std::string m_name;
-	virtual std::string llvmValueName(llvm::Value * value);
+	ap_abstract1_t m_abst_value;
+
 	Value(llvm::Value * value);
+	virtual std::string llvmValueName(llvm::Value * value);
+	virtual bool is_eq(ap_abstract1_t & value);
 public:
-	virtual std::string getName() ;
+	virtual std::string getName();
 	virtual std::string getValueString();
-	virtual std::string toString() ;
-	virtual bool update() { /* TODO */ return false; }
-	virtual bool isSkip() ;
+	virtual std::string toString();
+	virtual bool update();
+	virtual bool isSkip();
+
+	virtual bool join(Value & value);
+	virtual bool meet(Value & value);
+	virtual bool isTop();
+	virtual bool isBottom();
+	virtual bool operator==(Value & value);
+
 };
 std::ostream& operator<<(std::ostream& os,  Value& value);
+std::ostream& operator<<(std::ostream& os,  Value* value);
 
 #endif
