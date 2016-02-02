@@ -68,7 +68,7 @@ std::string ReturnInstValue::toString()  {
 		ValueFactory * factory = ValueFactory::getInstance();
 		Value * val = factory->getValue(llvmValue);
 		if (val) {
-			oss << val->getValueString();
+			oss << val->getName();
 		} else {
 			oss << "<Return Value Unknown>";
 		}
@@ -114,7 +114,7 @@ std::string BinaryOperationValue::getValueString()  {
 		llvm::Value * llvmOperand = it->get();
 		Value * operand = factory->getValue(llvmOperand);
 		if (operand) {
-			oss << operand->getValueString();
+			oss << operand->getName();
 		} else {
 			llvmOperand->print(llvm::errs());
 			oss << "<Operand Unknown>";
@@ -226,7 +226,6 @@ std::string CallValue::getCalledFunctionName() {
 }
 
 std::string CallValue::getValueString() {
-	// Return <funcName>(<operands>...)
 	std::ostringstream oss;
 	llvm::CallInst * callInst = asCallInst();
 	oss << getCalledFunctionName() << "(";
@@ -402,6 +401,33 @@ std::string SelectValue::getValueString() {
 	return oss.str();
 }
 
+class UnaryOperationValue : public Value {
+protected:
+	llvm::UnaryInstruction * asUnaryInstruction();
+public:
+	UnaryOperationValue(llvm::Value * value) : Value(value) {}
+};
+
+llvm::UnaryInstruction * UnaryOperationValue::asUnaryInstruction() {
+	return &llvm::cast<llvm::UnaryInstruction>(*m_value);
+}
+
+class CastOperationValue : public UnaryOperationValue {
+public:
+	CastOperationValue(llvm::Value * value) : UnaryOperationValue(value) {}
+	virtual std::string getValueString();
+};
+
+std::string CastOperationValue::getValueString() {
+	llvm::UnaryInstruction * inst = asUnaryInstruction();
+	llvm::Value * operand = inst->getOperand(0);
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * value = factory->getValue(operand);
+	std::ostringstream oss;
+	oss << "cast(" << value->getValueString() << ")";
+	return oss.str();
+}
+
 Value::Value(llvm::Value * value) : m_value(value),
 		m_name(llvmValueName(value)) {
 }
@@ -533,18 +559,19 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	//case llvm::BinaryOperator::GetElementPtr:
 	
 	// Convert instructions...
-	//case llvm::BinaryOperator::Trunc:
-	//case llvm::BinaryOperator::ZExt:
-	//case llvm::BinaryOperator::SExt:
-	//case llvm::BinaryOperator::FPTrunc:
-	//case llvm::BinaryOperator::FPExt:
-	//case llvm::BinaryOperator::FPToUI:
-	//case llvm::BinaryOperator::FPToSI:
-	//case llvm::BinaryOperator::UIToFP:
-	//case llvm::BinaryOperator::SIToFP:
-	//case llvm::BinaryOperator::IntToPtr:
-	//case llvm::BinaryOperator::PtrToInt:
-	//case llvm::BinaryOperator::BitCast:
+	case llvm::BinaryOperator::Trunc:
+	case llvm::BinaryOperator::ZExt:
+	case llvm::BinaryOperator::SExt:
+	case llvm::BinaryOperator::FPTrunc:
+	case llvm::BinaryOperator::FPExt:
+	case llvm::BinaryOperator::FPToUI:
+	case llvm::BinaryOperator::FPToSI:
+	case llvm::BinaryOperator::UIToFP:
+	case llvm::BinaryOperator::SIToFP:
+	case llvm::BinaryOperator::IntToPtr:
+	case llvm::BinaryOperator::PtrToInt:
+	case llvm::BinaryOperator::BitCast:
+		return new CastOperationValue(instruction);
 	
 	// Other instructions...
 	case llvm::BinaryOperator::ICmp:

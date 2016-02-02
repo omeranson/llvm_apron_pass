@@ -186,13 +186,14 @@ namespace {
 		bool processBlock(BasicBlock * block) {
 			std::cout << "Processing block " <<
 					block->getName() << std::endl;
+			bool result = false;
 			llvm::BasicBlock * bb = block->getLLVMBasicBlock();
 			llvm::BasicBlock::iterator it;
 			for (it = bb->begin(); it != bb->end(); it ++) {
 				llvm::Instruction & inst = *it;
-				processInstruction(inst);
+				result |= processInstruction(inst);
 			}
-			return false;
+			return result;
 		}
 
 		bool isSeen(BasicBlock * block) {
@@ -213,7 +214,8 @@ namespace {
 				see(block);
 				bool isModified = processBlock(block);
 				if (!wasSeen || isModified) {
-					callGraph.populateWithSuccessors(worklist, block);
+					callGraph.populateWithSuccessors(
+							worklist, block);
 				}
 			}
 		}
@@ -283,7 +285,8 @@ namespace {
 			llvm::errs() << "Apron: Function: ";
 			llvm::errs().write_escaped(F.getName()) << '\n';
 			llvm::BasicBlock * first =  &F.getEntryBlock();
-			CallGraph funcCallGraph(F.getName().str(), BasicBlock::getBasicBlock(first));
+			CallGraph funcCallGraph(F.getName().str(),
+					BasicBlock::getBasicBlock(first));
 			funcCallGraph.printAsDot();
 			ChaoticExecution chaoticExecution(funcCallGraph);
 			chaoticExecution.execute();
@@ -297,5 +300,6 @@ namespace {
 }
 
 char Apron::ID = 0;
-static llvm::RegisterPass<Apron> X("apron", "Numerical analysis with Apron", false, false);
+static llvm::RegisterPass<Apron> _X(
+		"apron", "Numerical analysis with Apron", false, false);
 
