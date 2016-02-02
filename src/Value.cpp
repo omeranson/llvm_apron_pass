@@ -15,6 +15,24 @@
 #include <llvm/DebugInfo.h>
 #include <llvm/IR/Constants.h>
 
+void appendValueName(std::ostringstream & oss,
+		Value * value, std::string missing) {
+	if (value) {
+		oss << value->getName();
+	} else {
+		oss << missing;
+	}
+}
+
+void appendValue(std::ostringstream & oss,
+		Value * value, std::string missing) {
+	if (value) {
+		oss << value->getValueString();
+	} else {
+		oss << missing;
+	}
+}
+
 class VariableValue : public Value {
 public:
 	VariableValue(llvm::Value * value) : Value(value) {}
@@ -65,23 +83,29 @@ class BinaryOperationValue : public Value {
 friend class ValueFactory;
 protected:
 	 llvm::BinaryOperator * asBinaryOperator() ;
+	 llvm::User * asUser() ;
 	virtual std::string getOperationSymbol()  = 0;
 	virtual std::string getValueString() ;
 public:
 	BinaryOperationValue(llvm::Value * value) : Value(value) {}
 };
 
- llvm::BinaryOperator * BinaryOperationValue::asBinaryOperator()  {
+llvm::BinaryOperator * BinaryOperationValue::asBinaryOperator()  {
 	return &llvm::cast<llvm::BinaryOperator>(*m_value);
 }
 
+llvm::User * BinaryOperationValue::asUser()  {
+	return &llvm::cast<llvm::User>(*m_value);
+}
+
 std::string BinaryOperationValue::getValueString()  {
-	llvm::BinaryOperator * binaryOp = asBinaryOperator();
-	llvm::BinaryOperator::op_iterator it;
+	llvm::User * binaryOp = asUser();
+	llvm::User::op_iterator it;
 	std::string op_symbol = getOperationSymbol();
 	ValueFactory * factory = ValueFactory::getInstance();
 	bool is_first = true;
 	std::ostringstream oss;
+	oss << "(";
 	for (it = binaryOp->op_begin(); it != binaryOp->op_end(); it++) {
 		if (!is_first) {
 			oss << " " << getOperationSymbol() << " ";
@@ -92,9 +116,11 @@ std::string BinaryOperationValue::getValueString()  {
 		if (operand) {
 			oss << operand->getValueString();
 		} else {
+			llvmOperand->print(llvm::errs());
 			oss << "<Operand Unknown>";
 		}
 	}
+	oss << ")";
 	return oss.str();
 }
 
@@ -179,6 +205,203 @@ std::string ConstantFloatValue::getConstantString()  {
 	*/
 }
 
+class CallValue : public Value {
+protected:
+	llvm::CallInst * asCallInst();
+	virtual std::string getCalledFunctionName();
+public:
+	CallValue(llvm::Value * value) : Value(value) {}
+	virtual std::string getValueString();
+	virtual bool isSkip();
+};
+
+llvm::CallInst * CallValue::asCallInst() {
+	return &llvm::cast<llvm::CallInst>(*m_value);
+}
+
+std::string CallValue::getCalledFunctionName() {
+	llvm::CallInst * callInst = asCallInst();
+	llvm::Function * function = callInst->getCalledFunction();
+	return function->getName().str();
+}
+
+std::string CallValue::getValueString() {
+	// Return <funcName>(<operands>...)
+	std::ostringstream oss;
+	llvm::CallInst * callInst = asCallInst();
+	oss << getCalledFunctionName() << "(";
+	llvm::User::op_iterator it;
+	ValueFactory * factory = ValueFactory::getInstance();
+	bool isFirst = true;
+	for (it = callInst->op_begin(); it != callInst->op_end(); it++) {
+		llvm::Value * llvmOperand = it->get();
+		Value * operand = factory->getValue(llvmOperand);
+		if (!isFirst) {
+			oss << ", ";
+		}
+		isFirst = false;
+		if (operand) {
+			oss << operand->getValueString();
+		} else {
+			oss << "<unknown operand>";
+		}
+	}
+	oss << ")";
+	return oss.str();
+}
+
+bool CallValue::isSkip() {
+	const std::string comparator = "llvm.dbg.";
+	const std::string funcName = getCalledFunctionName();
+	return comparator.compare(0, comparator.size(),
+			funcName, 0, comparator.size()) == 0;
+}
+
+class CompareValue : public BinaryOperationValue {
+public:
+	CompareValue(llvm::Value * value) : BinaryOperationValue(value) {}
+};
+
+class IntegerCompareValue : public CompareValue {
+protected:
+	virtual llvm::ICmpInst * asICmpInst();
+	virtual std::string getPredicateString();
+	virtual std::string getOperationSymbol();
+public:
+	IntegerCompareValue(llvm::Value * value) : CompareValue(value) {}
+};
+
+llvm::ICmpInst * IntegerCompareValue::asICmpInst() {
+	return &llvm::cast<llvm::ICmpInst>(*m_value);
+}
+
+std::string IntegerCompareValue::getPredicateString() {
+	llvm::CmpInst::Predicate predicate = asICmpInst()->getSignedPredicate();
+	switch (predicate) {
+	case llvm::CmpInst::FCMP_FALSE:
+		return "<False>";
+	case llvm::CmpInst::FCMP_OEQ:
+	case llvm::CmpInst::FCMP_OGT:
+	case llvm::CmpInst::FCMP_OGE:
+	case llvm::CmpInst::FCMP_OLT:
+	case llvm::CmpInst::FCMP_OLE:
+	case llvm::CmpInst::FCMP_ONE:
+	case llvm::CmpInst::FCMP_ORD:
+	case llvm::CmpInst::FCMP_UNO:
+	case llvm::CmpInst::FCMP_UEQ:
+	case llvm::CmpInst::FCMP_UGT:
+	case llvm::CmpInst::FCMP_UGE:
+	case llvm::CmpInst::FCMP_ULT:
+	case llvm::CmpInst::FCMP_ULE:
+	case llvm::CmpInst::FCMP_UNE:
+	case llvm::CmpInst::FCMP_TRUE:
+		return "?F?";
+
+	case llvm::CmpInst::ICMP_EQ:
+		return "==";
+	case llvm::CmpInst::ICMP_NE:
+		return "!=";
+	case llvm::CmpInst::ICMP_UGT:
+	case llvm::CmpInst::ICMP_SGT:
+		return ">";
+	case llvm::CmpInst::ICMP_UGE:
+	case llvm::CmpInst::ICMP_SGE:
+		return ">=";
+	case llvm::CmpInst::ICMP_ULT:
+	case llvm::CmpInst::ICMP_SLT:
+		return "<";
+	case llvm::CmpInst::ICMP_ULE:
+	case llvm::CmpInst::ICMP_SLE:
+		return "<=";
+		return ">";
+	case llvm::CmpInst::BAD_FCMP_PREDICATE:
+	case llvm::CmpInst::BAD_ICMP_PREDICATE:
+	deafult:
+		return "???";
+	}
+	return "???";
+}
+
+std::string IntegerCompareValue::getOperationSymbol() {
+	return getPredicateString();
+}
+
+class PhiValue : public Value {
+protected:
+	virtual llvm::PHINode * asPHINode();
+public:
+	PhiValue(llvm::Value * value) : Value(value) {}
+	virtual std::string getValueString();
+};
+
+llvm::PHINode * PhiValue::asPHINode() {
+	return &llvm::cast<llvm::PHINode>(*m_value);
+}
+
+std::string PhiValue::getValueString() {
+	llvm::PHINode * phiNode = asPHINode();
+	llvm::PHINode::block_iterator it;
+	ValueFactory * factory = ValueFactory::getInstance();
+	std::ostringstream oss;
+	oss << "phi";
+	for (it = phiNode->block_begin(); it != phiNode->block_end(); it++) {
+		llvm::BasicBlock * bb = *it;
+		llvm::Value * llvmValue = phiNode->getIncomingValueForBlock(bb);
+		Value * value = factory->getValue(llvmValue);
+		oss << " ( " << bb->getName().str() << " -> ";
+		appendValueName(oss, value, "<value unknown>");
+		oss << " )";
+	}
+	return oss.str();
+}
+
+class SelectValue : public Value {
+protected:
+	virtual llvm::SelectInst * asSelectInst();
+	virtual Value * getCondition();
+	virtual Value * getTrueValue();
+	virtual Value * getFalseValue();
+public:
+	SelectValue(llvm::Value * value) : Value(value) {}
+	virtual std::string getValueString();
+};
+
+llvm::SelectInst * SelectValue::asSelectInst() {
+	return &llvm::cast<llvm::SelectInst>(*m_value);
+}
+
+Value * SelectValue::getCondition() {
+	ValueFactory * factory = ValueFactory::getInstance();
+	llvm::Value * condition = asSelectInst()->getCondition();
+	Value * result = factory->getValue(condition);
+	if (!result) {
+		condition->print(llvm::errs());
+	}
+	return result;
+}
+
+Value * SelectValue::getTrueValue() {
+	ValueFactory * factory = ValueFactory::getInstance();
+	return factory->getValue(asSelectInst()->getTrueValue());
+}
+
+Value * SelectValue::getFalseValue() {
+	ValueFactory * factory = ValueFactory::getInstance();
+	return factory->getValue(asSelectInst()->getFalseValue());
+}
+
+std::string SelectValue::getValueString() {
+	std::ostringstream oss;
+	oss << "(";
+	appendValue(oss, getCondition(), "<unknown condition>") ;
+	oss << " ? ";
+	appendValue(oss, getTrueValue(), "<unknown value>") ;
+	oss << " : ";
+	appendValue(oss, getFalseValue(), "<unknown value>") ;
+	oss << ")";
+	return oss.str();
+}
+
 Value::Value(llvm::Value * value) : m_value(value),
 		m_name(llvmValueName(value)) {
 }
@@ -240,6 +463,12 @@ Value * ValueFactory::getValue(llvm::Value * value) {
 		return it->second;
 	}
 	Value * result = createValue(value);
+	if (!result) {
+		//llvm::errs() << "Unknown value: ";
+		//value->print(llvm::errs());
+		//llvm::errs() << "\n";
+		return NULL;
+	}
 	values.insert(std::pair<llvm::Value *, Value*>(value, result));
 	return result;
 }
@@ -318,11 +547,15 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	//case llvm::BinaryOperator::BitCast:
 	
 	// Other instructions...
-	//case llvm::BinaryOperator::ICmp:
+	case llvm::BinaryOperator::ICmp:
+		return new IntegerCompareValue(instruction);
 	//case llvm::BinaryOperator::FCmp:
-	//case llvm::BinaryOperator::PHI:
-	//case llvm::BinaryOperator::Select:
-	//case llvm::BinaryOperator::Call:
+	case llvm::BinaryOperator::PHI:
+		return new PhiValue(instruction);
+	case llvm::BinaryOperator::Select:
+		return new SelectValue(instruction);
+	case llvm::BinaryOperator::Call:
+		return new CallValue(instruction);
 	//case llvm::BinaryOperator::Shl:
 	//case llvm::BinaryOperator::LShr:
 	//case llvm::BinaryOperator::AShr:
@@ -334,8 +567,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	//case llvm::BinaryOperator::InsertValue:
 	
 	default:
-		llvm::errs() << "<Invalid operator> " <<
-				instruction->getOpcodeName() << "\n";
+		//llvm::errs() << "<Invalid operator> " <<
+				//instruction->getOpcodeName() << "\n";
 		return NULL;
 	}
 }

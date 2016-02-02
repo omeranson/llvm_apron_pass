@@ -166,15 +166,17 @@ namespace {
 
 		bool processInstruction(llvm::Instruction & inst) {
 			const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
-			llvm::errs() << "\t\tApron: instruction: " << /*scope->getFilename() << ": " << */ debugLoc.getLine() << ": ";
 			ValueFactory * factory = ValueFactory::getInstance();
 			Value * value = factory->getValue(&inst);
-			if (value) {
-				llvm::errs() << value->toString();
-			} else {
-				llvm::errs() << "(NULL)";
+			if (value && !value->isSkip()) {
+				llvm::errs() << "\t\tApron: instruction: "
+						/*<< scope->getFilename()
+						<< ": " */
+						<< debugLoc.getLine()
+						<< ": "
+						<< value->toString()
+						<< "\n";
 			}
-			llvm::errs() << "\n";
 			return false;
 		}
 
