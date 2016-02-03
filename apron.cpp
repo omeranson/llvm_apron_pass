@@ -161,8 +161,8 @@ namespace {
 	public:
 		ChaoticExecution(CallGraph & callGraph) :
 				callGraph(callGraph),
-				ap_manager(box_manager_alloc())
-			{}
+				ap_manager(box_manager_alloc()) {
+		}
 
 		bool processInstruction(llvm::Instruction & inst) {
 			const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
@@ -176,7 +176,7 @@ namespace {
 						<< ": "
 						<< value->toString()
 						<< "\n";
-				//value->update();
+				value->update();
 			}
 			return false;
 		}
@@ -225,8 +225,30 @@ namespace {
 			printf("Apron: Library %s, version %s\n",
 					ap_manager->library,
 					ap_manager->version);
-			
-
+			AbstractManagerSingleton & instance =
+					AbstractManagerSingleton::getInstance();
+			ap_environment_t * env = instance.getEnvironment();
+			std::list<ap_lincons1_t> & constraints =
+					instance.m_constraints;
+			ap_lincons1_array_t array = ap_lincons1_array_make(
+					env, constraints.size());
+			int idx = 0;
+			std::list<ap_lincons1_t>::iterator it;
+			for (it = constraints.begin(); it != constraints.end(); it++) {
+				ap_lincons1_t constraint = *it;
+				ap_lincons1_array_set(&array, idx++, &constraint);
+				fprintf(stdout,"Constraint: %p: ", constraint.lincons0.linexpr0);
+				ap_lincons1_fprint(stdout, &constraint);
+				fprintf(stdout,"\n");
+			}
+			ap_abstract1_t abs = ap_abstract1_of_lincons_array(
+					instance.getManager(), env, &array);
+			fprintf(stdout,"Abstract value:\n");
+			ap_abstract1_fprint(
+					stdout, instance.getManager(), &abs);
+			// TODO Causes a crash
+			// fprintf(stdout,"Constraints (%d):\n", idx);
+			// ap_lincons1_array_fprint(stdout,&array);
 		}
 	};
 

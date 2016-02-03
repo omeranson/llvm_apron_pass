@@ -1,5 +1,4 @@
 
-all: libapron.so
 
 OBJS = apron.o src/Value.o
 
@@ -11,6 +10,9 @@ LDFLAGS=$(shell llvm-config --ldflags)
 LDFLAGS+= -L${APRON_INSTALL}/lib -lapron
 LDFLAGS+= -shared -fPIC 
 CC=gcc
+
+all: ${OBJS} libapron.so
+
 %.so: ${OBJS}
 	@ ${CC} -Wl,-soname,$@ -o $@ $^ ${LDFLAGS}
 

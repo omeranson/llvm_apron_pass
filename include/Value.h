@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <ostream>
+#include <list>
 
 #include <llvm/IR/Instruction.h>
 
@@ -37,10 +38,14 @@ protected:
 	ap_environment_t *m_ap_environment;
 	AbstractManagerSingleton();
 public:
+	// TODO Make protected
+	std::list<ap_lincons1_t> m_constraints;
 	static AbstractManagerSingleton & getInstance();
 	ap_manager_t * getManager();
 	ap_environment_t * getEnvironment();
 	ap_abstract1_t bottom();
+	void appendConstraint(ap_lincons1_t & constraint);
+	void extendEnvironment(Value * value, ap_lincons1_t & constraint);
 };
 
 class Value { 
@@ -63,6 +68,7 @@ public:
 	virtual bool isSkip();
 
 	virtual ap_var_t varName();
+	virtual ap_coeff_t* getCoefficient(ap_lincons1_t & constraint);
 	virtual bool join(Value & value);
 	virtual bool meet(Value & value);
 	virtual bool isTop();

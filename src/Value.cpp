@@ -147,15 +147,14 @@ bool BinaryOperationValue::doUpdate() {
 	ap_lincons1_t constraint = ap_lincons1_make(
 			AP_CONS_EQ, &expression, NULL);
 
-	ap_abstract1_t prev = m_abst_value;
-
 	updateCoefficients(constraint);
 
-	ap_var_t var = varName();
-	ap_coeff_t* coeff = ap_lincons1_coeffref(&constraint, var);
+	ap_coeff_t* coeff = getCoefficient(constraint);
 	ap_coeff_set_scalar_int(coeff,1);
 
-	return is_eq(prev);
+	manager.appendConstraint(constraint);
+
+	return false;
 }
 
 ap_coeff_t* BinaryOperationValue::getOperandCoefficient(
@@ -168,15 +167,7 @@ ap_coeff_t* BinaryOperationValue::getOperandCoefficient(
 		llvm::errs() << "Unknown value\n";
 		exit(1);
 	}
-	ap_var_t var = operand->varName();
-	ap_coeff_t* coeff = ap_lincons1_coeffref(&constraint, var);
-	if (!coeff) {
-		ap_environment_t* env = ap_lincons1_envref(&constraint);
-		ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
-		ap_lincons1_extend_environment_with(&constraint, nenv);
-		coeff = ap_lincons1_coeffref(&constraint, var);
-	}
-	return coeff;
+	return operand->getCoefficient(constraint);
 }
 
 class AdditionOperationValue : public BinaryOperationValue {
@@ -604,6 +595,17 @@ ap_var_t Value::varName() {
 	return (ap_var_t)getName().c_str();
 }
 
+ap_coeff_t* Value::getCoefficient(ap_lincons1_t & constraint) {
+	ap_var_t var = varName();
+	ap_coeff_t* coeff = ap_lincons1_coeffref(&constraint, var);
+	if (!coeff) {
+		AbstractManagerSingleton::getInstance().extendEnvironment(
+				this, constraint);
+		coeff = ap_lincons1_coeffref(&constraint, var);
+	}
+	return coeff;
+}
+
 AbstractManagerSingleton * AbstractManagerSingleton::instance;
 AbstractManagerSingleton & AbstractManagerSingleton::getInstance() {
 	if (!instance) {
@@ -624,8 +626,23 @@ ap_environment_t * AbstractManagerSingleton::getEnvironment() {
 	return m_ap_environment;
 }
 
+void AbstractManagerSingleton::extendEnvironment(
+		Value * value, ap_lincons1_t & constraint) {
+	ap_environment_t* env = getEnvironment();
+	ap_var_t var = value->varName();
+	// TODO Handle reals
+	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
+	ap_lincons1_extend_environment_with(&constraint, nenv);
+	m_ap_environment = nenv;
+	// TODO Memory leak?
+}
+
 ap_abstract1_t AbstractManagerSingleton::bottom() {
 	return ap_abstract1_bottom(getManager(), getEnvironment());
+}
+
+void AbstractManagerSingleton::appendConstraint(ap_lincons1_t & constraint) {
+	m_constraints.push_back(constraint);
 }
 
 std::ostream& operator<<(std::ostream& os, Value& value)
