@@ -176,7 +176,7 @@ namespace {
 						<< ": "
 						<< value->toString()
 						<< "\n";
-				value->update();
+				//value->update();
 			}
 			return false;
 		}

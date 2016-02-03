@@ -2,6 +2,7 @@
 #include <sstream>
 #include <string>
 #include <iostream>
+#include <cstdlib>
 
 #include <Value.h>
 
@@ -82,10 +83,17 @@ std::string ReturnInstValue::toString()  {
 class BinaryOperationValue : public Value {
 friend class ValueFactory;
 protected:
-	 llvm::BinaryOperator * asBinaryOperator() ;
-	 llvm::User * asUser() ;
+	llvm::BinaryOperator * asBinaryOperator() ;
+	llvm::User * asUser() ;
 	virtual std::string getOperationSymbol()  = 0;
 	virtual std::string getValueString() ;
+	virtual ap_coeff_t* getOperandCoefficient(
+			ap_lincons1_t & constraint, int i);
+	virtual bool doUpdate();
+	virtual void updateCoefficients(ap_lincons1_t & constraint) {
+		llvm::errs() << "Cannot extract coefficient\n";
+		exit(1);
+	}
 public:
 	BinaryOperationValue(llvm::Value * value) : Value(value) {}
 };
@@ -124,9 +132,65 @@ std::string BinaryOperationValue::getValueString()  {
 	return oss.str();
 }
 
+bool BinaryOperationValue::doUpdate() {
+	// What we want to do? x <- Some op. So create a linear constraint,
+	// where x == the op.
+	// In case of addition/subtraction, multiple elements with coeff 1
+	// In case of multiplication, single coefficient element
+	// For each operator: Get the coefficient. Set it to the relevant value
+	// Lastly, set the coefficient of this value
+	AbstractManagerSingleton & manager =
+			AbstractManagerSingleton::getInstance();
+	ap_environment_t * environment = manager.getEnvironment();
+	ap_linexpr1_t expression = ap_linexpr1_make(
+			environment, AP_LINEXPR_SPARSE, 1);
+	ap_lincons1_t constraint = ap_lincons1_make(
+			AP_CONS_EQ, &expression, NULL);
+
+	ap_abstract1_t prev = m_abst_value;
+
+	updateCoefficients(constraint);
+
+	ap_var_t var = varName();
+	ap_coeff_t* coeff = ap_lincons1_coeffref(&constraint, var);
+	ap_coeff_set_scalar_int(coeff,1);
+
+	return is_eq(prev);
+}
+
+ap_coeff_t* BinaryOperationValue::getOperandCoefficient(
+		ap_lincons1_t & constraint, int i) {
+	llvm::User * binaryOp = asUser();
+	ValueFactory * factory = ValueFactory::getInstance();
+	llvm::Value * llvmOperand = binaryOp->getOperand(0);
+	Value * operand = factory->getValue(llvmOperand);
+	if (!operand) {
+		llvm::errs() << "Unknown value\n";
+		exit(1);
+	}
+	ap_var_t var = operand->varName();
+	ap_coeff_t* coeff = ap_lincons1_coeffref(&constraint, var);
+	if (!coeff) {
+		ap_environment_t* env = ap_lincons1_envref(&constraint);
+		ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
+		ap_lincons1_extend_environment_with(&constraint, nenv);
+		coeff = ap_lincons1_coeffref(&constraint, var);
+	}
+	return coeff;
+}
+
 class AdditionOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return "+"; }
+	virtual void updateCoefficients(ap_lincons1_t & constraint) {
+		ap_coeff_t* coeff;
+
+		coeff = getOperandCoefficient(constraint, 0);
+		ap_coeff_set_scalar_int(coeff,1);
+
+		coeff = getOperandCoefficient(constraint, 1);
+		ap_coeff_set_scalar_int(coeff,-1);
+	}
 public:
 	AdditionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 };
@@ -134,6 +198,15 @@ public:
 class SubtractionOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return "-"; }
+	virtual void updateCoefficients(ap_lincons1_t & constraint) {
+		ap_coeff_t* coeff;
+
+		coeff = getOperandCoefficient(constraint, 0);
+		ap_coeff_set_scalar_int(coeff,1);
+
+		coeff = getOperandCoefficient(constraint, 1);
+		ap_coeff_set_scalar_int(coeff,-1);
+	}
 public:
 	SubtractionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 };
@@ -463,11 +536,14 @@ std::string Value::toString()  {
 }
 
 bool Value::update() {
-	// Do some work
-	// ...
+	bool result = doUpdate();
 	ap_manager_t * manager =
 			AbstractManagerSingleton::getInstance().getManager();
 	ap_abstract1_fprint(stdout, manager, &m_abst_value);
+	return result;
+}
+
+bool Value::doUpdate() {
 	return false;
 }
 
@@ -522,6 +598,10 @@ bool Value::is_eq(ap_abstract1_t & value) {
 			AbstractManagerSingleton::getInstance().getManager(),
 			&m_abst_value,
 			&value);
+}
+
+ap_var_t Value::varName() {
+	return (ap_var_t)getName().c_str();
 }
 
 AbstractManagerSingleton * AbstractManagerSingleton::instance;

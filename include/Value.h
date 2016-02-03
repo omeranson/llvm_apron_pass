@@ -54,6 +54,7 @@ protected:
 	Value(llvm::Value * value);
 	virtual std::string llvmValueName(llvm::Value * value);
 	virtual bool is_eq(ap_abstract1_t & value);
+	virtual bool doUpdate();
 public:
 	virtual std::string getName();
 	virtual std::string getValueString();
@@ -61,6 +62,7 @@ public:
 	virtual bool update();
 	virtual bool isSkip();
 
+	virtual ap_var_t varName();
 	virtual bool join(Value & value);
 	virtual bool meet(Value & value);
 	virtual bool isTop();
