@@ -150,7 +150,7 @@ bool BinaryOperationValue::doUpdate() {
 	updateCoefficients(constraint);
 
 	ap_coeff_t* coeff = getCoefficient(constraint);
-	ap_coeff_set_scalar_int(coeff,1);
+	ap_coeff_set_scalar_int(coeff,-1);
 
 	manager.appendConstraint(constraint);
 
