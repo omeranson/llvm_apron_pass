@@ -2,7 +2,16 @@
 #include <Value.h>
 
 #include <cstdio>
+#include <iostream>
 #include <sstream>
+
+#include <ap_global0.h>
+#include <ap_global1.h>
+#include <ap_abstract1.h>
+#include <box.h>
+#include <oct.h>
+#include <pk.h>
+#include <pkeq.h>
 /*			    AbstractManagerSingleton			     */
 AbstractManagerSingleton * AbstractManagerSingleton::instance;
 AbstractManagerSingleton & AbstractManagerSingleton::getInstance() {
@@ -49,8 +58,9 @@ BasicBlockFactory & BasicBlockFactory::getInstance() {
 	return instance;
 }
 
+BasicBlockFactory::BasicBlockFactory() : m_manager(box_manager_alloc()) {}
 BasicBlock * BasicBlockFactory::createBasicBlock(llvm::BasicBlock * basicBlock) {
-	BasicBlock * result = new BasicBlock(basicBlock)l
+	BasicBlock * result = new BasicBlock(m_manager, basicBlock);
 	return result;
 }
 
@@ -61,7 +71,7 @@ BasicBlock * BasicBlockFactory::getBasicBlock(llvm::BasicBlock * basicBlock) {
 	BasicBlock * result;
 	if (it == instances.end()) {
 		result = createBasicBlock(basicBlock);
-		instance.insert(pair<llvm::BasicBlock *, BasicBlock *>(
+		instances.insert(std::pair<llvm::BasicBlock *, BasicBlock *>(
 				basicBlock, result));
 	} else {
 		result = it->second;
@@ -70,13 +80,13 @@ BasicBlock * BasicBlockFactory::getBasicBlock(llvm::BasicBlock * basicBlock) {
 }
 
 /*				   BasicBlock				     */
-BasicBlock::basicBlockCount = 0;
+int BasicBlock::basicBlockCount = 0;
 
 BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
 		m_manager(manager),
-		m_environment(ap_environment_alloc_empty()),
-		m_abst_value(ap_abstract1_bottom(manager, m_environment)) {
+		m_ap_environment(ap_environment_alloc_empty()) {
+	m_abst_value = ap_abstract1_bottom(manager, m_ap_environment);
 	if (!basicBlock->hasName()) {
 		initialiseBlockName();
 	}
@@ -97,13 +107,17 @@ std::string BasicBlock::getName() {
 	return m_basicBlock->getName();
 }
 
+llvm::BasicBlock * BasicBlock::getLLVMBasicBlock() {
+	return m_basicBlock;
+}
+
 ap_manager_t * BasicBlock::getManager() {
 	// In a function, since manager is global, and this impl. may change
 	return m_manager;
 }
 
 ap_environment_t * BasicBlock::getEnvironment() {
-	return m_environment;
+	return m_ap_environment;
 }
 
 void BasicBlock::extendEnvironment(Value * value, ap_lincons1_t & constraint) {
@@ -158,14 +172,13 @@ bool BasicBlock::update() {
 	/* Process the block. Return true if the block's context is modified.*/
 	std::cout << "Processing block " << getName() << std::endl;
 	std::list<ap_lincons1_t> constraints;
-	bool result = false;
 
 	ap_abstract1_t prev = m_abst_value;
 
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
 		llvm::Instruction & inst = *it;
-		result |= processInstruction(constrants, inst);
+		processInstruction(constraints, inst);
 	}
 
 	ap_manager_t * manager = getManager();
@@ -177,10 +190,10 @@ bool BasicBlock::update() {
 	fprintf(stdout,"Abstract value:\n");
 	ap_abstract1_fprint(stdout, manager, &abs);
 
-	fprintf(stdout,"Constraints (%d):\n", idx);
+	fprintf(stdout,"Constraints:\n");
 	ap_lincons1_array_fprint(stdout,&array);
 
-	m_abst_value = ap_abstract1_join(manager, false, prev, abs);
+	m_abst_value = ap_abstract1_join(manager, false, &prev, &abs);
 	return is_eq(prev);
 }
 
@@ -212,7 +225,10 @@ void BasicBlock::processInstruction(std::list<ap_lincons1_t> & constraints,
 				/*<< scope->getFilename() << ": " */
 				<< debugLoc.getLine() << ": "
 				<< value->toString() << "\n";
-		ap_lincons1_t constraint = value->createLinearConstraint();
+		InstructionValue * instructionValue =
+				static_cast<InstructionValue*>(value);
+		ap_lincons1_t constraint =
+				instructionValue->createLinearConstraint();
 		constraints.push_back(constraint);
 	}
 }
@@ -220,14 +236,14 @@ void BasicBlock::processInstruction(std::list<ap_lincons1_t> & constraints,
 std::string BasicBlock::toString() {
 	std::ostringstream oss;
 	char * cbuf = NULL;
-	int ncbuf = 0;
+	size_t ncbuf = 0;
 	FILE * buffer = open_memstream(&cbuf, &ncbuf);
-	ap_abstract1_fprint(buffer, getManager(), m_abst_value);
+	ap_abstract1_fprint(buffer, getManager(), &m_abst_value);
 	fclose(buffer);
 	oss << getName() << ": " << cbuf;
 	free(cbuf);
 	cbuf = NULL;
-	return oss.str()
+	return oss.str();
 }
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock) {
@@ -236,7 +252,7 @@ std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock) {
 }
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock* basicBlock) {
-	os << basicBlock.toString();
+	os << basicBlock->toString();
 	return os;
 }
 

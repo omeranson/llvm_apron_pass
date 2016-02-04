@@ -1,6 +1,6 @@
 
 
-OBJS = apron.o src/Value.o
+OBJS = apron.o src/Value.o src/BasicBlock.o
 
 APRON_INSTALL=/home/oanson/Documents/ProgramAnalysis/Project/apron-install
 CXXFLAGS=$(shell llvm-config --cxxflags)

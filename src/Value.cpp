@@ -48,21 +48,20 @@ std::string VariableValue::toString() {
 	return getName();
 }
 
-class InstructionValue : public Value {
-protceted:
-	virtual llvm::Instruction * asInstruction();
-	virtual BasicBlock & getBasicBlock();
-};
-
 llvm::Instruction * InstructionValue::asInstruction() {
 	return &llvm::cast<llvm::Instruction>(*m_value);
+}
+
+ap_lincons1_t InstructionValue::createLinearConstraint() {
+	abort();
 }
 
 BasicBlock & InstructionValue::getBasicBlock() {
 	llvm::Instruction * instruction = asInstruction();
 	llvm::BasicBlock * llvmBasicBlock = instruction->getParent();
-	BasicBlockFactory & factory = BasicBlockFactory::instance();
+	BasicBlockFactory & factory = BasicBlockFactory::getInstance();
 	BasicBlock * result = factory.getBasicBlock(llvmBasicBlock);
+	return *result;
 }
 
 class ReturnInstValue : public Value {
@@ -111,8 +110,8 @@ protected:
 		exit(1);
 	}
 public:
-	BinaryOperationValue(llvm::Value * value) : Value(value) {}
-	virtual bool createLinearConstraint();
+	BinaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual ap_lincons1_t createLinearConstraint();
 };
 
 llvm::BinaryOperator * BinaryOperationValue::asBinaryOperator()  {
@@ -149,7 +148,7 @@ std::string BinaryOperationValue::getValueString()  {
 	return oss.str();
 }
 
-bool BinaryOperationValue::createLinearConstraint() {
+ap_lincons1_t BinaryOperationValue::createLinearConstraint() {
 	// What we want to do? x <- Some op. So create a linear constraint,
 	// where x == the op.
 	// In case of addition/subtraction, multiple elements with coeff 1
@@ -167,8 +166,6 @@ bool BinaryOperationValue::createLinearConstraint() {
 	ap_coeff_set_scalar_int(coeff,-1);
 
 	updateCoefficients(constraint);
-
-	basicBlock.appendConstraint(constraint);
 
 	return constraint;
 }
@@ -539,10 +536,6 @@ std::string Value::toString()  {
 	std::ostringstream oss;
 	oss << getName() << " <- " << getValueString();
 	return oss.str();
-}
-
-ap_lincons1_t Value::createLinearConstraint(ap_lincons1_t & constraint) {
-	return NULL;
 }
 
 bool Value::isSkip() {

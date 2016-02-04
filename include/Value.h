@@ -42,7 +42,6 @@ protected:
 
 	Value(llvm::Value * value);
 	virtual std::string llvmValueName(llvm::Value * value);
-	virtual bool is_eq(ap_abstract1_t & value);
 	/* TODO Let's wait till we actually need it and it's too late */
 	// virtual BasicBlock & getBasicBlock();
 public:
@@ -52,11 +51,20 @@ public:
 	virtual bool isSkip();
 
 	virtual ap_var_t varName();
-	virtual ap_coeff_t* getCoefficient(ap_lincons1_t & constraint);
-	virtual ap_lincons1_t createLinearConstraint();
+	virtual ap_coeff_t* getCoefficient(BasicBlock * basicBlock,
+			ap_lincons1_t & constraint);
 };
 
 std::ostream& operator<<(std::ostream& os,  Value& value);
 std::ostream& operator<<(std::ostream& os,  Value* value);
+
+class InstructionValue : public Value {
+protected:
+	virtual llvm::Instruction * asInstruction();
+	virtual BasicBlock & getBasicBlock();
+public:
+	InstructionValue(llvm::Value * value) : Value(value) {}
+	virtual ap_lincons1_t createLinearConstraint();
+};
 
 #endif

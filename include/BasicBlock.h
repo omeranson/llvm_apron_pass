@@ -1,12 +1,15 @@
 #ifndef BASIC_BLOCK_H
 #define BASIC_BLOCK_H
 
+#include <list>
 #include <map>
 #include <string>
 
 #include <llvm/IR/BasicBlock.h>
 
 #include <ap_abstract1.h>
+
+class Value;
 
 class AbstractManagerSingleton {
 protected:
@@ -32,17 +35,18 @@ protected:
 	static BasicBlockFactory instance;
 	std::map<llvm::BasicBlock *, BasicBlock *> instances;
 	BasicBlock * createBasicBlock(llvm::BasicBlock * basicBlock);
+	ap_manager_t * m_manager;
 
-	BasicBlockFactory() {}
+	BasicBlockFactory();
 public:
 	static BasicBlockFactory & getInstance();
 	BasicBlock * getBasicBlock(llvm::BasicBlock * basicBlock);
 };
 
 class BasicBlock {
-friend BasicBlockFactory;
+friend class BasicBlockFactory;
 protected:
-	static basicBlockCount;
+	static int basicBlockCount;
 
 	llvm::BasicBlock * m_basicBlock;
 	ap_abstract1_t m_abst_value;
@@ -54,13 +58,14 @@ protected:
 	virtual void initialiseBlockName();
 
 	virtual bool is_eq(ap_abstract1_t & value);
-	virtual void doUpdate();
 	virtual void processInstruction(std::list<ap_lincons1_t> & constraints,
 			llvm::Instruction & inst);
 	virtual ap_lincons1_array_t create_lincons1_array(
 			std::list<ap_lincons1_t> & constraints);
 public:
 	virtual std::string getName();
+	virtual std::string toString();
+	virtual llvm::BasicBlock * getLLVMBasicBlock();
 	virtual bool update();
 
 	virtual bool join(BasicBlock & basicBlock);
@@ -73,7 +78,6 @@ public:
 	virtual ap_environment_t * getEnvironment();
 	virtual void extendEnvironment(
 			Value * value, ap_lincons1_t & constraint);
-	virtual void appendConstraint(ap_lincons1_t & constraint);
 };
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock);

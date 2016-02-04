@@ -45,18 +45,19 @@ namespace {
 		std::string name;
 	public:
 		CallGraph(std::string name, BasicBlock * root) : root(root), name(name) {
+			BasicBlockFactory & factory = BasicBlockFactory::getInstance();
 			std::list<llvm::BasicBlock *> worklist;
 			std::set<llvm::BasicBlock *> seen;
 			worklist.push_back(root->getLLVMBasicBlock());
 			while (!worklist.empty()) {
 				llvm::BasicBlock * bb = worklist.front();
-				BasicBlock * bb1 = BasicBlock::getBasicBlock(bb);
+				BasicBlock * bb1 = factory.getBasicBlock(bb);
 				worklist.pop_front();
 				const llvm::TerminatorInst *TInst = bb->getTerminator();
 				int NSucc = TInst->getNumSuccessors();
 				for (unsigned succIdx = 0; succIdx < NSucc; ++succIdx) {
 					llvm::BasicBlock * succ = TInst->getSuccessor(succIdx);
-					nexts.insert(std::pair<BasicBlock*,BasicBlock*>(bb1, BasicBlock::getBasicBlock(succ)));
+					nexts.insert(std::pair<BasicBlock*,BasicBlock*>(bb1, factory.getBasicBlock(succ)));
 					if (seen.find(succ) == seen.end()) {
 						worklist.push_back(succ);
 						seen.insert(succ);
@@ -144,8 +145,8 @@ namespace {
 				bool wasSeen = isSeen(block);
 				see(block);
 				bool isModified = block->update();
-				printf("%s: isModified: %s, info: %s\n",
-						block->toString(),
+				printf("%s: isModified: %s\n",
+						block->toString().c_str(),
 						isModified ? "True" : "False");
 				if (!wasSeen || isModified) {
 					callGraph.populateWithSuccessors(
@@ -160,7 +161,7 @@ namespace {
 					ap_manager->version);
 			std::set<BasicBlock *>::iterator it;
 			for (it = seen.begin(); it != seen.end(); it++) {
-				(*it)->print();
+				printf("%s\n", (*it)->toString().c_str());
 			}
 		}
 	};
@@ -223,16 +224,14 @@ namespace {
 			}
 			llvm::errs() << "Apron: Function: ";
 			llvm::errs().write_escaped(F.getName()) << '\n';
-			llvm::BasicBlock * first =  &F.getEntryBlock();
-			CallGraph funcCallGraph(F.getName().str(),
-					BasicBlock::getBasicBlock(first));
+			llvm::BasicBlock * llvmfirst =  &F.getEntryBlock();
+			BasicBlock * first = BasicBlockFactory::getInstance().getBasicBlock(
+					llvmfirst);
+			CallGraph funcCallGraph(F.getName().str(), first);
 			funcCallGraph.printAsDot();
 			ChaoticExecution chaoticExecution(funcCallGraph);
 			chaoticExecution.execute();
 			chaoticExecution.print();
-			//std::list<llvm::BasicBlock *> bbs;
-			//bbs.push_front(first);
-			//runOnBasicBlocks(bbs);
 			return false;
 		}
 	};
