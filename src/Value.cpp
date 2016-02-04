@@ -56,6 +56,10 @@ ap_lincons1_t InstructionValue::createLinearConstraint() {
 	abort();
 }
 
+bool InstructionValue::isSkip() {
+	return true;
+}
+
 BasicBlock & InstructionValue::getBasicBlock() {
 	llvm::Instruction * instruction = asInstruction();
 	llvm::BasicBlock * llvmBasicBlock = instruction->getParent();
@@ -64,12 +68,12 @@ BasicBlock & InstructionValue::getBasicBlock() {
 	return *result;
 }
 
-class ReturnInstValue : public Value {
+class ReturnInstValue : public InstructionValue {
 friend class ValueFactory;
 protected:
 	llvm::ReturnInst * asReturnInst() ;
 public:
-	ReturnInstValue(llvm::Value * value) : Value(value) {}
+	ReturnInstValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string toString() ;
 };
 
@@ -112,6 +116,7 @@ protected:
 public:
 	BinaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual ap_lincons1_t createLinearConstraint();
+	virtual bool isSkip();
 };
 
 llvm::BinaryOperator * BinaryOperationValue::asBinaryOperator()  {
@@ -146,6 +151,10 @@ std::string BinaryOperationValue::getValueString()  {
 	}
 	oss << ")";
 	return oss.str();
+}
+
+bool BinaryOperationValue::isSkip() {
+	return false;
 }
 
 ap_lincons1_t BinaryOperationValue::createLinearConstraint() {
@@ -524,7 +533,7 @@ std::string Value::llvmValueName(llvm::Value * value) {
 	return oss.str();
 }
 
-std::string Value::getName()  {
+std::string & Value::getName()  {
 	return m_name;
 }
 
@@ -553,6 +562,13 @@ ap_coeff_t* Value::getCoefficient(
 	if (!coeff) {
 		basicBlock->extendEnvironment(this, constraint);
 		coeff = ap_lincons1_coeffref(&constraint, var);
+		if (!coeff) {
+			printf("This one is still not in env %p/%p: %p %s\n",
+					ap_lincons1_envref(&constraint),
+					basicBlock->getEnvironment(),
+					var, (char*)var);
+			abort();
+		}
 	}
 	return coeff;
 }

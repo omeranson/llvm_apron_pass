@@ -12,45 +12,6 @@
 #include <oct.h>
 #include <pk.h>
 #include <pkeq.h>
-/*			    AbstractManagerSingleton			     */
-AbstractManagerSingleton * AbstractManagerSingleton::instance;
-AbstractManagerSingleton & AbstractManagerSingleton::getInstance() {
-	if (!instance) {
-		instance = new AbstractManagerSingleton();
-	}
-	return *instance;
-}
-
-AbstractManagerSingleton::AbstractManagerSingleton() : 
-		m_ap_manager(box_manager_alloc()),
-		m_ap_environment(ap_environment_alloc_empty()) {}
-
-ap_manager_t * AbstractManagerSingleton::getManager() {
-	return m_ap_manager;
-}
-
-ap_environment_t * AbstractManagerSingleton::getEnvironment() {
-	return m_ap_environment;
-}
-
-void AbstractManagerSingleton::extendEnvironment(
-		Value * value, ap_lincons1_t & constraint) {
-	ap_environment_t* env = getEnvironment();
-	ap_var_t var = value->varName();
-	// TODO Handle reals
-	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
-	ap_lincons1_extend_environment_with(&constraint, nenv);
-	m_ap_environment = nenv;
-	// TODO Memory leak?
-}
-
-ap_abstract1_t AbstractManagerSingleton::bottom() {
-	return ap_abstract1_bottom(getManager(), getEnvironment());
-}
-
-void AbstractManagerSingleton::appendConstraint(ap_lincons1_t & constraint) {
-	m_constraints.push_back(constraint);
-}
 
 /*			       BasicBlockFactory			     */
 BasicBlockFactory BasicBlockFactory::instance;
@@ -65,7 +26,6 @@ BasicBlock * BasicBlockFactory::createBasicBlock(llvm::BasicBlock * basicBlock) 
 }
 
 BasicBlock * BasicBlockFactory::getBasicBlock(llvm::BasicBlock * basicBlock) {
-	std::map<llvm::BasicBlock *, BasicBlock *> instances;
 	std::map<llvm::BasicBlock *, BasicBlock *>::iterator it =
 			instances.find(basicBlock);
 	BasicBlock * result;
@@ -121,7 +81,7 @@ ap_environment_t * BasicBlock::getEnvironment() {
 }
 
 void BasicBlock::extendEnvironment(Value * value, ap_lincons1_t & constraint) {
-	ap_environment_t* env = getEnvironment();
+	ap_environment_t* env = m_ap_environment;
 	ap_var_t var = value->varName();
 	// TODO Handle reals
 	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
@@ -184,7 +144,7 @@ bool BasicBlock::update() {
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
 
-	ap_lincons1_array_t array = create_lincons1_array(constraints);
+	ap_lincons1_array_t array = createLincons1Array(constraints);
 	ap_abstract1_t abs = ap_abstract1_of_lincons_array(
 			manager, env, &array);
 	fprintf(stdout,"Abstract value:\n");
@@ -197,7 +157,7 @@ bool BasicBlock::update() {
 	return is_eq(prev);
 }
 
-ap_lincons1_array_t BasicBlock::create_lincons1_array(
+ap_lincons1_array_t BasicBlock::createLincons1Array(
 		std::list<ap_lincons1_t> & constraints) {
 	ap_lincons1_array_t array = ap_lincons1_array_make(
 			getEnvironment(), constraints.size());
@@ -206,10 +166,6 @@ ap_lincons1_array_t BasicBlock::create_lincons1_array(
 	for (it = constraints.begin(); it != constraints.end(); it++) {
 		ap_lincons1_t & constraint = *it;
 		ap_lincons1_array_set(&array, idx++, &constraint);
-		fprintf(stdout,"Constraint: %p: ",
-				constraint.lincons0.linexpr0);
-		ap_lincons1_fprint(stdout, &constraint);
-		fprintf(stdout,"\n");
 	}
 	return array;
 }
@@ -229,6 +185,8 @@ void BasicBlock::processInstruction(std::list<ap_lincons1_t> & constraints,
 				static_cast<InstructionValue*>(value);
 		ap_lincons1_t constraint =
 				instructionValue->createLinearConstraint();
+		ap_lincons1_fprint(stdout, &constraint);
+		printf("\n");
 		constraints.push_back(constraint);
 	}
 }

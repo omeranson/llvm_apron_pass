@@ -11,23 +11,6 @@
 
 class Value;
 
-class AbstractManagerSingleton {
-protected:
-	static AbstractManagerSingleton * instance;
-	ap_manager_t * m_ap_manager;
-	ap_environment_t *m_ap_environment;
-	AbstractManagerSingleton();
-public:
-	// TODO Make protected
-	std::list<ap_lincons1_t> m_constraints;
-	static AbstractManagerSingleton & getInstance();
-	ap_manager_t * getManager();
-	ap_environment_t * getEnvironment();
-	ap_abstract1_t bottom();
-	void appendConstraint(ap_lincons1_t & constraint);
-	void extendEnvironment(Value * value, ap_lincons1_t & constraint);
-};
-
 class BasicBlock;
 
 class BasicBlockFactory {
@@ -60,7 +43,7 @@ protected:
 	virtual bool is_eq(ap_abstract1_t & value);
 	virtual void processInstruction(std::list<ap_lincons1_t> & constraints,
 			llvm::Instruction & inst);
-	virtual ap_lincons1_array_t create_lincons1_array(
+	virtual ap_lincons1_array_t createLincons1Array(
 			std::list<ap_lincons1_t> & constraints);
 public:
 	virtual std::string getName();

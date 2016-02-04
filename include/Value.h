@@ -45,7 +45,7 @@ protected:
 	/* TODO Let's wait till we actually need it and it's too late */
 	// virtual BasicBlock & getBasicBlock();
 public:
-	virtual std::string getName();
+	virtual std::string & getName();
 	virtual std::string getValueString();
 	virtual std::string toString();
 	virtual bool isSkip();
@@ -65,6 +65,7 @@ protected:
 public:
 	InstructionValue(llvm::Value * value) : Value(value) {}
 	virtual ap_lincons1_t createLinearConstraint();
+	virtual bool isSkip();
 };
 
 #endif
