@@ -1,0 +1,242 @@
+#include <BasicBlock.h>
+#include <Value.h>
+
+#include <cstdio>
+#include <sstream>
+/*			    AbstractManagerSingleton			     */
+AbstractManagerSingleton * AbstractManagerSingleton::instance;
+AbstractManagerSingleton & AbstractManagerSingleton::getInstance() {
+	if (!instance) {
+		instance = new AbstractManagerSingleton();
+	}
+	return *instance;
+}
+
+AbstractManagerSingleton::AbstractManagerSingleton() : 
+		m_ap_manager(box_manager_alloc()),
+		m_ap_environment(ap_environment_alloc_empty()) {}
+
+ap_manager_t * AbstractManagerSingleton::getManager() {
+	return m_ap_manager;
+}
+
+ap_environment_t * AbstractManagerSingleton::getEnvironment() {
+	return m_ap_environment;
+}
+
+void AbstractManagerSingleton::extendEnvironment(
+		Value * value, ap_lincons1_t & constraint) {
+	ap_environment_t* env = getEnvironment();
+	ap_var_t var = value->varName();
+	// TODO Handle reals
+	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
+	ap_lincons1_extend_environment_with(&constraint, nenv);
+	m_ap_environment = nenv;
+	// TODO Memory leak?
+}
+
+ap_abstract1_t AbstractManagerSingleton::bottom() {
+	return ap_abstract1_bottom(getManager(), getEnvironment());
+}
+
+void AbstractManagerSingleton::appendConstraint(ap_lincons1_t & constraint) {
+	m_constraints.push_back(constraint);
+}
+
+/*			       BasicBlockFactory			     */
+BasicBlockFactory BasicBlockFactory::instance;
+BasicBlockFactory & BasicBlockFactory::getInstance() {
+	return instance;
+}
+
+BasicBlock * BasicBlockFactory::createBasicBlock(llvm::BasicBlock * basicBlock) {
+	BasicBlock * result = new BasicBlock(basicBlock)l
+	return result;
+}
+
+BasicBlock * BasicBlockFactory::getBasicBlock(llvm::BasicBlock * basicBlock) {
+	std::map<llvm::BasicBlock *, BasicBlock *> instances;
+	std::map<llvm::BasicBlock *, BasicBlock *>::iterator it =
+			instances.find(basicBlock);
+	BasicBlock * result;
+	if (it == instances.end()) {
+		result = createBasicBlock(basicBlock);
+		instance.insert(pair<llvm::BasicBlock *, BasicBlock *>(
+				basicBlock, result));
+	} else {
+		result = it->second;
+	}
+	return result;
+}
+
+/*				   BasicBlock				     */
+BasicBlock::basicBlockCount = 0;
+
+BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
+		m_basicBlock(basicBlock),
+		m_manager(manager),
+		m_environment(ap_environment_alloc_empty()),
+		m_abst_value(ap_abstract1_bottom(manager, m_environment)) {
+	if (!basicBlock->hasName()) {
+		initialiseBlockName();
+	}
+}
+
+void BasicBlock::initialiseBlockName() {
+	std::ostringstream oss;
+	oss << "BasicBlock-" << ++basicBlockCount;
+	llvm::Twine name(oss.str());
+	m_basicBlock->setName(name);
+}
+
+bool BasicBlock::is_eq(ap_abstract1_t & value) {
+	return ap_abstract1_is_eq(getManager(), &m_abst_value, &value);
+}
+
+std::string BasicBlock::getName() {
+	return m_basicBlock->getName();
+}
+
+ap_manager_t * BasicBlock::getManager() {
+	// In a function, since manager is global, and this impl. may change
+	return m_manager;
+}
+
+ap_environment_t * BasicBlock::getEnvironment() {
+	return m_environment;
+}
+
+void BasicBlock::extendEnvironment(Value * value, ap_lincons1_t & constraint) {
+	ap_environment_t* env = getEnvironment();
+	ap_var_t var = value->varName();
+	// TODO Handle reals
+	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
+	ap_lincons1_extend_environment_with(&constraint, nenv);
+	m_ap_environment = nenv;
+	// TODO Memory leak?
+}
+
+bool BasicBlock::join(BasicBlock & basicBlock) {
+	ap_abstract1_t prev = m_abst_value;
+	ap_manager_t * manager = getManager();
+	m_abst_value = ap_abstract1_join(
+			manager,
+			false,
+			&m_abst_value,
+			&(basicBlock.m_abst_value));
+	printf("Prev value: ");
+	ap_abstract1_fprint(stdout, manager, &prev);
+	printf("Curr value: ");
+	ap_abstract1_fprint(stdout, manager, &m_abst_value);
+	return is_eq(prev);
+}
+
+bool BasicBlock::meet(BasicBlock & basicBlock) {
+	ap_abstract1_t prev = m_abst_value;
+	ap_manager_t * manager = getManager();
+	m_abst_value = ap_abstract1_meet(
+			manager,
+			false,
+			&m_abst_value,
+			&(basicBlock.m_abst_value));
+	return is_eq(prev);
+}
+
+bool BasicBlock::isTop() {
+	return ap_abstract1_is_top(getManager(), &m_abst_value);
+}
+
+bool BasicBlock::isBottom() {
+	return ap_abstract1_is_bottom(getManager(), &m_abst_value);
+}
+
+bool BasicBlock::operator==(BasicBlock & basicBlock) {
+	return is_eq(basicBlock.m_abst_value);
+}
+
+bool BasicBlock::update() {
+	/* Process the block. Return true if the block's context is modified.*/
+	std::cout << "Processing block " << getName() << std::endl;
+	std::list<ap_lincons1_t> constraints;
+	bool result = false;
+
+	ap_abstract1_t prev = m_abst_value;
+
+	llvm::BasicBlock::iterator it;
+	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
+		llvm::Instruction & inst = *it;
+		result |= processInstruction(constrants, inst);
+	}
+
+	ap_manager_t * manager = getManager();
+	ap_environment_t* env = getEnvironment();
+
+	ap_lincons1_array_t array = create_lincons1_array(constraints);
+	ap_abstract1_t abs = ap_abstract1_of_lincons_array(
+			manager, env, &array);
+	fprintf(stdout,"Abstract value:\n");
+	ap_abstract1_fprint(stdout, manager, &abs);
+
+	fprintf(stdout,"Constraints (%d):\n", idx);
+	ap_lincons1_array_fprint(stdout,&array);
+
+	m_abst_value = ap_abstract1_join(manager, false, prev, abs);
+	return is_eq(prev);
+}
+
+ap_lincons1_array_t BasicBlock::create_lincons1_array(
+		std::list<ap_lincons1_t> & constraints) {
+	ap_lincons1_array_t array = ap_lincons1_array_make(
+			getEnvironment(), constraints.size());
+	int idx = 0;
+	std::list<ap_lincons1_t>::iterator it;
+	for (it = constraints.begin(); it != constraints.end(); it++) {
+		ap_lincons1_t & constraint = *it;
+		ap_lincons1_array_set(&array, idx++, &constraint);
+		fprintf(stdout,"Constraint: %p: ",
+				constraint.lincons0.linexpr0);
+		ap_lincons1_fprint(stdout, &constraint);
+		fprintf(stdout,"\n");
+	}
+	return array;
+}
+
+void BasicBlock::processInstruction(std::list<ap_lincons1_t> & constraints,
+		llvm::Instruction & inst) {
+	const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
+	// TODO Circular dependancy
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * value = factory->getValue(&inst);
+	if (value && !value->isSkip()) {
+		std::cout << "Apron: Instruction: "
+				/*<< scope->getFilename() << ": " */
+				<< debugLoc.getLine() << ": "
+				<< value->toString() << "\n";
+		ap_lincons1_t constraint = value->createLinearConstraint();
+		constraints.push_back(constraint);
+	}
+}
+
+std::string BasicBlock::toString() {
+	std::ostringstream oss;
+	char * cbuf = NULL;
+	int ncbuf = 0;
+	FILE * buffer = open_memstream(&cbuf, &ncbuf);
+	ap_abstract1_fprint(buffer, getManager(), m_abst_value);
+	fclose(buffer);
+	oss << getName() << ": " << cbuf;
+	free(cbuf);
+	cbuf = NULL;
+	return oss.str()
+}
+
+std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock) {
+	os << basicBlock.toString();
+	return os;
+}
+
+std::ostream& operator<<(std::ostream& os,  BasicBlock* basicBlock) {
+	os << basicBlock.toString();
+	return os;
+}
+

@@ -48,6 +48,23 @@ std::string VariableValue::toString() {
 	return getName();
 }
 
+class InstructionValue : public Value {
+protceted:
+	virtual llvm::Instruction * asInstruction();
+	virtual BasicBlock & getBasicBlock();
+};
+
+llvm::Instruction * InstructionValue::asInstruction() {
+	return &llvm::cast<llvm::Instruction>(*m_value);
+}
+
+BasicBlock & InstructionValue::getBasicBlock() {
+	llvm::Instruction * instruction = asInstruction();
+	llvm::BasicBlock * llvmBasicBlock = instruction->getParent();
+	BasicBlockFactory & factory = BasicBlockFactory::instance();
+	BasicBlock * result = factory.getBasicBlock(llvmBasicBlock);
+}
+
 class ReturnInstValue : public Value {
 friend class ValueFactory;
 protected:
@@ -80,7 +97,7 @@ std::string ReturnInstValue::toString()  {
 	return oss.str();
 }
 
-class BinaryOperationValue : public Value {
+class BinaryOperationValue : public InstructionValue {
 friend class ValueFactory;
 protected:
 	llvm::BinaryOperator * asBinaryOperator() ;
@@ -89,13 +106,13 @@ protected:
 	virtual std::string getValueString() ;
 	virtual ap_coeff_t* getOperandCoefficient(
 			ap_lincons1_t & constraint, int i);
-	virtual bool doUpdate();
 	virtual void updateCoefficients(ap_lincons1_t & constraint) {
 		llvm::errs() << "Cannot extract coefficient\n";
 		exit(1);
 	}
 public:
 	BinaryOperationValue(llvm::Value * value) : Value(value) {}
+	virtual bool createLinearConstraint();
 };
 
 llvm::BinaryOperator * BinaryOperationValue::asBinaryOperator()  {
@@ -132,29 +149,28 @@ std::string BinaryOperationValue::getValueString()  {
 	return oss.str();
 }
 
-bool BinaryOperationValue::doUpdate() {
+bool BinaryOperationValue::createLinearConstraint() {
 	// What we want to do? x <- Some op. So create a linear constraint,
 	// where x == the op.
 	// In case of addition/subtraction, multiple elements with coeff 1
 	// In case of multiplication, single coefficient element
 	// For each operator: Get the coefficient. Set it to the relevant value
 	// Lastly, set the coefficient of this value
-	AbstractManagerSingleton & manager =
-			AbstractManagerSingleton::getInstance();
-	ap_environment_t * environment = manager.getEnvironment();
+	BasicBlock & basicBlock = getBasicBlock();
+	ap_environment_t * environment = basicBlock.getEnvironment();
 	ap_linexpr1_t expression = ap_linexpr1_make(
 			environment, AP_LINEXPR_SPARSE, 1);
 	ap_lincons1_t constraint = ap_lincons1_make(
 			AP_CONS_EQ, &expression, NULL);
 
-	updateCoefficients(constraint);
-
-	ap_coeff_t* coeff = getCoefficient(constraint);
+	ap_coeff_t* coeff = getCoefficient(&basicBlock, constraint);
 	ap_coeff_set_scalar_int(coeff,-1);
 
-	manager.appendConstraint(constraint);
+	updateCoefficients(constraint);
 
-	return false;
+	basicBlock.appendConstraint(constraint);
+
+	return constraint;
 }
 
 ap_coeff_t* BinaryOperationValue::getOperandCoefficient(
@@ -167,7 +183,7 @@ ap_coeff_t* BinaryOperationValue::getOperandCoefficient(
 		llvm::errs() << "Unknown value\n";
 		exit(1);
 	}
-	return operand->getCoefficient(constraint);
+	return operand->getCoefficient(&getBasicBlock(), constraint);
 }
 
 class AdditionOperationValue : public BinaryOperationValue {
@@ -180,7 +196,7 @@ protected:
 		ap_coeff_set_scalar_int(coeff,1);
 
 		coeff = getOperandCoefficient(constraint, 1);
-		ap_coeff_set_scalar_int(coeff,-1);
+		ap_coeff_set_scalar_int(coeff,1);
 	}
 public:
 	AdditionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
@@ -196,7 +212,7 @@ protected:
 		ap_coeff_set_scalar_int(coeff,1);
 
 		coeff = getOperandCoefficient(constraint, 1);
-		ap_coeff_set_scalar_int(coeff,-1);
+		ap_coeff_set_scalar_int(coeff,1);
 	}
 public:
 	SubtractionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
@@ -493,8 +509,7 @@ std::string CastOperationValue::getValueString() {
 }
 
 Value::Value(llvm::Value * value) : m_value(value),
-		m_name(llvmValueName(value)),
-		m_abst_value(AbstractManagerSingleton::getInstance().bottom())
+		m_name(llvmValueName(value))
 	{}
 
 int Value::valuesIndex = 0;
@@ -526,123 +541,27 @@ std::string Value::toString()  {
 	return oss.str();
 }
 
-bool Value::update() {
-	bool result = doUpdate();
-	ap_manager_t * manager =
-			AbstractManagerSingleton::getInstance().getManager();
-	ap_abstract1_fprint(stdout, manager, &m_abst_value);
-	return result;
-}
-
-bool Value::doUpdate() {
-	return false;
+ap_lincons1_t Value::createLinearConstraint(ap_lincons1_t & constraint) {
+	return NULL;
 }
 
 bool Value::isSkip() {
 	return false;
 }
 
-bool Value::join(Value & value) {
-	ap_abstract1_t prev = m_abst_value;
-	m_abst_value = ap_abstract1_join(
-			AbstractManagerSingleton::getInstance().getManager(),
-			false,
-			&m_abst_value,
-			&(value.m_abst_value));
-	ap_manager_t * manager =
-			AbstractManagerSingleton::getInstance().getManager();
-	printf("Prev value: ");
-	ap_abstract1_fprint(stdout, manager, &prev);
-	printf("Curr value: ");
-	ap_abstract1_fprint(stdout, manager, &m_abst_value);
-	return is_eq(prev);
-}
-
-bool Value::meet(Value & value) {
-	ap_abstract1_t prev = m_abst_value;
-	m_abst_value = ap_abstract1_meet(
-			AbstractManagerSingleton::getInstance().getManager(),
-			false,
-			&m_abst_value,
-			&(value.m_abst_value));
-	return is_eq(prev);
-}
-
-bool Value::isTop() {
-	return ap_abstract1_is_top(
-			AbstractManagerSingleton::getInstance().getManager(),
-			&m_abst_value);
-}
-
-bool Value::isBottom() {
-	return ap_abstract1_is_bottom(
-			AbstractManagerSingleton::getInstance().getManager(),
-			&m_abst_value);
-}
-
-bool Value::operator==(Value & value) {
-	return is_eq(value.m_abst_value);
-}
-
-bool Value::is_eq(ap_abstract1_t & value) {
-	return ap_abstract1_is_eq(
-			AbstractManagerSingleton::getInstance().getManager(),
-			&m_abst_value,
-			&value);
-}
-
 ap_var_t Value::varName() {
 	return (ap_var_t)getName().c_str();
 }
 
-ap_coeff_t* Value::getCoefficient(ap_lincons1_t & constraint) {
+ap_coeff_t* Value::getCoefficient(
+		BasicBlock * basicBlock, ap_lincons1_t & constraint) {
 	ap_var_t var = varName();
 	ap_coeff_t* coeff = ap_lincons1_coeffref(&constraint, var);
 	if (!coeff) {
-		AbstractManagerSingleton::getInstance().extendEnvironment(
-				this, constraint);
+		basicBlock->extendEnvironment(this, constraint);
 		coeff = ap_lincons1_coeffref(&constraint, var);
 	}
 	return coeff;
-}
-
-AbstractManagerSingleton * AbstractManagerSingleton::instance;
-AbstractManagerSingleton & AbstractManagerSingleton::getInstance() {
-	if (!instance) {
-		instance = new AbstractManagerSingleton();
-	}
-	return *instance;
-}
-
-AbstractManagerSingleton::AbstractManagerSingleton() : 
-		m_ap_manager(box_manager_alloc()),
-		m_ap_environment(ap_environment_alloc_empty()) {}
-
-ap_manager_t * AbstractManagerSingleton::getManager() {
-	return m_ap_manager;
-}
-
-ap_environment_t * AbstractManagerSingleton::getEnvironment() {
-	return m_ap_environment;
-}
-
-void AbstractManagerSingleton::extendEnvironment(
-		Value * value, ap_lincons1_t & constraint) {
-	ap_environment_t* env = getEnvironment();
-	ap_var_t var = value->varName();
-	// TODO Handle reals
-	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
-	ap_lincons1_extend_environment_with(&constraint, nenv);
-	m_ap_environment = nenv;
-	// TODO Memory leak?
-}
-
-ap_abstract1_t AbstractManagerSingleton::bottom() {
-	return ap_abstract1_bottom(getManager(), getEnvironment());
-}
-
-void AbstractManagerSingleton::appendConstraint(ap_lincons1_t & constraint) {
-	m_constraints.push_back(constraint);
 }
 
 std::ostream& operator<<(std::ostream& os, Value& value)

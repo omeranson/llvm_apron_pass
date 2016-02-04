@@ -1,6 +1,8 @@
 #ifndef VALUE_H
 #define VALUE_H
 
+#include <BasicBlock.h>
+
 #include <map>
 #include <string>
 #include <ostream>
@@ -31,51 +33,29 @@ public:
 	static ValueFactory * getInstance();
 };
 
-class AbstractManagerSingleton {
-protected:
-	static AbstractManagerSingleton * instance;
-	ap_manager_t * m_ap_manager;
-	ap_environment_t *m_ap_environment;
-	AbstractManagerSingleton();
-public:
-	// TODO Make protected
-	std::list<ap_lincons1_t> m_constraints;
-	static AbstractManagerSingleton & getInstance();
-	ap_manager_t * getManager();
-	ap_environment_t * getEnvironment();
-	ap_abstract1_t bottom();
-	void appendConstraint(ap_lincons1_t & constraint);
-	void extendEnvironment(Value * value, ap_lincons1_t & constraint);
-};
-
 class Value { 
 friend class ValueFactory;
 protected:
 	static int valuesIndex;
 	llvm::Value * m_value;
 	std::string m_name;
-	ap_abstract1_t m_abst_value;
 
 	Value(llvm::Value * value);
 	virtual std::string llvmValueName(llvm::Value * value);
 	virtual bool is_eq(ap_abstract1_t & value);
-	virtual bool doUpdate();
+	/* TODO Let's wait till we actually need it and it's too late */
+	// virtual BasicBlock & getBasicBlock();
 public:
 	virtual std::string getName();
 	virtual std::string getValueString();
 	virtual std::string toString();
-	virtual bool update();
 	virtual bool isSkip();
 
 	virtual ap_var_t varName();
 	virtual ap_coeff_t* getCoefficient(ap_lincons1_t & constraint);
-	virtual bool join(Value & value);
-	virtual bool meet(Value & value);
-	virtual bool isTop();
-	virtual bool isBottom();
-	virtual bool operator==(Value & value);
-
+	virtual ap_lincons1_t createLinearConstraint();
 };
+
 std::ostream& operator<<(std::ostream& os,  Value& value);
 std::ostream& operator<<(std::ostream& os,  Value* value);
 

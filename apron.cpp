@@ -26,43 +26,6 @@
 #include <Value.h>
 
 namespace {
-	static int basicBlockCount = 0;
-	class BasicBlock {
-	private:
-		static std::map<llvm::BasicBlock *, BasicBlock *> instances;
-		llvm::BasicBlock * basicBlock;
-		void initialiseBlockName() {
-			llvm::Twine iname(++basicBlockCount);
-			llvm::Twine name("BasicBlock ");
-			name.concat(iname);
-			basicBlock->setName(name);
-		}
-
-		BasicBlock(llvm::BasicBlock * bb) : basicBlock(bb) {
-			if (!basicBlock->hasName()) {
-				initialiseBlockName();
-			}
-		}
-	public:
-		static BasicBlock * getBasicBlock(llvm::BasicBlock * bb) {
-			std::map<llvm::BasicBlock *, BasicBlock *>::iterator it;
-			it = instances.find(bb);
-			if (it != instances.end()) {
-				return it->second;
-			}
-			BasicBlock * result = new BasicBlock(bb);
-			instances.insert(std::pair<llvm::BasicBlock *, BasicBlock*>(bb, result));
-			return result;
-		}
-
-		llvm::BasicBlock * getLLVMBasicBlock() {
-			return basicBlock;
-		}
-		const std::string getName() {
-			return basicBlock->getName();
-		}
-	};
-	std::map<llvm::BasicBlock *, BasicBlock *> BasicBlock::instances;
 /*
 	class Function {
 	private:
@@ -164,39 +127,6 @@ namespace {
 				ap_manager(box_manager_alloc()) {
 		}
 
-		bool processInstruction(llvm::Instruction & inst) {
-			const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
-			ValueFactory * factory = ValueFactory::getInstance();
-			Value * value = factory->getValue(&inst);
-			if (value && !value->isSkip()) {
-				std::cout << "\t\tApron: instruction: "
-						/*<< scope->getFilename()
-						<< ": " */
-						<< debugLoc.getLine()
-						<< ": "
-						<< value->toString()
-						<< "\n";
-				value->update();
-			}
-			return false;
-		}
-
-		/** Process the block. Return true if the block's context is
-		 *  modified.
-		 */
-		bool processBlock(BasicBlock * block) {
-			std::cout << "Processing block " <<
-					block->getName() << std::endl;
-			bool result = false;
-			llvm::BasicBlock * bb = block->getLLVMBasicBlock();
-			llvm::BasicBlock::iterator it;
-			for (it = bb->begin(); it != bb->end(); it ++) {
-				llvm::Instruction & inst = *it;
-				result |= processInstruction(inst);
-			}
-			return result;
-		}
-
 		bool isSeen(BasicBlock * block) {
 			return !(seen.find(block) == seen.end());
 		}
@@ -213,7 +143,10 @@ namespace {
 				worklist.pop_front();
 				bool wasSeen = isSeen(block);
 				see(block);
-				bool isModified = processBlock(block);
+				bool isModified = block->update();
+				printf("%s: isModified: %s, info: %s\n",
+						block->toString(),
+						isModified ? "True" : "False");
 				if (!wasSeen || isModified) {
 					callGraph.populateWithSuccessors(
 							worklist, block);
@@ -225,30 +158,10 @@ namespace {
 			printf("Apron: Library %s, version %s\n",
 					ap_manager->library,
 					ap_manager->version);
-			AbstractManagerSingleton & instance =
-					AbstractManagerSingleton::getInstance();
-			ap_environment_t * env = instance.getEnvironment();
-			std::list<ap_lincons1_t> & constraints =
-					instance.m_constraints;
-			ap_lincons1_array_t array = ap_lincons1_array_make(
-					env, constraints.size());
-			int idx = 0;
-			std::list<ap_lincons1_t>::iterator it;
-			for (it = constraints.begin(); it != constraints.end(); it++) {
-				ap_lincons1_t constraint = *it;
-				ap_lincons1_array_set(&array, idx++, &constraint);
-				fprintf(stdout,"Constraint: %p: ", constraint.lincons0.linexpr0);
-				ap_lincons1_fprint(stdout, &constraint);
-				fprintf(stdout,"\n");
+			std::set<BasicBlock *>::iterator it;
+			for (it = seen.begin(); it != seen.end(); it++) {
+				(*it)->print();
 			}
-			ap_abstract1_t abs = ap_abstract1_of_lincons_array(
-					instance.getManager(), env, &array);
-			fprintf(stdout,"Abstract value:\n");
-			ap_abstract1_fprint(
-					stdout, instance.getManager(), &abs);
-			// TODO Causes a crash
-			// fprintf(stdout,"Constraints (%d):\n", idx);
-			// ap_lincons1_array_fprint(stdout,&array);
 		}
 	};
 
