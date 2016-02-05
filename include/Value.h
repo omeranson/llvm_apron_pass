@@ -51,8 +51,7 @@ public:
 	virtual bool isSkip();
 
 	virtual ap_var_t varName();
-	virtual ap_coeff_t* getCoefficient(BasicBlock * basicBlock,
-			ap_lincons1_t & constraint);
+	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
 };
 
 std::ostream& operator<<(std::ostream& os,  Value& value);
@@ -61,10 +60,11 @@ std::ostream& operator<<(std::ostream& os,  Value* value);
 class InstructionValue : public Value {
 protected:
 	virtual llvm::Instruction * asInstruction();
-	virtual BasicBlock & getBasicBlock();
+	virtual BasicBlock * getBasicBlock();
 public:
 	InstructionValue(llvm::Value * value) : Value(value) {}
-	virtual ap_lincons1_t createLinearConstraint();
+	virtual ap_tcons1_t createTreeConstraint();
+	virtual ap_texpr1_t * createRHSTreeExpression();
 	virtual bool isSkip();
 };
 

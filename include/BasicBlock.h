@@ -41,10 +41,12 @@ protected:
 	virtual void initialiseBlockName();
 
 	virtual bool is_eq(ap_abstract1_t & value);
-	virtual void processInstruction(std::list<ap_lincons1_t> & constraints,
+	virtual void processInstruction(std::list<ap_tcons1_t> & constraints,
 			llvm::Instruction & inst);
-	virtual ap_lincons1_array_t createLincons1Array(
-			std::list<ap_lincons1_t> & constraints);
+	virtual ap_tcons1_array_t createTcons1Array(
+			std::list<ap_tcons1_t> & constraints);
+	virtual void addBogusInitialConstarints(
+		std::list<ap_tcons1_t>  & constraints);
 public:
 	virtual std::string getName();
 	virtual std::string toString();
@@ -59,8 +61,9 @@ public:
 
 	virtual ap_manager_t * getManager();
 	virtual ap_environment_t * getEnvironment();
-	virtual void extendEnvironment(
-			Value * value, ap_lincons1_t & constraint);
+	virtual void extendEnvironment(Value * value);
+	virtual ap_texpr1_t * getVariable(Value * value);
+	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
 };
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock);

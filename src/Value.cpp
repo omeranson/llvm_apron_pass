@@ -52,7 +52,26 @@ llvm::Instruction * InstructionValue::asInstruction() {
 	return &llvm::cast<llvm::Instruction>(*m_value);
 }
 
-ap_lincons1_t InstructionValue::createLinearConstraint() {
+ap_tcons1_t InstructionValue::createTreeConstraint() {
+	// TODO Consider making a global
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+
+	BasicBlock * basicBlock = getBasicBlock();
+	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
+	ap_texpr1_t * value_texpr = createRHSTreeExpression();
+
+	basicBlock->extendTexprEnvironment(var_texpr);
+	basicBlock->extendTexprEnvironment(value_texpr);
+
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_SUB, value_texpr, var_texpr, 
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
+	return result;
+}
+
+ap_texpr1_t * InstructionValue::createRHSTreeExpression() {
 	abort();
 }
 
@@ -60,12 +79,12 @@ bool InstructionValue::isSkip() {
 	return true;
 }
 
-BasicBlock & InstructionValue::getBasicBlock() {
+BasicBlock * InstructionValue::getBasicBlock() {
 	llvm::Instruction * instruction = asInstruction();
 	llvm::BasicBlock * llvmBasicBlock = instruction->getParent();
 	BasicBlockFactory & factory = BasicBlockFactory::getInstance();
 	BasicBlock * result = factory.getBasicBlock(llvmBasicBlock);
-	return *result;
+	return result;
 }
 
 class ReturnInstValue : public InstructionValue {
@@ -106,16 +125,12 @@ protected:
 	llvm::BinaryOperator * asBinaryOperator() ;
 	llvm::User * asUser() ;
 	virtual std::string getOperationSymbol()  = 0;
+	virtual ap_texpr_op_t getTreeOperation()  = 0;
 	virtual std::string getValueString() ;
-	virtual ap_coeff_t* getOperandCoefficient(
-			ap_lincons1_t & constraint, int i);
-	virtual void updateCoefficients(ap_lincons1_t & constraint) {
-		llvm::errs() << "Cannot extract coefficient\n";
-		exit(1);
-	}
+	virtual ap_texpr1_t * createRHSTreeExpression();
+	virtual ap_texpr1_t * createOperandTreeExpression(int idx);
 public:
 	BinaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
-	virtual ap_lincons1_t createLinearConstraint();
 	virtual bool isSkip();
 };
 
@@ -157,53 +172,38 @@ bool BinaryOperationValue::isSkip() {
 	return false;
 }
 
-ap_lincons1_t BinaryOperationValue::createLinearConstraint() {
-	// What we want to do? x <- Some op. So create a linear constraint,
-	// where x == the op.
-	// In case of addition/subtraction, multiple elements with coeff 1
-	// In case of multiplication, single coefficient element
-	// For each operator: Get the coefficient. Set it to the relevant value
-	// Lastly, set the coefficient of this value
-	BasicBlock & basicBlock = getBasicBlock();
-	ap_environment_t * environment = basicBlock.getEnvironment();
-	ap_linexpr1_t expression = ap_linexpr1_make(
-			environment, AP_LINEXPR_SPARSE, 1);
-	ap_lincons1_t constraint = ap_lincons1_make(
-			AP_CONS_EQ, &expression, NULL);
-
-	ap_coeff_t* coeff = getCoefficient(&basicBlock, constraint);
-	ap_coeff_set_scalar_int(coeff,-1);
-
-	updateCoefficients(constraint);
-
-	return constraint;
-}
-
-ap_coeff_t* BinaryOperationValue::getOperandCoefficient(
-		ap_lincons1_t & constraint, int i) {
-	llvm::User * binaryOp = asUser();
+ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(int idx) {
 	ValueFactory * factory = ValueFactory::getInstance();
-	llvm::Value * llvmOperand = binaryOp->getOperand(0);
+	llvm::Value * llvmOperand = asUser()->getOperand(idx);
 	Value * operand = factory->getValue(llvmOperand);
 	if (!operand) {
 		llvm::errs() << "Unknown value\n";
 		exit(1);
 	}
-	return operand->getCoefficient(&getBasicBlock(), constraint);
+	return operand->createTreeExpression(getBasicBlock());
+}
+
+ap_texpr1_t * BinaryOperationValue::createRHSTreeExpression() {
+
+	ap_texpr1_t * op0_texpr = createOperandTreeExpression(0);
+	ap_texpr1_t * op1_texpr = createOperandTreeExpression(1);
+	// TODO They don't have logical ops in #ap_texpr_op_t
+	ap_texpr_op_t operation = getTreeOperation();
+	// TODO Handle reals
+	// Align environments
+	BasicBlock * basicBlock = getBasicBlock();
+	basicBlock->extendTexprEnvironment(op0_texpr);
+	basicBlock->extendTexprEnvironment(op1_texpr);
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			operation, op0_texpr, op1_texpr,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	return texpr;
 }
 
 class AdditionOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return "+"; }
-	virtual void updateCoefficients(ap_lincons1_t & constraint) {
-		ap_coeff_t* coeff;
-
-		coeff = getOperandCoefficient(constraint, 0);
-		ap_coeff_set_scalar_int(coeff,1);
-
-		coeff = getOperandCoefficient(constraint, 1);
-		ap_coeff_set_scalar_int(coeff,1);
-	}
+	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_ADD; }
 public:
 	AdditionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 };
@@ -211,15 +211,7 @@ public:
 class SubtractionOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return "-"; }
-	virtual void updateCoefficients(ap_lincons1_t & constraint) {
-		ap_coeff_t* coeff;
-
-		coeff = getOperandCoefficient(constraint, 0);
-		ap_coeff_set_scalar_int(coeff,1);
-
-		coeff = getOperandCoefficient(constraint, 1);
-		ap_coeff_set_scalar_int(coeff,1);
-	}
+	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_SUB; }
 public:
 	SubtractionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 };
@@ -227,6 +219,7 @@ public:
 class MultiplicationOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return "*"; }
+	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MUL; }
 public:
 	MultiplicationOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 };
@@ -234,6 +227,7 @@ public:
 class DivisionOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return "/"; }
+	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_DIV; }
 public:
 	DivisionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 };
@@ -241,6 +235,7 @@ public:
 class RemainderOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return "%"; }
+	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MOD; }
 public:
 	RemainderOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 };
@@ -251,6 +246,7 @@ protected:
 	virtual std::string getConstantString()  = 0;
 public:
 	ConstantValue(llvm::Value * value) : Value(value) {}
+	virtual ap_texpr1_t* createTreeExpression(BasicBlock* basicBlock) = 0;
 };
 
 std::string ConstantValue::getValueString()  {
@@ -262,6 +258,7 @@ protected:
 	virtual std::string getConstantString() ;
 public:
 	ConstantIntValue(llvm::Value * value) : ConstantValue(value) {}
+	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
 };
 
 std::string ConstantIntValue::getConstantString()  {
@@ -270,11 +267,26 @@ std::string ConstantIntValue::getConstantString()  {
 	return apint.toString(10, true);
 }
 
+ap_texpr1_t * ConstantIntValue:: createTreeExpression(
+		BasicBlock * basicBlock) {
+	llvm::ConstantInt & intValue = llvm::cast<llvm::ConstantInt>(*m_value);
+	const llvm::APInt & apint = intValue.getValue();
+	uint64_t value = apint.getLimitedValue();
+	int64_t svalue = value;
+	if (apint.isNegative()) {
+		svalue = -value;
+	}
+	ap_texpr1_t * result = ap_texpr1_cst_scalar_int(
+			basicBlock->getEnvironment(), svalue);
+	return result;
+}
+
 class ConstantFloatValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
 public:
 	ConstantFloatValue(llvm::Value * value) : ConstantValue(value) {}
+	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
 };
 
 std::string ConstantFloatValue::getConstantString()  {
@@ -289,6 +301,16 @@ std::string ConstantFloatValue::getConstantString()  {
 		oss << *it;
 	}
 	*/
+}
+
+ap_texpr1_t * ConstantFloatValue::createTreeExpression(
+		BasicBlock * basicBlock) {
+	llvm::ConstantFP & fpValue = llvm::cast<llvm::ConstantFP>(*m_value);
+	const llvm::APFloat & apfloat = fpValue.getValueAPF();
+	double value = apfloat.convertToDouble();
+	ap_texpr1_t * result = ap_texpr1_cst_scalar_double(
+			basicBlock->getEnvironment(), value);
+	return result;
 }
 
 class CallValue : public Value {
@@ -345,6 +367,8 @@ bool CallValue::isSkip() {
 class CompareValue : public BinaryOperationValue {
 public:
 	CompareValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	// TODO These probably work differently
+	virtual ap_texpr_op_t getTreeOperation()  { abort(); }
 };
 
 class IntegerCompareValue : public CompareValue {
@@ -555,22 +579,8 @@ ap_var_t Value::varName() {
 	return (ap_var_t)getName().c_str();
 }
 
-ap_coeff_t* Value::getCoefficient(
-		BasicBlock * basicBlock, ap_lincons1_t & constraint) {
-	ap_var_t var = varName();
-	ap_coeff_t* coeff = ap_lincons1_coeffref(&constraint, var);
-	if (!coeff) {
-		basicBlock->extendEnvironment(this, constraint);
-		coeff = ap_lincons1_coeffref(&constraint, var);
-		if (!coeff) {
-			printf("This one is still not in env %p/%p: %p %s\n",
-					ap_lincons1_envref(&constraint),
-					basicBlock->getEnvironment(),
-					var, (char*)var);
-			abort();
-		}
-	}
-	return coeff;
+ap_texpr1_t * Value::createTreeExpression(BasicBlock * basicBlock) {
+	return basicBlock->getVariable(this);
 }
 
 std::ostream& operator<<(std::ostream& os, Value& value)
@@ -641,7 +651,7 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	//case llvm::BinaryOperator::IndirectBr:
 	//case llvm::BinaryOperator::Invoke:
 	//case llvm::BinaryOperator::Unreachable:
-	
+
 	// Standard binary operators...
 	case llvm::BinaryOperator::Add:
 	case llvm::BinaryOperator::FAdd:
@@ -660,18 +670,18 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	case llvm::BinaryOperator::SRem:
 	case llvm::BinaryOperator::FRem:
 		return new RemainderOperationValue(instruction);
-	
+
 	// Logical operators...
 	//case llvm::BinaryOperator::And:
 	//case llvm::BinaryOperator::Or :
 	//case llvm::BinaryOperator::Xor:
-	
+
 	// Memory instructions...
 	//case llvm::BinaryOperator::Alloca:
 	//case llvm::BinaryOperator::Load:
 	//case llvm::BinaryOperator::Store:
 	//case llvm::BinaryOperator::GetElementPtr:
-	
+
 	// Convert instructions...
 	case llvm::BinaryOperator::Trunc:
 	case llvm::BinaryOperator::ZExt:
@@ -686,7 +696,7 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	case llvm::BinaryOperator::PtrToInt:
 	case llvm::BinaryOperator::BitCast:
 		return new CastOperationValue(instruction);
-	
+
 	// Other instructions...
 	case llvm::BinaryOperator::ICmp:
 		return new IntegerCompareValue(instruction);
@@ -706,7 +716,7 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	//case llvm::BinaryOperator::ShuffleVector:
 	//case llvm::BinaryOperator::ExtractValue:
 	//case llvm::BinaryOperator::InsertValue:
-	
+
 	default:
 		//llvm::errs() << "<Invalid operator> " <<
 				//instruction->getOpcodeName() << "\n";

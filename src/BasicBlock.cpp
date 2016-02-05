@@ -80,16 +80,37 @@ ap_environment_t * BasicBlock::getEnvironment() {
 	return m_ap_environment;
 }
 
-void BasicBlock::extendEnvironment(Value * value, ap_lincons1_t & constraint) {
+void BasicBlock::extendEnvironment(Value * value) {
 	ap_environment_t* env = m_ap_environment;
 	ap_var_t var = value->varName();
 	// TODO Handle reals
 	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
-	ap_lincons1_extend_environment_with(&constraint, nenv);
 	m_ap_environment = nenv;
 	// TODO Memory leak?
 }
 
+ap_texpr1_t* BasicBlock::getVariable(Value * value) {
+	ap_var_t var = value->varName();
+	ap_texpr1_t* result = ap_texpr1_var(getEnvironment(), var);
+	if (!result) {
+		extendEnvironment(value);
+		// NOTE: getEnvironment() returns the *extended* environment
+		result = ap_texpr1_var(getEnvironment(), var);
+		if (!result) {
+			printf("This one is still not in env %p: %p %s\n",
+					getEnvironment(),
+					var, (char*)var);
+			abort();
+		}
+	}
+	return result;
+}
+
+void BasicBlock::extendTexprEnvironment(ap_texpr1_t * texpr) {
+	// returns true on error. WTF?
+	assert(!ap_texpr1_extend_environment_with(texpr, getEnvironment()));
+}
+	
 bool BasicBlock::join(BasicBlock & basicBlock) {
 	ap_abstract1_t prev = m_abst_value;
 	ap_manager_t * manager = getManager();
@@ -128,12 +149,36 @@ bool BasicBlock::operator==(BasicBlock & basicBlock) {
 	return is_eq(basicBlock.m_abst_value);
 }
 
+void BasicBlock::addBogusInitialConstarints(
+		std::list<ap_tcons1_t>  & constraints) {
+	char * y_name = "y";
+	char * z_name = "z";
+	ap_environment_t* env = getEnvironment();
+	env = ap_environment_add(env, (ap_var_t*)&y_name, 1, NULL, 0);
+	env = ap_environment_add(env, (ap_var_t*)&z_name, 1, NULL, 0);
+	m_ap_environment = env;
+
+	ap_texpr1_t* y = ap_texpr1_var(getEnvironment(), (ap_var_t)y_name);
+	ap_texpr1_t* z = ap_texpr1_var(getEnvironment(), (ap_var_t)z_name);
+
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+
+	ap_tcons1_t constraint1 = ap_tcons1_make(AP_CONS_SUP, y, zero);
+	ap_tcons1_t constraint2 = ap_tcons1_make(AP_CONS_SUP, z, zero);
+	
+	constraints.push_back(constraint1);
+	constraints.push_back(constraint2);
+}
+
 bool BasicBlock::update() {
 	/* Process the block. Return true if the block's context is modified.*/
 	std::cout << "Processing block " << getName() << std::endl;
-	std::list<ap_lincons1_t> constraints;
+	std::list<ap_tcons1_t> constraints;
 
 	ap_abstract1_t prev = m_abst_value;
+
+	addBogusInitialConstarints(constraints);
 
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
@@ -144,33 +189,48 @@ bool BasicBlock::update() {
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
 
-	ap_lincons1_array_t array = createLincons1Array(constraints);
-	ap_abstract1_t abs = ap_abstract1_of_lincons_array(
+	ap_tcons1_array_t array = createTcons1Array(constraints);
+	fprintf(stdout,"Constraints:\n");
+	ap_tcons1_array_fprint(stdout,&array);
+
+	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
 			manager, env, &array);
 	fprintf(stdout,"Abstract value:\n");
 	ap_abstract1_fprint(stdout, manager, &abs);
-
-	fprintf(stdout,"Constraints:\n");
-	ap_lincons1_array_fprint(stdout,&array);
 
 	m_abst_value = ap_abstract1_join(manager, false, &prev, &abs);
 	return is_eq(prev);
 }
 
-ap_lincons1_array_t BasicBlock::createLincons1Array(
-		std::list<ap_lincons1_t> & constraints) {
-	ap_lincons1_array_t array = ap_lincons1_array_make(
+ap_tcons1_array_t BasicBlock::createTcons1Array(
+		std::list<ap_tcons1_t> & constraints) {
+	ap_tcons1_array_t array = ap_tcons1_array_make(
 			getEnvironment(), constraints.size());
 	int idx = 0;
-	std::list<ap_lincons1_t>::iterator it;
+	std::list<ap_tcons1_t>::iterator it;
 	for (it = constraints.begin(); it != constraints.end(); it++) {
-		ap_lincons1_t & constraint = *it;
-		ap_lincons1_array_set(&array, idx++, &constraint);
+		ap_tcons1_t constraint = *it;
+		ap_tcons1_t * constraint_copy = new ap_tcons1_t;
+		*constraint_copy = ap_tcons1_copy(&constraint);
+		ap_tcons1_array_set(&array, idx++, constraint_copy);
+		fprintf(stdout,"Constraint %d: ", idx);
+		ap_tcons1_fprint(stdout,&constraint);
+		fprintf(stdout,"\n");
 	}
+	for (int cnt = 0; cnt < idx; cnt++) {
+		ap_tcons1_t constraint = ap_tcons1_array_get(&array, cnt);
+		fprintf(stdout,"Constraint (Re) %d: ", cnt);
+		ap_tcons1_fprint(stdout,&constraint);
+		fprintf(stdout,"\n");
+	}
+		
+	fprintf(stdout,"Constraints:\n");
+	ap_tcons1_array_fprint(stdout,&array);
+	fprintf(stdout,"\n");
 	return array;
 }
 
-void BasicBlock::processInstruction(std::list<ap_lincons1_t> & constraints,
+void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 		llvm::Instruction & inst) {
 	const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
 	// TODO Circular dependancy
@@ -183,9 +243,10 @@ void BasicBlock::processInstruction(std::list<ap_lincons1_t> & constraints,
 				<< value->toString() << "\n";
 		InstructionValue * instructionValue =
 				static_cast<InstructionValue*>(value);
-		ap_lincons1_t constraint =
-				instructionValue->createLinearConstraint();
-		ap_lincons1_fprint(stdout, &constraint);
+		ap_tcons1_t constraint =
+				instructionValue->createTreeConstraint();
+		printf("Constraint: ");
+		ap_tcons1_print(&constraint);
 		printf("\n");
 		constraints.push_back(constraint);
 	}

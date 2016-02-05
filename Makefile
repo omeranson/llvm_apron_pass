@@ -7,7 +7,7 @@ CXXFLAGS=$(shell llvm-config --cxxflags)
 CXXFLAGS+= -I${APRON_INSTALL}/include
 CXXFLAGS+= -Iinclude -fPIC -g
 LDFLAGS=$(shell llvm-config --ldflags)
-LDFLAGS+= -L${APRON_INSTALL}/lib -lapron
+LDFLAGS+= -L${APRON_INSTALL}/lib -lapron_debug
 LDFLAGS+= -shared -fPIC 
 CC=gcc
 
