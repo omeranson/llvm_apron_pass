@@ -64,6 +64,7 @@ public:
 	virtual void extendEnvironment(Value * value);
 	virtual ap_texpr1_t * getVariable(Value * value);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
+	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
 };
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock);

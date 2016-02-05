@@ -111,6 +111,11 @@ void BasicBlock::extendTexprEnvironment(ap_texpr1_t * texpr) {
 	assert(!ap_texpr1_extend_environment_with(texpr, getEnvironment()));
 }
 	
+void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
+	// returns true on error. WTF?
+	assert(!ap_tcons1_extend_environment_with(tcons, getEnvironment()));
+}
+
 bool BasicBlock::join(BasicBlock & basicBlock) {
 	ap_abstract1_t prev = m_abst_value;
 	ap_manager_t * manager = getManager();
@@ -164,8 +169,8 @@ void BasicBlock::addBogusInitialConstarints(
 	ap_scalar_t* zero = ap_scalar_alloc ();
 	ap_scalar_set_int(zero, 0);
 
-	ap_tcons1_t constraint1 = ap_tcons1_make(AP_CONS_SUP, y, zero);
-	ap_tcons1_t constraint2 = ap_tcons1_make(AP_CONS_SUP, z, zero);
+	ap_tcons1_t constraint1 = ap_tcons1_make(AP_CONS_SUPEQ, y, zero);
+	ap_tcons1_t constraint2 = ap_tcons1_make(AP_CONS_SUPEQ, z, zero);
 	
 	constraints.push_back(constraint1);
 	constraints.push_back(constraint2);
@@ -190,6 +195,7 @@ bool BasicBlock::update() {
 	ap_environment_t* env = getEnvironment();
 
 	ap_tcons1_array_t array = createTcons1Array(constraints);
+
 	fprintf(stdout,"Constraints:\n");
 	ap_tcons1_array_fprint(stdout,&array);
 
@@ -209,25 +215,33 @@ ap_tcons1_array_t BasicBlock::createTcons1Array(
 	int idx = 0;
 	std::list<ap_tcons1_t>::iterator it;
 	for (it = constraints.begin(); it != constraints.end(); it++) {
-		ap_tcons1_t constraint = *it;
-		ap_tcons1_t * constraint_copy = new ap_tcons1_t;
-		*constraint_copy = ap_tcons1_copy(&constraint);
-		ap_tcons1_array_set(&array, idx++, constraint_copy);
-		fprintf(stdout,"Constraint %d: ", idx);
-		ap_tcons1_fprint(stdout,&constraint);
-		fprintf(stdout,"\n");
+		ap_tcons1_t & constraint = *it;
+		extendTconsEnvironment(&constraint);
+		assert(!ap_tcons1_array_set(&array, idx++, &constraint));
 	}
-	for (int cnt = 0; cnt < idx; cnt++) {
-		ap_tcons1_t constraint = ap_tcons1_array_get(&array, cnt);
-		fprintf(stdout,"Constraint (Re) %d: ", cnt);
-		ap_tcons1_fprint(stdout,&constraint);
-		fprintf(stdout,"\n");
-	}
-		
-	fprintf(stdout,"Constraints:\n");
-	ap_tcons1_array_fprint(stdout,&array);
-	fprintf(stdout,"\n");
 	return array;
+}
+
+void BasicBlock::processAndJoinInstruction(llvm::Instruction & inst) {
+	const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
+	// TODO Circular dependancy
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * value = factory->getValue(&inst);
+	if (!value || value->isSkip()) {
+		return;
+	}
+	std::cout << "Apron: Instruction: "
+			/*<< scope->getFilename() << ": " */
+			<< debugLoc.getLine() << ": "
+			<< value->toString() << "\n";
+	InstructionValue * instructionValue =
+			static_cast<InstructionValue*>(value);
+	ap_tcons1_t constraint =
+			instructionValue->createTreeConstraint();
+	printf("Constraint: ");
+	ap_tcons1_print(&constraint);
+	printf("\n");
+	constraints.push_back(constraint);
 }
 
 void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
@@ -236,20 +250,21 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 	// TODO Circular dependancy
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(&inst);
-	if (value && !value->isSkip()) {
-		std::cout << "Apron: Instruction: "
-				/*<< scope->getFilename() << ": " */
-				<< debugLoc.getLine() << ": "
-				<< value->toString() << "\n";
-		InstructionValue * instructionValue =
-				static_cast<InstructionValue*>(value);
-		ap_tcons1_t constraint =
-				instructionValue->createTreeConstraint();
-		printf("Constraint: ");
-		ap_tcons1_print(&constraint);
-		printf("\n");
-		constraints.push_back(constraint);
+	if (!value || value->isSkip()) {
+		return;
 	}
+	std::cout << "Apron: Instruction: "
+			/*<< scope->getFilename() << ": " */
+			<< debugLoc.getLine() << ": "
+			<< value->toString() << "\n";
+	InstructionValue * instructionValue =
+			static_cast<InstructionValue*>(value);
+	ap_tcons1_t constraint =
+			instructionValue->createTreeConstraint();
+	printf("Constraint: ");
+	ap_tcons1_print(&constraint);
+	printf("\n");
+	constraints.push_back(constraint);
 }
 
 std::string BasicBlock::toString() {
