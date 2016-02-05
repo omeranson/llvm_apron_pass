@@ -378,6 +378,7 @@ protected:
 	virtual std::string getOperationSymbol();
 public:
 	IntegerCompareValue(llvm::Value * value) : CompareValue(value) {}
+	virtual bool isSkip();
 };
 
 llvm::ICmpInst * IntegerCompareValue::asICmpInst() {
@@ -433,6 +434,10 @@ std::string IntegerCompareValue::getPredicateString() {
 
 std::string IntegerCompareValue::getOperationSymbol() {
 	return getPredicateString();
+}
+
+bool IntegerCompareValue::isSkip() {
+	return true;
 }
 
 class PhiValue : public Value {

@@ -116,30 +116,76 @@ void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
 	assert(!ap_tcons1_extend_environment_with(tcons, getEnvironment()));
 }
 
-bool BasicBlock::join(BasicBlock & basicBlock) {
+bool BasicBlock::join(ap_abstract1_t & abst_value) {
 	ap_abstract1_t prev = m_abst_value;
 	ap_manager_t * manager = getManager();
-	m_abst_value = ap_abstract1_join(
-			manager,
-			false,
-			&m_abst_value,
-			&(basicBlock.m_abst_value));
-	printf("Prev value: ");
+	m_abst_value = ap_abstract1_change_environment(manager, false,
+			&m_abst_value, getEnvironment(), false);
+	m_abst_value = ap_abstract1_join(manager, false,
+			&m_abst_value, &abst_value);
+	printf("Join: Prev value: ");
 	ap_abstract1_fprint(stdout, manager, &prev);
-	printf("Curr value: ");
+	printf("Join: Curr value: ");
 	ap_abstract1_fprint(stdout, manager, &m_abst_value);
 	return is_eq(prev);
 }
 
-bool BasicBlock::meet(BasicBlock & basicBlock) {
+bool BasicBlock::join(std::list<ap_abstract1_t> & abst_values) {
+	std::list<ap_abstract1_t>::iterator it;
+	bool result = false;
+	for (it = abst_values.begin(); it != abst_values.end(); it++) {
+		ap_abstract1_t & value = *it;
+		result |= join(value);
+	}
+	return result;
+}
+
+bool BasicBlock::join(ap_tcons1_t & constraint) {
+	ap_tcons1_array_t array = ap_tcons1_array_make(getEnvironment(), 1);
+	extendTconsEnvironment(&constraint);
+	assert(!ap_tcons1_array_set(&array, 0, &constraint));
+	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
+			getManager(), getEnvironment(), &array);
+	return join(abs);
+}
+
+bool BasicBlock::join(BasicBlock & basicBlock) {
+	return join(m_abst_value);
+}
+
+bool BasicBlock::meet(ap_abstract1_t & abst_value) {
 	ap_abstract1_t prev = m_abst_value;
 	ap_manager_t * manager = getManager();
-	m_abst_value = ap_abstract1_meet(
-			manager,
-			false,
-			&m_abst_value,
-			&(basicBlock.m_abst_value));
+	m_abst_value = ap_abstract1_unify(manager, false,
+			&m_abst_value, &abst_value);
+	printf("Meet: Prev value: ");
+	ap_abstract1_fprint(stdout, manager, &prev);
+	printf("Meet: Curr value: ");
+	ap_abstract1_fprint(stdout, manager, &m_abst_value);
 	return is_eq(prev);
+}
+
+bool BasicBlock::meet(std::list<ap_abstract1_t> & abst_values) {
+	std::list<ap_abstract1_t>::iterator it;
+	bool result = false;
+	for (it = abst_values.begin(); it != abst_values.end(); it++) {
+		ap_abstract1_t & value = *it;
+		result |= meet(value);
+	}
+	return result;
+}
+
+bool BasicBlock::meet(ap_tcons1_t & constraint) {
+	ap_tcons1_array_t array = ap_tcons1_array_make(getEnvironment(), 1);
+	extendTconsEnvironment(&constraint);
+	assert(!ap_tcons1_array_set(&array, 0, &constraint));
+	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
+			getManager(), getEnvironment(), &array);
+	return meet(abs);
+}
+
+bool BasicBlock::meet(BasicBlock & basicBlock) {
+	return meet(m_abst_value);
 }
 
 bool BasicBlock::isTop() {
@@ -222,13 +268,13 @@ ap_tcons1_array_t BasicBlock::createTcons1Array(
 	return array;
 }
 
-void BasicBlock::processAndJoinInstruction(llvm::Instruction & inst) {
+bool BasicBlock::processAndJoinInstruction(llvm::Instruction & inst) {
 	const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
 	// TODO Circular dependancy
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(&inst);
 	if (!value || value->isSkip()) {
-		return;
+		return false;
 	}
 	std::cout << "Apron: Instruction: "
 			/*<< scope->getFilename() << ": " */
@@ -241,7 +287,30 @@ void BasicBlock::processAndJoinInstruction(llvm::Instruction & inst) {
 	printf("Constraint: ");
 	ap_tcons1_print(&constraint);
 	printf("\n");
-	constraints.push_back(constraint);
+	return join(constraint);
+}
+
+// TODO Copied code from processAndJoin...
+bool BasicBlock::processAndMeetInstruction(llvm::Instruction & inst) {
+	const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
+	// TODO Circular dependancy
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * value = factory->getValue(&inst);
+	if (!value || value->isSkip()) {
+		return false;
+	}
+	std::cout << "Apron: Instruction: "
+			/*<< scope->getFilename() << ": " */
+			<< debugLoc.getLine() << ": "
+			<< value->toString() << "\n";
+	InstructionValue * instructionValue =
+			static_cast<InstructionValue*>(value);
+	ap_tcons1_t constraint =
+			instructionValue->createTreeConstraint();
+	printf("Constraint: ");
+	ap_tcons1_print(&constraint);
+	printf("\n");
+	return meet(constraint);
 }
 
 void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,

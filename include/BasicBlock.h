@@ -45,8 +45,10 @@ protected:
 			llvm::Instruction & inst);
 	virtual ap_tcons1_array_t createTcons1Array(
 			std::list<ap_tcons1_t> & constraints);
-	virtual void addBogusInitialConstarints(
+	virtual bool addBogusInitialConstarints(
 		std::list<ap_tcons1_t>  & constraints);
+	virtual bool processAndJoinInstruction(llvm::Instruction & inst);
+	virtual bool processAndMeetInstruction(llvm::Instruction & inst);
 public:
 	virtual std::string getName();
 	virtual std::string toString();
@@ -54,7 +56,14 @@ public:
 	virtual bool update();
 
 	virtual bool join(BasicBlock & basicBlock);
+	virtual bool join(ap_abstract1_t & abst_value);
+	virtual bool join(std::list<ap_abstract1_t> & abst_values);
+	virtual bool join(ap_tcons1_t & constraint);
+	// TODO Overload meet functions - same as join
 	virtual bool meet(BasicBlock & basicBlock);
+	virtual bool meet(ap_abstract1_t & abst_value);
+	virtual bool meet(std::list<ap_abstract1_t> & abst_values);
+	virtual bool meet(ap_tcons1_t & constraint);
 	virtual bool isTop();
 	virtual bool isBottom();
 	virtual bool operator==(BasicBlock & basicBlock);
