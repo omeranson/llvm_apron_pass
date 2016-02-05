@@ -43,12 +43,8 @@ protected:
 	virtual bool is_eq(ap_abstract1_t & value);
 	virtual void processInstruction(std::list<ap_tcons1_t> & constraints,
 			llvm::Instruction & inst);
-	virtual ap_tcons1_array_t createTcons1Array(
-			std::list<ap_tcons1_t> & constraints);
-	virtual bool addBogusInitialConstarints(
+	virtual void addBogusInitialConstarints(
 		std::list<ap_tcons1_t>  & constraints);
-	virtual bool processAndJoinInstruction(llvm::Instruction & inst);
-	virtual bool processAndMeetInstruction(llvm::Instruction & inst);
 public:
 	virtual std::string getName();
 	virtual std::string toString();
@@ -74,6 +70,10 @@ public:
 	virtual ap_texpr1_t * getVariable(Value * value);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
+	virtual ap_abstract1_t abstractOfTconsList(
+			std::list<ap_tcons1_t> & constraints);
+	virtual ap_tcons1_array_t createTcons1Array(
+			std::list<ap_tcons1_t> & constraints);
 };
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock);

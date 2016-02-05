@@ -63,7 +63,8 @@ protected:
 	virtual BasicBlock * getBasicBlock();
 public:
 	InstructionValue(llvm::Value * value) : Value(value) {}
-	virtual ap_tcons1_t createTreeConstraint();
+	virtual void populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints);
 	virtual ap_texpr1_t * createRHSTreeExpression();
 	virtual bool isSkip();
 };

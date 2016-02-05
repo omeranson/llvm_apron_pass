@@ -16,6 +16,18 @@
 #include <llvm/DebugInfo.h>
 #include <llvm/IR/Constants.h>
 
+typedef enum {
+	cons_cond_eq,
+	cons_cond_eqmod,
+	cons_cond_neq,
+	cons_cond_gt,
+	cons_cond_ge,
+	cons_cond_lt,
+	cons_cond_le,
+	cons_cond_true,
+	cons_cond_false
+} constraint_condition_t;
+
 void appendValueName(std::ostringstream & oss,
 		Value * value, std::string missing) {
 	if (value) {
@@ -52,8 +64,9 @@ llvm::Instruction * InstructionValue::asInstruction() {
 	return &llvm::cast<llvm::Instruction>(*m_value);
 }
 
-ap_tcons1_t InstructionValue::createTreeConstraint() {
-	// TODO Consider making a global
+void InstructionValue::populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints) {
+	// TODO consider making a global
 	ap_scalar_t* zero = ap_scalar_alloc ();
 	ap_scalar_set_int(zero, 0);
 
@@ -68,7 +81,7 @@ ap_tcons1_t InstructionValue::createTreeConstraint() {
 			AP_TEXPR_SUB, value_texpr, var_texpr, 
 			AP_RTYPE_INT, AP_RDIR_ZERO);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
-	return result;
+	constraints.push_back(result);
 }
 
 ap_texpr1_t * InstructionValue::createRHSTreeExpression() {
@@ -128,9 +141,9 @@ protected:
 	virtual ap_texpr_op_t getTreeOperation()  = 0;
 	virtual std::string getValueString() ;
 	virtual ap_texpr1_t * createRHSTreeExpression();
-	virtual ap_texpr1_t * createOperandTreeExpression(int idx);
 public:
 	BinaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual ap_texpr1_t * createOperandTreeExpression(int idx);
 	virtual bool isSkip();
 };
 
@@ -178,7 +191,7 @@ ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(int idx) {
 	Value * operand = factory->getValue(llvmOperand);
 	if (!operand) {
 		llvm::errs() << "Unknown value\n";
-		exit(1);
+		abort();
 	}
 	return operand->createTreeExpression(getBasicBlock());
 }
@@ -369,6 +382,8 @@ public:
 	CompareValue(llvm::Value * value) : BinaryOperationValue(value) {}
 	// TODO These probably work differently
 	virtual ap_texpr_op_t getTreeOperation()  { abort(); }
+	virtual constraint_condition_t getConditionType() = 0;
+	virtual constraint_condition_t getNegatedConditionType() = 0;
 };
 
 class IntegerCompareValue : public CompareValue {
@@ -379,6 +394,8 @@ protected:
 public:
 	IntegerCompareValue(llvm::Value * value) : CompareValue(value) {}
 	virtual bool isSkip();
+	virtual constraint_condition_t getConditionType();
+	virtual constraint_condition_t getNegatedConditionType();
 };
 
 llvm::ICmpInst * IntegerCompareValue::asICmpInst() {
@@ -432,6 +449,98 @@ std::string IntegerCompareValue::getPredicateString() {
 	return "???";
 }
 
+constraint_condition_t IntegerCompareValue::getConditionType() {
+	llvm::CmpInst::Predicate predicate = asICmpInst()->getSignedPredicate();
+	switch (predicate) {
+	case llvm::CmpInst::FCMP_FALSE:
+		return cons_cond_false;
+	case llvm::CmpInst::FCMP_TRUE:
+		return cons_cond_true;
+
+	case llvm::CmpInst::ICMP_EQ:
+		return cons_cond_eq;
+	case llvm::CmpInst::ICMP_NE:
+		return cons_cond_neq;
+	case llvm::CmpInst::ICMP_UGT:
+	case llvm::CmpInst::ICMP_SGT:
+		return cons_cond_gt;
+	case llvm::CmpInst::ICMP_UGE:
+	case llvm::CmpInst::ICMP_SGE:
+		return cons_cond_ge;
+	case llvm::CmpInst::ICMP_ULT:
+	case llvm::CmpInst::ICMP_SLT:
+		return cons_cond_lt;
+	case llvm::CmpInst::ICMP_ULE:
+	case llvm::CmpInst::ICMP_SLE:
+		return cons_cond_le;
+	case llvm::CmpInst::FCMP_OEQ:
+	case llvm::CmpInst::FCMP_OGT:
+	case llvm::CmpInst::FCMP_OGE:
+	case llvm::CmpInst::FCMP_OLT:
+	case llvm::CmpInst::FCMP_OLE:
+	case llvm::CmpInst::FCMP_ONE:
+	case llvm::CmpInst::FCMP_ORD:
+	case llvm::CmpInst::FCMP_UNO:
+	case llvm::CmpInst::FCMP_UEQ:
+	case llvm::CmpInst::FCMP_UGT:
+	case llvm::CmpInst::FCMP_UGE:
+	case llvm::CmpInst::FCMP_ULT:
+	case llvm::CmpInst::FCMP_ULE:
+	case llvm::CmpInst::FCMP_UNE:
+	case llvm::CmpInst::BAD_FCMP_PREDICATE:
+	case llvm::CmpInst::BAD_ICMP_PREDICATE:
+	deafult:
+		// Unknown, or bad
+		abort();
+	}
+}
+
+constraint_condition_t IntegerCompareValue::getNegatedConditionType() {
+	llvm::CmpInst::Predicate predicate = asICmpInst()->getSignedPredicate();
+	switch (predicate) {
+	case llvm::CmpInst::FCMP_FALSE:
+		return cons_cond_true;
+	case llvm::CmpInst::FCMP_TRUE:
+		return cons_cond_false;
+
+	case llvm::CmpInst::ICMP_EQ:
+		return cons_cond_neq;
+	case llvm::CmpInst::ICMP_NE:
+		return cons_cond_eq;
+	case llvm::CmpInst::ICMP_UGT:
+	case llvm::CmpInst::ICMP_SGT:
+		return cons_cond_le;
+	case llvm::CmpInst::ICMP_UGE:
+	case llvm::CmpInst::ICMP_SGE:
+		return cons_cond_lt;
+	case llvm::CmpInst::ICMP_ULT:
+	case llvm::CmpInst::ICMP_SLT:
+		return cons_cond_ge;
+	case llvm::CmpInst::ICMP_ULE:
+	case llvm::CmpInst::ICMP_SLE:
+		return cons_cond_gt;
+	case llvm::CmpInst::FCMP_OEQ:
+	case llvm::CmpInst::FCMP_OGT:
+	case llvm::CmpInst::FCMP_OGE:
+	case llvm::CmpInst::FCMP_OLT:
+	case llvm::CmpInst::FCMP_OLE:
+	case llvm::CmpInst::FCMP_ONE:
+	case llvm::CmpInst::FCMP_ORD:
+	case llvm::CmpInst::FCMP_UNO:
+	case llvm::CmpInst::FCMP_UEQ:
+	case llvm::CmpInst::FCMP_UGT:
+	case llvm::CmpInst::FCMP_UGE:
+	case llvm::CmpInst::FCMP_ULT:
+	case llvm::CmpInst::FCMP_ULE:
+	case llvm::CmpInst::FCMP_UNE:
+	case llvm::CmpInst::BAD_FCMP_PREDICATE:
+	case llvm::CmpInst::BAD_ICMP_PREDICATE:
+	deafult:
+		// Unknown, or bad
+		abort();
+	}
+}
+
 std::string IntegerCompareValue::getOperationSymbol() {
 	return getPredicateString();
 }
@@ -469,22 +578,37 @@ std::string PhiValue::getValueString() {
 	return oss.str();
 }
 
-class SelectValue : public Value {
+class SelectValueInstruction : public InstructionValue {
 protected:
 	virtual llvm::SelectInst * asSelectInst();
 	virtual Value * getCondition();
 	virtual Value * getTrueValue();
 	virtual Value * getFalseValue();
+
+	virtual ap_constyp_t constraintConditionToAPConsType(
+			constraint_condition_t consCond);
+	virtual bool isConstraintConditionToAPNeedsReverse(
+			constraint_condition_t consCond);
+	virtual ap_tcons1_t getConditionTcons(constraint_condition_t consCond);
+	virtual ap_tcons1_t getConditionTrueTcons();
+	virtual ap_tcons1_t getConditionFalseTcons();
+	virtual ap_tcons1_t getSetValueTcons(Value * value);
+	virtual ap_tcons1_t getSetTrueValueTcons();
+	virtual ap_tcons1_t getSetFalseValueTcons();
+
 public:
-	SelectValue(llvm::Value * value) : Value(value) {}
+	SelectValueInstruction(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
+	virtual void populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints);
+	virtual bool isSkip();
 };
 
-llvm::SelectInst * SelectValue::asSelectInst() {
+llvm::SelectInst * SelectValueInstruction::asSelectInst() {
 	return &llvm::cast<llvm::SelectInst>(*m_value);
 }
 
-Value * SelectValue::getCondition() {
+Value * SelectValueInstruction::getCondition() {
 	ValueFactory * factory = ValueFactory::getInstance();
 	llvm::Value * condition = asSelectInst()->getCondition();
 	Value * result = factory->getValue(condition);
@@ -494,17 +618,17 @@ Value * SelectValue::getCondition() {
 	return result;
 }
 
-Value * SelectValue::getTrueValue() {
+Value * SelectValueInstruction::getTrueValue() {
 	ValueFactory * factory = ValueFactory::getInstance();
 	return factory->getValue(asSelectInst()->getTrueValue());
 }
 
-Value * SelectValue::getFalseValue() {
+Value * SelectValueInstruction::getFalseValue() {
 	ValueFactory * factory = ValueFactory::getInstance();
 	return factory->getValue(asSelectInst()->getFalseValue());
 }
 
-std::string SelectValue::getValueString() {
+std::string SelectValueInstruction::getValueString() {
 	std::ostringstream oss;
 	oss << "(";
 	appendValue(oss, getCondition(), "<unknown condition>") ;
@@ -514,6 +638,174 @@ std::string SelectValue::getValueString() {
 	appendValue(oss, getFalseValue(), "<unknown value>") ;
 	oss << ")";
 	return oss.str();
+}
+
+ap_constyp_t SelectValueInstruction::constraintConditionToAPConsType(
+		constraint_condition_t consCond) {
+	switch (consCond) {
+	case cons_cond_eq:
+		return AP_CONS_EQ;
+	case cons_cond_eqmod:
+		return AP_CONS_EQMOD;
+	case cons_cond_neq:
+		return AP_CONS_DISEQ;
+	case cons_cond_gt:
+		return AP_CONS_SUP;
+	case cons_cond_ge:
+		return AP_CONS_SUPEQ;
+	case cons_cond_lt:
+		return AP_CONS_SUP;
+	case cons_cond_le:
+		return AP_CONS_SUPEQ;
+	case cons_cond_true:
+		abort();
+	case cons_cond_false:
+		abort();
+	default:
+		abort();
+	}
+}
+bool SelectValueInstruction::isConstraintConditionToAPNeedsReverse(
+		constraint_condition_t consCond) {
+	switch (consCond) {
+	case cons_cond_lt:
+	case cons_cond_le:
+		return true;
+	default:
+		return false;
+	}
+}
+
+ap_tcons1_t SelectValueInstruction::getConditionTcons(
+		constraint_condition_t consCond) {
+	// TODO definitely make into a global
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	Value * condition = getCondition();
+	CompareValue * compareValue = static_cast<CompareValue*>(condition);
+	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
+	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
+	ap_texpr1_t * left = compareValue->createOperandTreeExpression(0);
+	ap_texpr1_t * right = compareValue->createOperandTreeExpression(1);
+	ap_texpr1_t * texpr ;
+	if (reverse) {
+		texpr = ap_texpr1_binop(
+				AP_TEXPR_SUB, right, left,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	} else {
+		texpr = ap_texpr1_binop(
+				AP_TEXPR_SUB, left, right, 
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	}
+	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
+	return result;
+}
+
+ap_tcons1_t SelectValueInstruction::getConditionTrueTcons() {
+	Value * condition = getCondition();
+	CompareValue * compareValue = static_cast<CompareValue*>(condition);
+	return getConditionTcons(compareValue->getConditionType());
+}
+
+ap_tcons1_t SelectValueInstruction::getConditionFalseTcons() {
+	Value * condition = getCondition();
+	CompareValue * compareValue = static_cast<CompareValue*>(condition);
+	return getConditionTcons(compareValue->getNegatedConditionType());
+}
+
+ap_tcons1_t SelectValueInstruction::getSetValueTcons(Value * value) {
+	BasicBlock * basicBlock = getBasicBlock();
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
+	ap_texpr1_t * value_texpr = value->createTreeExpression(basicBlock);
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_SUB, value_texpr, var_texpr, 
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
+	return result;
+}
+
+ap_tcons1_t SelectValueInstruction::getSetTrueValueTcons() {
+	return getSetValueTcons(getTrueValue());
+}
+
+ap_tcons1_t SelectValueInstruction::getSetFalseValueTcons() {
+	return getSetValueTcons(getFalseValue());
+}
+
+void SelectValueInstruction::populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints) {
+	/* 
+	The command is %4 <- select %1, %2, %3
+	We have all the information (it is in the list<ap_tcons1_t>). What if we
+	do the following?:
+		arr1 <- Create a constraint array
+		arr2 <- clone it
+
+		arr1.append(%1)
+		arr1.append(%2 - %4 = 0)
+
+		arr2.append(!%1)
+		arr2.append(%3 - %4 = 0)
+
+		abst_val1 <- from arr 1
+		abst_val2 <- from arr 2
+		abst_val = join(abst_val1, abst_val2)
+		arr <- abst_val to list of constraints
+	*/
+	printf("%s: Enter populateTreeConstraints\n", toString().c_str());
+	std::list<ap_tcons1_t> constraintsTrue = constraints;
+	std::list<ap_tcons1_t> constraintsFalse = constraints;
+
+	ap_tcons1_t conditionTrue = getConditionTrueTcons();
+	ap_tcons1_t setTrueValue = getSetTrueValueTcons();
+	ap_tcons1_t conditionFalse = getConditionFalseTcons();
+	ap_tcons1_t setFalseValue = getSetFalseValueTcons();
+
+	constraintsTrue.push_back(conditionTrue);
+	constraintsTrue.push_back(setTrueValue);
+	constraintsFalse.push_back(conditionFalse);
+	constraintsFalse.push_back(setFalseValue);
+
+	BasicBlock * basicBlock = getBasicBlock();
+	printf("Creating true value:\n");
+	ap_abstract1_t abstValueTrue =
+			basicBlock->abstractOfTconsList(constraintsTrue);
+	printf("Creating false value:\n");
+	ap_abstract1_t abstValueFalse =
+			basicBlock->abstractOfTconsList(constraintsFalse);
+
+	printf("Joining:\n");
+	ap_abstract1_t joinedValue = ap_abstract1_join(basicBlock->getManager(),
+			false, &abstValueTrue, &abstValueFalse);
+	
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
+			basicBlock->getManager(), &joinedValue);
+	printf("%s::::::::::::::::::::::::::::::::::::::::\n", toString().c_str());
+
+	printf("True value: ");
+	ap_abstract1_fprint(stdout, basicBlock->getManager(), &abstValueTrue);
+	/*ap_tcons1_array_t constraintsTrueArray =
+			basicBlock->createTcons1Array(constraintsTrue);
+	ap_tcons1_array_fprint(stdout, &constraintsTrueArray);*/
+	printf("\n");
+	printf("False value: ");
+	ap_abstract1_fprint(stdout, basicBlock->getManager(), &abstValueFalse);
+	/*ap_tcons1_array_t constraintsFalseArray =
+			basicBlock->createTcons1Array(constraintsFalse);
+	ap_tcons1_array_fprint(stdout, &constraintsFalseArray);*/
+	printf("\n");
+	printf("Joined value: ");
+	ap_abstract1_fprint(stdout, basicBlock->getManager(), &joinedValue);
+	printf("\n");
+	ap_tcons1_array_fprint(stdout, &array);
+	printf("\n");
+	printf("%s::::::::::::::::::::::::::::::::::::::::\n", toString().c_str());
+}
+
+bool SelectValueInstruction::isSkip() {
+	return false;
 }
 
 class UnaryOperationValue : public Value {
@@ -709,7 +1001,7 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	case llvm::BinaryOperator::PHI:
 		return new PhiValue(instruction);
 	case llvm::BinaryOperator::Select:
-		return new SelectValue(instruction);
+		return new SelectValueInstruction(instruction);
 	case llvm::BinaryOperator::Call:
 		return new CallValue(instruction);
 	//case llvm::BinaryOperator::Shl:
