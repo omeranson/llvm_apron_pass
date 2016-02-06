@@ -38,62 +38,6 @@ namespace {
 		BasicBlock * root;
 	}
 	*/
-	class CallGraph {
-	private:
-		std::multimap<BasicBlock *, BasicBlock *> nexts;
-		BasicBlock * root;
-		std::string name;
-	public:
-		CallGraph(std::string name, BasicBlock * root) : root(root), name(name) {
-			BasicBlockManager & factory = BasicBlockManager::getInstance();
-			std::list<llvm::BasicBlock *> worklist;
-			std::set<llvm::BasicBlock *> seen;
-			worklist.push_back(root->getLLVMBasicBlock());
-			while (!worklist.empty()) {
-				llvm::BasicBlock * bb = worklist.front();
-				BasicBlock * bb1 = factory.getBasicBlock(bb);
-				worklist.pop_front();
-				const llvm::TerminatorInst *TInst = bb->getTerminator();
-				int NSucc = TInst->getNumSuccessors();
-				for (unsigned succIdx = 0; succIdx < NSucc; ++succIdx) {
-					llvm::BasicBlock * succ = TInst->getSuccessor(succIdx);
-					nexts.insert(std::pair<BasicBlock*,BasicBlock*>(bb1, factory.getBasicBlock(succ)));
-					if (seen.find(succ) == seen.end()) {
-						worklist.push_back(succ);
-						seen.insert(succ);
-					}
-				}
-			}
-		}
-
-		BasicBlock * getRoot() {
-			return root;
-		}
-
-		void populateWithSuccessors(std::list<BasicBlock *> & list,
-				BasicBlock * block) {
-			std::multimap<BasicBlock *, BasicBlock *>::iterator it;
-			std::multimap<BasicBlock *, BasicBlock *>::iterator stop;
-			stop = nexts.upper_bound(block);
-			for (it = nexts.lower_bound(block); it != stop; it++) {
-				std::cerr << block->getName() << " -> " << it->second->getName() << std::endl;
-				list.push_back(it->second);
-			}
-		}
-
-		void printAsDot() {
-			std::multimap<BasicBlock *, BasicBlock *>::iterator it;
-			std::cout << "digraph \"" << name << "\" {" << std::endl;
-			for (it = nexts.begin(); it != nexts.end(); it++) {
-				std::cout << "\t"
-						<< "\"" << it->first->getName() << "\""
-						<< " -> "
-						<< "\"" << it->second->getName() << "\""
-						<< std::endl;
-			}
-			std::cout << "}" << std::endl;
-		}
-	};
 
 	/** Holds a (possibly abstract) value.
 	 *  Abstract domains to extend this parameter.
