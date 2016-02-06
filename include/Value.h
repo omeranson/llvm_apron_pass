@@ -52,6 +52,8 @@ public:
 
 	virtual ap_var_t varName();
 	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
+	virtual ap_tcons1_t getSetValueTcons(
+			BasicBlock * basicBlock, Value * other);
 };
 
 std::ostream& operator<<(std::ostream& os,  Value& value);

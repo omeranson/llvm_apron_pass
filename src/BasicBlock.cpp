@@ -13,19 +13,19 @@
 #include <pk.h>
 #include <pkeq.h>
 
-/*			       BasicBlockFactory			     */
-BasicBlockFactory BasicBlockFactory::instance;
-BasicBlockFactory & BasicBlockFactory::getInstance() {
+/*			       BasicBlockManager			     */
+BasicBlockManager BasicBlockManager::instance;
+BasicBlockManager & BasicBlockManager::getInstance() {
 	return instance;
 }
 
-BasicBlockFactory::BasicBlockFactory() : m_manager(box_manager_alloc()) {}
-BasicBlock * BasicBlockFactory::createBasicBlock(llvm::BasicBlock * basicBlock) {
+BasicBlockManager::BasicBlockManager() : m_manager(box_manager_alloc()) {}
+BasicBlock * BasicBlockManager::createBasicBlock(llvm::BasicBlock * basicBlock) {
 	BasicBlock * result = new BasicBlock(m_manager, basicBlock);
 	return result;
 }
 
-BasicBlock * BasicBlockFactory::getBasicBlock(llvm::BasicBlock * basicBlock) {
+BasicBlock * BasicBlockManager::getBasicBlock(llvm::BasicBlock * basicBlock) {
 	std::map<llvm::BasicBlock *, BasicBlock *>::iterator it =
 			instances.find(basicBlock);
 	BasicBlock * result;
@@ -55,7 +55,8 @@ BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
 void BasicBlock::initialiseBlockName() {
 	std::ostringstream oss;
 	oss << "BasicBlock-" << ++basicBlockCount;
-	llvm::Twine name(oss.str());
+	std::string sname = oss.str();
+	llvm::Twine name(sname);
 	m_basicBlock->setName(name);
 }
 
@@ -239,6 +240,7 @@ bool BasicBlock::update() {
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
 
+	// Not using abstractOfTconsList sinse we want to add debugs
 	ap_tcons1_array_t array = createTcons1Array(constraints);
 
 	fprintf(stdout,"Constraints:\n");
@@ -256,7 +258,6 @@ bool BasicBlock::update() {
 ap_abstract1_t BasicBlock::abstractOfTconsList(
 		std::list<ap_tcons1_t> & constraints) {
 	ap_tcons1_array_t array = createTcons1Array(constraints);
-	ap_tcons1_array_fprint(stdout,&array);
 	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
 			getManager(), getEnvironment(), &array);
 	return abs;

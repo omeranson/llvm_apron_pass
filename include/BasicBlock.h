@@ -13,21 +13,21 @@ class Value;
 
 class BasicBlock;
 
-class BasicBlockFactory {
+class BasicBlockManager {
 protected:
-	static BasicBlockFactory instance;
+	static BasicBlockManager instance;
 	std::map<llvm::BasicBlock *, BasicBlock *> instances;
 	BasicBlock * createBasicBlock(llvm::BasicBlock * basicBlock);
 	ap_manager_t * m_manager;
 
-	BasicBlockFactory();
+	BasicBlockManager();
 public:
-	static BasicBlockFactory & getInstance();
+	static BasicBlockManager & getInstance();
 	BasicBlock * getBasicBlock(llvm::BasicBlock * basicBlock);
 };
 
 class BasicBlock {
-friend class BasicBlockFactory;
+friend class BasicBlockManager;
 protected:
 	static int basicBlockCount;
 

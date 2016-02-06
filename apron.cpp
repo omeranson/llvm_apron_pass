@@ -45,7 +45,7 @@ namespace {
 		std::string name;
 	public:
 		CallGraph(std::string name, BasicBlock * root) : root(root), name(name) {
-			BasicBlockFactory & factory = BasicBlockFactory::getInstance();
+			BasicBlockManager & factory = BasicBlockManager::getInstance();
 			std::list<llvm::BasicBlock *> worklist;
 			std::set<llvm::BasicBlock *> seen;
 			worklist.push_back(root->getLLVMBasicBlock());
@@ -222,16 +222,18 @@ namespace {
 			if (F.getName().equals("main")) {
 				return false; /* Skip */
 			}
+			llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
 			llvm::errs() << "Apron: Function: ";
 			llvm::errs().write_escaped(F.getName()) << '\n';
 			llvm::BasicBlock * llvmfirst =  &F.getEntryBlock();
-			BasicBlock * first = BasicBlockFactory::getInstance().getBasicBlock(
+			BasicBlock * first = BasicBlockManager::getInstance().getBasicBlock(
 					llvmfirst);
 			CallGraph funcCallGraph(F.getName().str(), first);
 			funcCallGraph.printAsDot();
 			ChaoticExecution chaoticExecution(funcCallGraph);
 			chaoticExecution.execute();
 			chaoticExecution.print();
+			llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
 			return false;
 		}
 	};

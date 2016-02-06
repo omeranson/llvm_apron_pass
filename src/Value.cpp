@@ -95,7 +95,7 @@ bool InstructionValue::isSkip() {
 BasicBlock * InstructionValue::getBasicBlock() {
 	llvm::Instruction * instruction = asInstruction();
 	llvm::BasicBlock * llvmBasicBlock = instruction->getParent();
-	BasicBlockFactory & factory = BasicBlockFactory::getInstance();
+	BasicBlockManager & factory = BasicBlockManager::getInstance();
 	BasicBlock * result = factory.getBasicBlock(llvmBasicBlock);
 	return result;
 }
@@ -174,6 +174,7 @@ std::string BinaryOperationValue::getValueString()  {
 			oss << operand->getName();
 		} else {
 			llvmOperand->print(llvm::errs());
+			llvm::errs() << "\n";
 			oss << "<Operand Unknown>";
 		}
 	}
@@ -549,12 +550,16 @@ bool IntegerCompareValue::isSkip() {
 	return true;
 }
 
-class PhiValue : public Value {
+class PhiValue : public InstructionValue {
 protected:
 	virtual llvm::PHINode * asPHINode();
+	virtual ap_tcons1_t getSetValueTcons(int i);
+	virtual void populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints);
 public:
-	PhiValue(llvm::Value * value) : Value(value) {}
+	PhiValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
+	virtual bool isSkip();
 };
 
 llvm::PHINode * PhiValue::asPHINode() {
@@ -576,6 +581,55 @@ std::string PhiValue::getValueString() {
 		oss << " )";
 	}
 	return oss.str();
+}
+
+bool PhiValue::isSkip() {
+	return false;
+}
+
+ap_tcons1_t PhiValue::getSetValueTcons(int i) {
+	ValueFactory * factory = ValueFactory::getInstance();
+	llvm::PHINode * phiNode = asPHINode();
+	llvm::Value * incomingValue = phiNode->getIncomingValue(i);
+	Value * value = factory->getValue(incomingValue);
+
+	
+	BasicBlock * basicBlock = getBasicBlock();
+	return Value::getSetValueTcons(basicBlock, value);
+}
+
+void PhiValue::populateTreeConstraints(
+		std::list<ap_tcons1_t> & constraints) {
+	/*
+	 * Like in select, but no conditions. 
+	 */
+	std::list<ap_tcons1_t> constraintsFirst = constraints;
+	std::list<ap_tcons1_t> constraintsSecond = constraints;
+
+	ap_tcons1_t setFirstValue = getSetValueTcons(0);
+	ap_tcons1_t setSecondValue = getSetValueTcons(1);
+
+	// TODO Copied from @SelectValueInstruction::populateTreeConstraints
+	constraintsFirst.push_back(setFirstValue);
+	constraintsSecond.push_back(setSecondValue);
+
+	BasicBlock * basicBlock = getBasicBlock();
+	ap_abstract1_t abstValueFirst =
+			basicBlock->abstractOfTconsList(constraintsFirst);
+	ap_abstract1_t abstValueSecond =
+			basicBlock->abstractOfTconsList(constraintsSecond);
+
+	ap_abstract1_t joinedValue = ap_abstract1_join(basicBlock->getManager(),
+			false, &abstValueFirst, &abstValueSecond);
+	
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
+			basicBlock->getManager(), &joinedValue);
+
+	size_t arraySize = ap_tcons1_array_size(&array);
+	for (int idx = 0; idx < arraySize; idx++) {
+		ap_tcons1_t constraint = ap_tcons1_array_get(&array, idx);
+		constraints.push_back(constraint);
+	}
 }
 
 class SelectValueInstruction : public InstructionValue {
@@ -715,15 +769,7 @@ ap_tcons1_t SelectValueInstruction::getConditionFalseTcons() {
 
 ap_tcons1_t SelectValueInstruction::getSetValueTcons(Value * value) {
 	BasicBlock * basicBlock = getBasicBlock();
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
-	ap_texpr1_t * value_texpr = value->createTreeExpression(basicBlock);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr, 
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
-	return result;
+	return Value::getSetValueTcons(basicBlock, value);
 }
 
 ap_tcons1_t SelectValueInstruction::getSetTrueValueTcons() {
@@ -735,7 +781,7 @@ ap_tcons1_t SelectValueInstruction::getSetFalseValueTcons() {
 }
 
 void SelectValueInstruction::populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints) {
+		std::list<ap_tcons1_t> & constraints) {
 	/* 
 	The command is %4 <- select %1, %2, %3
 	We have all the information (it is in the list<ap_tcons1_t>). What if we
@@ -754,7 +800,7 @@ void SelectValueInstruction::populateTreeConstraints(
 		abst_val = join(abst_val1, abst_val2)
 		arr <- abst_val to list of constraints
 	*/
-	printf("%s: Enter populateTreeConstraints\n", toString().c_str());
+	// Creates copies of the constraints.
 	std::list<ap_tcons1_t> constraintsTrue = constraints;
 	std::list<ap_tcons1_t> constraintsFalse = constraints;
 
@@ -765,54 +811,38 @@ void SelectValueInstruction::populateTreeConstraints(
 
 	constraintsTrue.push_back(conditionTrue);
 	constraintsTrue.push_back(setTrueValue);
+
 	constraintsFalse.push_back(conditionFalse);
 	constraintsFalse.push_back(setFalseValue);
 
 	BasicBlock * basicBlock = getBasicBlock();
-	printf("Creating true value:\n");
 	ap_abstract1_t abstValueTrue =
 			basicBlock->abstractOfTconsList(constraintsTrue);
-	printf("Creating false value:\n");
 	ap_abstract1_t abstValueFalse =
 			basicBlock->abstractOfTconsList(constraintsFalse);
 
-	printf("Joining:\n");
 	ap_abstract1_t joinedValue = ap_abstract1_join(basicBlock->getManager(),
 			false, &abstValueTrue, &abstValueFalse);
 	
 	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
 			basicBlock->getManager(), &joinedValue);
-	printf("%s::::::::::::::::::::::::::::::::::::::::\n", toString().c_str());
 
-	printf("True value: ");
-	ap_abstract1_fprint(stdout, basicBlock->getManager(), &abstValueTrue);
-	/*ap_tcons1_array_t constraintsTrueArray =
-			basicBlock->createTcons1Array(constraintsTrue);
-	ap_tcons1_array_fprint(stdout, &constraintsTrueArray);*/
-	printf("\n");
-	printf("False value: ");
-	ap_abstract1_fprint(stdout, basicBlock->getManager(), &abstValueFalse);
-	/*ap_tcons1_array_t constraintsFalseArray =
-			basicBlock->createTcons1Array(constraintsFalse);
-	ap_tcons1_array_fprint(stdout, &constraintsFalseArray);*/
-	printf("\n");
-	printf("Joined value: ");
-	ap_abstract1_fprint(stdout, basicBlock->getManager(), &joinedValue);
-	printf("\n");
-	ap_tcons1_array_fprint(stdout, &array);
-	printf("\n");
-	printf("%s::::::::::::::::::::::::::::::::::::::::\n", toString().c_str());
+	size_t arraySize = ap_tcons1_array_size(&array);
+	for (int idx = 0; idx < arraySize; idx++) {
+		ap_tcons1_t constraint = ap_tcons1_array_get(&array, idx);
+		constraints.push_back(constraint);
+	}
 }
 
 bool SelectValueInstruction::isSkip() {
 	return false;
 }
 
-class UnaryOperationValue : public Value {
+class UnaryOperationValue : public InstructionValue {
 protected:
 	llvm::UnaryInstruction * asUnaryInstruction();
 public:
-	UnaryOperationValue(llvm::Value * value) : Value(value) {}
+	UnaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
 };
 
 llvm::UnaryInstruction * UnaryOperationValue::asUnaryInstruction() {
@@ -880,6 +910,21 @@ ap_texpr1_t * Value::createTreeExpression(BasicBlock * basicBlock) {
 	return basicBlock->getVariable(this);
 }
 
+ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
+	ap_texpr1_t * value_texpr = other->createTreeExpression(basicBlock);
+	// Verify the environments are up-to-date
+	basicBlock->extendTexprEnvironment(var_texpr);
+	basicBlock->extendTexprEnvironment(value_texpr);
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_SUB, value_texpr, var_texpr, 
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
+	return result;
+}
+
 std::ostream& operator<<(std::ostream& os, Value& value)
 {
     os << value.toString();
@@ -934,7 +979,7 @@ Value * ValueFactory::createValue(llvm::Value * value) {
 	if (llvm::isa<llvm::Argument>(value)) {
 		return new VariableValue(value);
 	}
-	return NULL;
+	abort();
 }
 
 Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
@@ -1015,8 +1060,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	//case llvm::BinaryOperator::InsertValue:
 
 	default:
-		//llvm::errs() << "<Invalid operator> " <<
-				//instruction->getOpcodeName() << "\n";
+		llvm::errs() << "<Unknown operator> " <<
+				instruction->getOpcodeName() << "\n";
 		return NULL;
 	}
 }
@@ -1028,6 +1073,6 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 	if (llvm::isa<llvm::ConstantFP>(constant)) {
 		return new ConstantFloatValue(constant);
 	}
-	return NULL;
+	abort();
 }
 
