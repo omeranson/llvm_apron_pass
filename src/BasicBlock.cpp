@@ -5,6 +5,8 @@
 #include <iostream>
 #include <sstream>
 
+#include <llvm/Support/raw_ostream.h>
+
 #include <ap_global0.h>
 #include <ap_global1.h>
 #include <ap_abstract1.h>
@@ -284,7 +286,13 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 	// TODO Circular dependancy
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(&inst);
-	if (!value || value->isSkip()) {
+	if (!value) {
+		llvm::errs() << "Skipping instruction: ";
+		inst.print(llvm::errs());
+		llvm::errs() << "\n";
+		return;
+	}
+	if (value->isSkip()) {
 		return;
 	}
 	std::cout << "Apron: Instruction: "
