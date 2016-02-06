@@ -191,7 +191,9 @@ ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(int idx) {
 	llvm::Value * llvmOperand = asUser()->getOperand(idx);
 	Value * operand = factory->getValue(llvmOperand);
 	if (!operand) {
-		llvm::errs() << "Unknown value\n";
+		llvm::errs() << "Unknown value:";
+		llvmOperand->print(llvm::errs());
+		llvm::errs() << "\n";
 		abort();
 	}
 	return operand->createTreeExpression(getBasicBlock());
@@ -253,6 +255,35 @@ protected:
 public:
 	RemainderOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 };
+
+
+class SHLOperationValue : public BinaryOperationValue {
+protected:
+	virtual std::string getOperationSymbol()  { return " << "; }
+	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MOD; }
+public:
+	SHLOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	ap_texpr1_t * createRHSTreeExpression();
+};
+
+ap_texpr1_t * SHLOperationValue::createRHSTreeExpression() {
+	ap_texpr1_t * op0_texpr = createOperandTreeExpression(0);
+	ap_texpr1_t * op1_texpr = createOperandTreeExpression(1);
+	// TODO Handle reals
+	// Align environments
+	BasicBlock * basicBlock = getBasicBlock();
+	basicBlock->extendTexprEnvironment(op0_texpr);
+	basicBlock->extendTexprEnvironment(op1_texpr);
+	ap_texpr1_t * two = ap_texpr1_cst_scalar_int(
+			getBasicBlock()->getEnvironment(), 2);
+	ap_texpr1_t * op1_shl = ap_texpr1_binop(
+			AP_TEXPR_POW, two, op1_texpr,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_MUL, op0_texpr, op1_shl,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	return texpr;
+}
 
 class ConstantValue : public Value {
 protected:
@@ -850,6 +881,8 @@ llvm::UnaryInstruction * UnaryOperationValue::asUnaryInstruction() {
 }
 
 class CastOperationValue : public UnaryOperationValue {
+protected:
+	virtual ap_texpr1_t * createRHSTreeExpression();
 public:
 	CastOperationValue(llvm::Value * value) : UnaryOperationValue(value) {}
 	virtual std::string getValueString();
@@ -863,6 +896,10 @@ std::string CastOperationValue::getValueString() {
 	std::ostringstream oss;
 	oss << "cast(" << value->getValueString() << ")";
 	return oss.str();
+}
+
+ap_texpr1_t * CastOperationValue::createRHSTreeExpression() {
+	return createTreeExpression(getBasicBlock());
 }
 
 Value::Value(llvm::Value * value) : m_value(value),
@@ -979,7 +1016,7 @@ Value * ValueFactory::createValue(llvm::Value * value) {
 	if (llvm::isa<llvm::Argument>(value)) {
 		return new VariableValue(value);
 	}
-	abort();
+	return NULL;
 }
 
 Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
@@ -1049,8 +1086,9 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 		return new SelectValueInstruction(instruction);
 	case llvm::BinaryOperator::Call:
 		return new CallValue(instruction);
-	//case llvm::BinaryOperator::Shl:
-	//case llvm::BinaryOperator::LShr:
+	case llvm::BinaryOperator::Shl:
+	case llvm::BinaryOperator::LShr:
+		return new SHLOperationValue(instruction);
 	//case llvm::BinaryOperator::AShr:
 	//case llvm::BinaryOperator::VAArg:
 	//case llvm::BinaryOperator::ExtractElement:
@@ -1073,6 +1111,6 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 	if (llvm::isa<llvm::ConstantFP>(constant)) {
 		return new ConstantFloatValue(constant);
 	}
-	abort();
+	return NULL;
 }
 
