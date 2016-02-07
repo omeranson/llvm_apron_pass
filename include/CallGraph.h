@@ -1,7 +1,7 @@
 #ifndef CALLGRAPH_H
 #define CALLGRAPH_H
 
-#include <BasicBlock>
+#include <BasicBlock.h>
 
 #include <map>
 #include <string>

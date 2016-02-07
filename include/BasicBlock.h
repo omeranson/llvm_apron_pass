@@ -36,6 +36,7 @@ protected:
 	std::string m_name;
 	ap_manager_t * m_manager;
 	ap_environment_t *m_ap_environment;
+	bool m_markedForChanged;
 
 	BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock);
 	virtual void initialiseBlockName();
@@ -49,6 +50,7 @@ public:
 	virtual std::string getName();
 	virtual std::string toString();
 	virtual llvm::BasicBlock * getLLVMBasicBlock();
+	virtual void setChanged();
 	virtual bool update();
 
 	virtual bool join(BasicBlock & basicBlock);
@@ -60,6 +62,8 @@ public:
 	virtual bool meet(ap_abstract1_t & abst_value);
 	virtual bool meet(std::list<ap_abstract1_t> & abst_values);
 	virtual bool meet(ap_tcons1_t & constraint);
+	virtual bool isTop(ap_abstract1_t & value);
+	virtual bool isBottom(ap_abstract1_t & value);
 	virtual bool isTop();
 	virtual bool isBottom();
 	virtual bool operator==(BasicBlock & basicBlock);

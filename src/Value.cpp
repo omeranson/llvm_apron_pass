@@ -132,6 +132,12 @@ std::string ReturnInstValue::toString()  {
 	return oss.str();
 }
 
+class BranchInstructionValue : public InstructionValue {
+protected:
+public:
+	BranchInstructionValue(llvm::Value * value) : InstructionValue(value) {}
+};
+
 class BinaryOperationValue : public InstructionValue {
 friend class ValueFactory;
 protected:
@@ -886,6 +892,7 @@ protected:
 public:
 	CastOperationValue(llvm::Value * value) : UnaryOperationValue(value) {}
 	virtual std::string getValueString();
+	virtual bool isSkip();
 };
 
 std::string CastOperationValue::getValueString() {
@@ -896,6 +903,10 @@ std::string CastOperationValue::getValueString() {
 	std::ostringstream oss;
 	oss << "cast(" << value->getValueString() << ")";
 	return oss.str();
+}
+
+bool CastOperationValue::isSkip() {
+	return false;
 }
 
 ap_texpr1_t * CastOperationValue::createRHSTreeExpression() {
@@ -1025,7 +1036,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	case llvm::BinaryOperator::Ret:
 		return new ReturnInstValue(instruction);
 	// Terminators
-	//case llvm::BinaryOperator::Br:
+	case llvm::BinaryOperator::Br:
+		return new BranchInstructionValue(instruction);
 	//case llvm::BinaryOperator::Switch:
 	//case llvm::BinaryOperator::IndirectBr:
 	//case llvm::BinaryOperator::Invoke:

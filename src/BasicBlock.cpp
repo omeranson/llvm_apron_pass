@@ -47,7 +47,8 @@ int BasicBlock::basicBlockCount = 0;
 BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
 		m_manager(manager),
-		m_ap_environment(ap_environment_alloc_empty()) {
+		m_ap_environment(ap_environment_alloc_empty()),
+		m_markedForChanged(false) {
 	m_abst_value = ap_abstract1_bottom(manager, m_ap_environment);
 	if (!basicBlock->hasName()) {
 		initialiseBlockName();
@@ -191,6 +192,14 @@ bool BasicBlock::meet(BasicBlock & basicBlock) {
 	return meet(m_abst_value);
 }
 
+bool BasicBlock::isTop(ap_abstract1_t & value) {
+	return ap_abstract1_is_top(getManager(), &value);
+}
+
+bool BasicBlock::isBottom(ap_abstract1_t & value) {
+	return ap_abstract1_is_bottom(getManager(), &value);
+}
+
 bool BasicBlock::isTop() {
 	return ap_abstract1_is_top(getManager(), &m_abst_value);
 }
@@ -226,13 +235,16 @@ void BasicBlock::addBogusInitialConstarints(
 	constraints.push_back(constraint2);
 }
 
+void BasicBlock::setChanged() {
+	m_markedForChanged = true;
+}
+
 bool BasicBlock::update() {
 	/* Process the block. Return true if the block's context is modified.*/
 	std::cout << "Processing block " << getName() << std::endl;
 	std::list<ap_tcons1_t> constraints;
 
 	ap_abstract1_t prev = m_abst_value;
-
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
 		llvm::Instruction & inst = *it;
@@ -241,24 +253,42 @@ bool BasicBlock::update() {
 
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
+	
+	fprintf(stdout,"Block prev abstract value:\n");
+	ap_abstract1_fprint(stdout, manager, &prev);
+	fprintf(stdout,"isTop: %s. isBottom: %s\n",
+			isTop(prev) ? "True" : "False",
+			isBottom(prev) ? "True" : "False" );
+	
 
 	// Not using abstractOfTconsList sinse we want to add debugs
-	ap_tcons1_array_t array = createTcons1Array(constraints);
-
-	fprintf(stdout,"Constraints:\n");
-	ap_tcons1_array_fprint(stdout,&array);
-
-	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
-			manager, env, &array);
+	ap_abstract1_t abs = abstractOfTconsList(constraints);
+	// Some debug output
+	std::list<ap_tcons1_t>::iterator cons_it;
+	fprintf(stdout,"List of %lu constraints:\n", constraints.size());
+	for (cons_it = constraints.begin(); cons_it != constraints.end(); cons_it++) {
+		ap_tcons1_fprint(stdout, &(*cons_it));
+		fprintf(stdout,"\n");
+	}
 	fprintf(stdout,"Abstract value:\n");
 	ap_abstract1_fprint(stdout, manager, &abs);
 
 	m_abst_value = ap_abstract1_join(manager, false, &prev, &abs);
-	return is_eq(prev);
+	fprintf(stdout,"Block abstract value:\n");
+	ap_abstract1_fprint(stdout, manager, &m_abst_value);
+	fprintf(stdout,"isTop: %s. isBottom: %s\n",
+			isTop() ? "True" : "False",
+			isBottom() ? "True" : "False" );
+	bool markedForChanged = m_markedForChanged;
+	m_markedForChanged = false;
+	return markedForChanged && is_eq(prev);
 }
 
 ap_abstract1_t BasicBlock::abstractOfTconsList(
 		std::list<ap_tcons1_t> & constraints) {
+	if (constraints.empty()) {
+		return ap_abstract1_bottom(getManager(), getEnvironment());
+	}
 	ap_tcons1_array_t array = createTcons1Array(constraints);
 	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
 			getManager(), getEnvironment(), &array);
@@ -287,18 +317,19 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(&inst);
 	if (!value) {
-		llvm::errs() << "Skipping instruction: ";
+		/*llvm::errs() << "Skipping UNKNOWN instruction: ";
 		inst.print(llvm::errs());
-		llvm::errs() << "\n";
+		llvm::errs() << "\n";*/
 		return;
 	}
 	if (value->isSkip()) {
+		/*llvm::errs() << "Skipping set-skipped instruction: " << value->toString() << "\n";*/
 		return;
 	}
-	std::cout << "Apron: Instruction: "
-			/*<< scope->getFilename() << ": " */
+	/*std::cout << "Apron: Instruction: "
+			// << scope->getFilename() << ": "
 			<< debugLoc.getLine() << ": "
-			<< value->toString() << "\n";
+			<< value->toString() << "\n";*/
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->populateTreeConstraints(constraints);

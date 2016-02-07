@@ -1,6 +1,7 @@
 
 
-OBJS = apron.o src/Value.o src/BasicBlock.o
+#BASE_FILES = Value BasicBlock CallGraph
+OBJS = apron.o src/Value.o src/BasicBlock.o src/CallGraph.o
 
 APRON_INSTALL=/home/oanson/Documents/ProgramAnalysis/Project/apron-install
 CXXFLAGS=$(shell llvm-config --cxxflags)

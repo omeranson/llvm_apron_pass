@@ -1,6 +1,9 @@
 #include <CallGraph.h>
 
 #include <iostream>
+#include <set>
+
+#include <llvm/IR/InstrTypes.h>
 
 CallGraph::CallGraph(std::string name, BasicBlock * root) :
 		m_root(root), m_name(name) {
@@ -43,8 +46,13 @@ void CallGraph::populateWithSuccessors(
 	std::multimap<BasicBlock *, BasicBlock *>::iterator stop;
 	stop = m_nexts.upper_bound(block);
 	for (it = m_nexts.lower_bound(block); it != stop; it++) {
-		std::cerr << block->getName() << " -> " << it->second->getName() << std::endl;
-		list.push_back(it->second);
+		BasicBlock * succ = it->second;
+		std::cerr << block->getName() << " -> " << succ->getName() << std::endl;
+		bool isSuccModified = succ->join(*block);
+		if (isSuccModified) {
+			succ->setChanged();
+		}
+		list.push_back(succ);
 	}
 }
 

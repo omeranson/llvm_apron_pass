@@ -24,6 +24,7 @@
 #include <pkeq.h>
 
 #include <Value.h>
+#include <CallGraph.h>
 
 namespace {
 /*
