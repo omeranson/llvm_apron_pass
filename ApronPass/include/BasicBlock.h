@@ -52,6 +52,8 @@ public:
 	virtual llvm::BasicBlock * getLLVMBasicBlock();
 	virtual void setChanged();
 	virtual bool update();
+	// TODO(omeranson) incomplete
+	virtual void populateWithSuccessors(std::list<BasicBlock *> & list);
 
 	virtual bool join(BasicBlock & basicBlock);
 	virtual bool join(ap_abstract1_t & abst_value);

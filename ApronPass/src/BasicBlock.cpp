@@ -6,6 +6,7 @@
 #include <sstream>
 
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/IR/Instructions.h>
 
 #include <ap_global0.h>
 #include <ap_global1.h>
@@ -306,7 +307,7 @@ bool BasicBlock::update() {
 			isTop(abs) ? "True" : "False",
 			isBottom(abs) ? "True" : "False" );
 
-	bool isChanged = unify(abs);
+	bool isChanged = join(abs);
 	fprintf(stdout,"Block new abstract value:\n");
 	ap_abstract1_fprint(stdout, manager, &m_abst_value);
 	fprintf(stdout,"isTop: %s. isBottom: %s\n",
@@ -366,6 +367,29 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->populateTreeConstraints(constraints);
+}
+
+void BasicBlock::populateWithSuccessors(std::list<BasicBlock *> & list) {
+	llvm::BasicBlock * llvmBasicBlock = getLLVMBasicBlock();
+	llvm::TerminatorInst *terminator = llvmBasicBlock->getTerminator();
+	if (llvm::isa<llvm::BranchInst>(terminator)) {
+		ValueFactory * factory = ValueFactory::getInstance();
+		Value * value = factory->getValue(terminator);
+		//TODO(omeranson) A bit stuck here
+		//BranchInstructionValue * biValue =
+		//		static_cast<BranchInstructionValue*>(value);
+		//biValue->populateWithSuccessors(list);
+		return;
+	} /* else {
+		abort();
+	} */
+	int nsucc = terminator->getNumSuccessors();
+	BasicBlockManager & manager = BasicBlockManager::getInstance();
+	for (unsigned succIdx = 0; succIdx < nsucc; ++succIdx) {
+		llvm::BasicBlock * llvmSucc = terminator->getSuccessor(succIdx);
+		BasicBlock * succ = manager.getBasicBlock(llvmSucc);
+		list.push_back(succ);
+	}
 }
 
 std::string BasicBlock::toString() {

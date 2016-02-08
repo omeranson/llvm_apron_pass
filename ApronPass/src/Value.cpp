@@ -136,7 +136,12 @@ class BranchInstructionValue : public InstructionValue {
 protected:
 public:
 	BranchInstructionValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual bool isSkip();
 };
+
+bool BranchInstructionValue::isSkip() {
+	return true;
+}
 
 class BinaryOperationValue : public InstructionValue {
 friend class ValueFactory;
