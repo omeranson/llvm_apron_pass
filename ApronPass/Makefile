@@ -4,21 +4,29 @@
 OBJS = apron.o src/Value.o src/BasicBlock.o src/CallGraph.o
 
 APRON_INSTALL=${HOME}/opt/apron-install
-CXXFLAGS=$(shell llvm-config --cxxflags)
+LLVM_INSTALL=${HOME}/opt/llvm-install
+CXXFLAGS=$(shell ${LLVM_INSTALL}/bin/llvm-config --cxxflags)
 CXXFLAGS+= -I${APRON_INSTALL}/include
 CXXFLAGS+= -Iinclude -fPIC -g
-LDFLAGS=$(shell llvm-config --ldflags)
+LDFLAGS=$(shell ${LLVM_INSTALL}/bin/llvm-config --ldflags)
 LDFLAGS+= -L${APRON_INSTALL}/lib -lapron_debug
 LDFLAGS+= -shared -fPIC 
-CC=gcc
+CC=${LLVM_INSTALL}/bin/clang
+CXX=${LLVM_INSTALL}/bin/clang++
 
 all: ${OBJS} libapron.so
 
 %.so: ${OBJS}
-	@ ${CC} -Wl,-soname,$@ -o $@ $^ ${LDFLAGS}
+	@ echo '[LD]	[$^]	[$@]'
+	@ ${CXX} -Wl,-soname,$@ -o $@ $^ ${LDFLAGS}
 
 %.o: %.c
-	@ ${CC} -o $@ $^ ${CXXFLAGS}
+	@ echo '[CC]	[$^]	[$@]'
+	@ ${CC} -c -o $@ $^ ${CXXFLAGS}
+
+%.o: %.cpp
+	@ echo '[CXX]	[$^]	[$@]'
+	@ ${CXX} -c -o $@ $^ ${CXXFLAGS}
 
 clean:
 	@ rm -f ${OBJS} libapron.so

@@ -192,6 +192,36 @@ bool BasicBlock::meet(BasicBlock & basicBlock) {
 	return meet(m_abst_value);
 }
 
+bool BasicBlock::unify(ap_abstract1_t & abst_value) {
+	ap_abstract1_t prev = m_abst_value;
+	m_abst_value = ap_abstract1_unify(getManager(), false,
+			&m_abst_value, &abst_value);
+	return is_eq(prev);
+}
+
+bool BasicBlock::unify(BasicBlock & basicBlock) {
+	return unify(basicBlock.m_abst_value);
+}
+
+bool BasicBlock::unify(std::list<ap_abstract1_t> & abst_values) {
+	std::list<ap_abstract1_t>::iterator it;
+	bool result = false;
+	for (it = abst_values.begin(); it != abst_values.end(); it++) {
+		ap_abstract1_t & value = *it;
+		result |= unify(value);
+	}
+	return result;
+}
+
+bool BasicBlock::unify(ap_tcons1_t & constraint) {
+	ap_tcons1_array_t array = ap_tcons1_array_make(getEnvironment(), 1);
+	extendTconsEnvironment(&constraint);
+	assert(!ap_tcons1_array_set(&array, 0, &constraint));
+	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
+			getManager(), getEnvironment(), &array);
+	return unify(abs);
+}
+
 bool BasicBlock::isTop(ap_abstract1_t & value) {
 	return ap_abstract1_is_top(getManager(), &value);
 }
@@ -276,7 +306,7 @@ bool BasicBlock::update() {
 			isTop(abs) ? "True" : "False",
 			isBottom(abs) ? "True" : "False" );
 
-	m_abst_value = ap_abstract1_join(manager, false, &prev, &abs);
+	bool isChanged = unify(abs);
 	fprintf(stdout,"Block new abstract value:\n");
 	ap_abstract1_fprint(stdout, manager, &m_abst_value);
 	fprintf(stdout,"isTop: %s. isBottom: %s\n",
@@ -284,7 +314,7 @@ bool BasicBlock::update() {
 			isBottom() ? "True" : "False" );
 	bool markedForChanged = m_markedForChanged;
 	m_markedForChanged = false;
-	return markedForChanged && is_eq(prev);
+	return markedForChanged && isChanged;
 }
 
 ap_abstract1_t BasicBlock::abstractOfTconsList(

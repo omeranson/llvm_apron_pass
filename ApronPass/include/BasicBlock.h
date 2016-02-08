@@ -57,11 +57,14 @@ public:
 	virtual bool join(ap_abstract1_t & abst_value);
 	virtual bool join(std::list<ap_abstract1_t> & abst_values);
 	virtual bool join(ap_tcons1_t & constraint);
-	// TODO Overload meet functions - same as join
 	virtual bool meet(BasicBlock & basicBlock);
 	virtual bool meet(ap_abstract1_t & abst_value);
 	virtual bool meet(std::list<ap_abstract1_t> & abst_values);
 	virtual bool meet(ap_tcons1_t & constraint);
+	virtual bool unify(BasicBlock & basicBlock);
+	virtual bool unify(ap_abstract1_t & abst_value);
+	virtual bool unify(std::list<ap_abstract1_t> & abst_values);
+	virtual bool unify(ap_tcons1_t & constraint);
 	virtual bool isTop(ap_abstract1_t & value);
 	virtual bool isBottom(ap_abstract1_t & value);
 	virtual bool isTop();
