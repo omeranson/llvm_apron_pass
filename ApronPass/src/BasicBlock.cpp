@@ -270,11 +270,14 @@ bool BasicBlock::update() {
 		ap_tcons1_fprint(stdout, &(*cons_it));
 		fprintf(stdout,"\n");
 	}
-	fprintf(stdout,"Abstract value:\n");
+	fprintf(stdout,"Calculated abstract value:\n");
 	ap_abstract1_fprint(stdout, manager, &abs);
+	fprintf(stdout,"isTop: %s. isBottom: %s\n",
+			isTop(abs) ? "True" : "False",
+			isBottom(abs) ? "True" : "False" );
 
 	m_abst_value = ap_abstract1_join(manager, false, &prev, &abs);
-	fprintf(stdout,"Block abstract value:\n");
+	fprintf(stdout,"Block new abstract value:\n");
 	ap_abstract1_fprint(stdout, manager, &m_abst_value);
 	fprintf(stdout,"isTop: %s. isBottom: %s\n",
 			isTop() ? "True" : "False",
