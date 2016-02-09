@@ -132,17 +132,6 @@ std::string ReturnInstValue::toString()  {
 	return oss.str();
 }
 
-class BranchInstructionValue : public InstructionValue {
-protected:
-public:
-	BranchInstructionValue(llvm::Value * value) : InstructionValue(value) {}
-	virtual bool isSkip();
-};
-
-bool BranchInstructionValue::isSkip() {
-	return true;
-}
-
 class BinaryOperationValue : public InstructionValue {
 friend class ValueFactory;
 protected:
@@ -917,6 +906,200 @@ bool CastOperationValue::isSkip() {
 ap_texpr1_t * CastOperationValue::createRHSTreeExpression() {
 	return createTreeExpression(getBasicBlock());
 }
+
+class BranchInstructionValue : public InstructionValue {
+protected:
+	virtual void populateTreeConstraintsConditional(
+		std::list<ap_tcons1_t> & constraints,
+		llvm::BranchInst * branchInst);
+	virtual void populateTreeConstraintsUnconditional(
+		std::list<ap_tcons1_t> & constraints,
+		llvm::BranchInst * branchInst);
+	virtual Value * getCondition();
+	virtual ap_tcons1_t getConditionTcons(constraint_condition_t consCond);
+	virtual ap_tcons1_t getConditionTrueTcons();
+	virtual ap_tcons1_t getConditionFalseTcons();
+	virtual ap_constyp_t constraintConditionToAPConsType(
+			constraint_condition_t consCond);
+	virtual bool isConstraintConditionToAPNeedsReverse(
+			constraint_condition_t consCond);
+public:
+	BranchInstructionValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual bool isSkip();
+	virtual void populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints);
+};
+
+bool BranchInstructionValue::isSkip() {
+	return false;
+}
+
+// TODO(oanson) Code copied from SelectValueInstruction
+Value * BranchInstructionValue::getCondition() {
+	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
+	ValueFactory * factory = ValueFactory::getInstance();
+	llvm::Value * condition = branchInst->getCondition();
+	Value * result = factory->getValue(condition);
+	if (!result) {
+		condition->print(llvm::errs());
+	} else {
+		llvm::errs() << "Condition: " << result->toString() << "\n";
+	}
+	return result;
+}
+
+ap_constyp_t BranchInstructionValue::constraintConditionToAPConsType(
+		constraint_condition_t consCond) {
+	switch (consCond) {
+	case cons_cond_eq:
+		return AP_CONS_EQ;
+	case cons_cond_eqmod:
+		return AP_CONS_EQMOD;
+	case cons_cond_neq:
+		return AP_CONS_DISEQ;
+	case cons_cond_gt:
+		return AP_CONS_SUP;
+	case cons_cond_ge:
+		return AP_CONS_SUPEQ;
+	case cons_cond_lt:
+		return AP_CONS_SUP;
+	case cons_cond_le:
+		return AP_CONS_SUPEQ;
+	case cons_cond_true:
+		abort();
+	case cons_cond_false:
+		abort();
+	default:
+		abort();
+	}
+}
+
+bool BranchInstructionValue::isConstraintConditionToAPNeedsReverse(
+		constraint_condition_t consCond) {
+	switch (consCond) {
+	case cons_cond_lt:
+	case cons_cond_le:
+		return true;
+	default:
+		return false;
+	}
+}
+
+ap_tcons1_t BranchInstructionValue::getConditionTcons(
+		constraint_condition_t consCond) {
+	// TODO definitely make into a global
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	Value * condition = getCondition();
+	CompareValue * compareValue = static_cast<CompareValue*>(condition);
+	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
+	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
+	ap_texpr1_t * left = compareValue->createOperandTreeExpression(0);
+	ap_texpr1_t * right = compareValue->createOperandTreeExpression(1);
+	ap_texpr1_t * texpr ;
+	if (reverse) {
+		texpr = ap_texpr1_binop(
+				AP_TEXPR_SUB, right, left,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	} else {
+		texpr = ap_texpr1_binop(
+				AP_TEXPR_SUB, left, right, 
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	}
+	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
+	return result;
+}
+
+ap_tcons1_t BranchInstructionValue::getConditionTrueTcons() {
+	Value * condition = getCondition();
+	CompareValue * compareValue = static_cast<CompareValue*>(condition);
+	return getConditionTcons(compareValue->getConditionType());
+}
+
+ap_tcons1_t BranchInstructionValue::getConditionFalseTcons() {
+	Value * condition = getCondition();
+	CompareValue * compareValue = static_cast<CompareValue*>(condition);
+	return getConditionTcons(compareValue->getNegatedConditionType());
+}
+
+void BranchInstructionValue::populateTreeConstraintsConditional(
+		std::list<ap_tcons1_t> & constraints,
+		llvm::BranchInst * branchInst) {
+	llvm::BasicBlock * trueSuccessor = branchInst->getSuccessor(0);
+	llvm::BasicBlock * falseSuccessor = branchInst->getSuccessor(1);
+
+	std::list<ap_tcons1_t> constraintsTrue = constraints;
+	std::list<ap_tcons1_t> constraintsFalse = constraints;
+	ap_tcons1_t conditionTrue = getConditionTrueTcons();
+	ap_tcons1_t conditionFalse = getConditionFalseTcons();
+	constraintsTrue.push_back(conditionTrue);
+	constraintsFalse.push_back(conditionFalse);
+
+	BasicBlock * basicBlock = getBasicBlock();
+	ap_abstract1_t abstValueTrue =
+			basicBlock->abstractOfTconsList(constraintsTrue);
+	ap_abstract1_t abstValueFalse =
+			basicBlock->abstractOfTconsList(constraintsFalse);
+	/*
+	printf("BranchInstructionValue::populateTreeConstraintsConditional: abstract value true: ");
+	ap_abstract1_fprint(stdout, basicBlock->getManager(), &abstValueTrue);
+	printf("\n");
+	printf("BranchInstructionValue::populateTreeConstraintsConditional: abstract value false: ");
+	ap_abstract1_fprint(stdout, basicBlock->getManager(), &abstValueFalse);
+	printf("\n");
+	*/
+
+	BasicBlockManager & manager = BasicBlockManager::getInstance();
+	BasicBlock * trueSuccBB = manager.getBasicBlock(trueSuccessor);
+	BasicBlock * falseSuccBB = manager.getBasicBlock(falseSuccessor);
+	if (trueSuccBB->join(abstValueTrue)) {
+		trueSuccBB->setChanged();
+	}
+	if (falseSuccBB->join(abstValueFalse)) {
+		falseSuccBB->setChanged();
+	}
+	/*
+	printf("BranchInstructionValue::populateTreeConstraintsConditional: BB abstract value true: ");
+	ap_abstract1_fprint(stdout, trueSuccBB->getManager(), &trueSuccBB->getAbstractValue());
+	printf("\n");
+	printf("BranchInstructionValue::populateTreeConstraintsConditional: BB abstract value false: ");
+	ap_abstract1_fprint(stdout, falseSuccBB->getManager(), &falseSuccBB->getAbstractValue());
+	printf("\n");
+	*/
+}
+
+void BranchInstructionValue::populateTreeConstraintsUnconditional(
+		std::list<ap_tcons1_t> & constraints,
+		llvm::BranchInst * branchInst) {
+	llvm::BasicBlock * singleSuccessor = branchInst->getSuccessor(0);
+	BasicBlockManager & manager = BasicBlockManager::getInstance();
+	BasicBlock * succBasicBlock = manager.getBasicBlock(singleSuccessor);
+	BasicBlock * basicBlock = getBasicBlock();
+	ap_abstract1_t abst_value = basicBlock->abstractOfTconsList(
+			constraints);
+	succBasicBlock->join(abst_value);
+}
+
+void BranchInstructionValue::populateTreeConstraints(
+		std::list<ap_tcons1_t> & constraints) {
+	// In this case, we have a condition, and two basic blocks we jump two
+	// constraint <- getConstraint
+	// notConstraint <- getNotConstraint
+	// abst1 <- getAbst(constraint)
+	// abst2 <- getAbst(notConstraint)
+	// basicBlock1.join(abst1)
+	// basicBlock2.join(abst2)
+	// IF not conditional, just join into basicBlock1, add it to the list,
+	// 	and return
+	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
+	if (branchInst->isConditional()) {
+		return populateTreeConstraintsConditional(constraints, branchInst);
+	} else {
+		return populateTreeConstraintsUnconditional(constraints, branchInst);
+	}
+}
+
+
 
 Value::Value(llvm::Value * value) : m_value(value),
 		m_name(llvmValueName(value))

@@ -16,6 +16,7 @@
 #include <pk.h>
 #include <pkeq.h>
 
+ap_environment_t * m_ap_environment = ap_environment_alloc_empty();
 /*			       BasicBlockManager			     */
 BasicBlockManager BasicBlockManager::instance;
 BasicBlockManager & BasicBlockManager::getInstance() {
@@ -48,9 +49,9 @@ int BasicBlock::basicBlockCount = 0;
 BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
 		m_manager(manager),
-		m_ap_environment(ap_environment_alloc_empty()),
+		//m_ap_environment(ap_environment_alloc_empty()),
 		m_markedForChanged(false) {
-	m_abst_value = ap_abstract1_bottom(manager, m_ap_environment);
+	m_abst_value = ap_abstract1_bottom(manager, getEnvironment());
 	if (!basicBlock->hasName()) {
 		initialiseBlockName();
 	}
@@ -76,6 +77,10 @@ llvm::BasicBlock * BasicBlock::getLLVMBasicBlock() {
 	return m_basicBlock;
 }
 
+ap_abstract1_t & BasicBlock::getAbstractValue() {
+	return m_abst_value;
+}
+
 ap_manager_t * BasicBlock::getManager() {
 	// In a function, since manager is global, and this impl. may change
 	return m_manager;
@@ -85,12 +90,16 @@ ap_environment_t * BasicBlock::getEnvironment() {
 	return m_ap_environment;
 }
 
+void BasicBlock::setEnvironment(ap_environment_t * nenv) {
+	m_ap_environment = nenv;
+}
+
 void BasicBlock::extendEnvironment(Value * value) {
-	ap_environment_t* env = m_ap_environment;
+	ap_environment_t* env = getEnvironment();
 	ap_var_t var = value->varName();
 	// TODO Handle reals
 	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
-	m_ap_environment = nenv;
+	setEnvironment(nenv);
 	// TODO Memory leak?
 }
 
@@ -251,7 +260,7 @@ void BasicBlock::addBogusInitialConstarints(
 	ap_environment_t* env = getEnvironment();
 	env = ap_environment_add(env, (ap_var_t*)&y_name, 1, NULL, 0);
 	env = ap_environment_add(env, (ap_var_t*)&z_name, 1, NULL, 0);
-	m_ap_environment = env;
+	setEnvironment(env);
 
 	ap_texpr1_t* y = ap_texpr1_var(getEnvironment(), (ap_var_t)y_name);
 	ap_texpr1_t* z = ap_texpr1_var(getEnvironment(), (ap_var_t)z_name);
@@ -367,29 +376,6 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->populateTreeConstraints(constraints);
-}
-
-void BasicBlock::populateWithSuccessors(std::list<BasicBlock *> & list) {
-	llvm::BasicBlock * llvmBasicBlock = getLLVMBasicBlock();
-	llvm::TerminatorInst *terminator = llvmBasicBlock->getTerminator();
-	if (llvm::isa<llvm::BranchInst>(terminator)) {
-		ValueFactory * factory = ValueFactory::getInstance();
-		Value * value = factory->getValue(terminator);
-		//TODO(omeranson) A bit stuck here
-		//BranchInstructionValue * biValue =
-		//		static_cast<BranchInstructionValue*>(value);
-		//biValue->populateWithSuccessors(list);
-		return;
-	} /* else {
-		abort();
-	} */
-	int nsucc = terminator->getNumSuccessors();
-	BasicBlockManager & manager = BasicBlockManager::getInstance();
-	for (unsigned succIdx = 0; succIdx < nsucc; ++succIdx) {
-		llvm::BasicBlock * llvmSucc = terminator->getSuccessor(succIdx);
-		BasicBlock * succ = manager.getBasicBlock(llvmSucc);
-		list.push_back(succ);
-	}
 }
 
 std::string BasicBlock::toString() {

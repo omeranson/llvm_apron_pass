@@ -35,7 +35,7 @@ protected:
 	ap_abstract1_t m_abst_value;
 	std::string m_name;
 	ap_manager_t * m_manager;
-	ap_environment_t *m_ap_environment;
+	//ap_environment_t *m_ap_environment;
 	bool m_markedForChanged;
 
 	BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock);
@@ -48,12 +48,11 @@ protected:
 		std::list<ap_tcons1_t>  & constraints);
 public:
 	virtual std::string getName();
+	virtual ap_abstract1_t & getAbstractValue();
 	virtual std::string toString();
 	virtual llvm::BasicBlock * getLLVMBasicBlock();
 	virtual void setChanged();
 	virtual bool update();
-	// TODO(omeranson) incomplete
-	virtual void populateWithSuccessors(std::list<BasicBlock *> & list);
 
 	virtual bool join(BasicBlock & basicBlock);
 	virtual bool join(ap_abstract1_t & abst_value);
@@ -75,6 +74,7 @@ public:
 
 	virtual ap_manager_t * getManager();
 	virtual ap_environment_t * getEnvironment();
+	virtual void setEnvironment(ap_environment_t * nenv);
 	virtual void extendEnvironment(Value * value);
 	virtual ap_texpr1_t * getVariable(Value * value);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
