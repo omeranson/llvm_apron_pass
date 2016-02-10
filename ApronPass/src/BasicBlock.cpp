@@ -283,6 +283,7 @@ bool BasicBlock::update() {
 	/* Process the block. Return true if the block's context is modified.*/
 	std::cout << "Processing block " << getName() << std::endl;
 	std::list<ap_tcons1_t> constraints;
+	populateConstraintsFromAbstractValue(constraints);
 
 	ap_abstract1_t prev = m_abst_value;
 	llvm::BasicBlock::iterator it;
@@ -325,6 +326,20 @@ bool BasicBlock::update() {
 	bool markedForChanged = m_markedForChanged;
 	m_markedForChanged = false;
 	return markedForChanged && isChanged;
+}
+
+void BasicBlock::populateConstraintsFromAbstractValue(
+		std::list<ap_tcons1_t> & constraints) {
+	if (isBottom()) {
+		return;
+	}
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
+			getManager(), &getAbstractValue());
+	int size = ap_tcons1_array_size(&array);
+	for (int cnt = 0; cnt < size; cnt++) {
+		ap_tcons1_t constraint = ap_tcons1_array_get(&array, cnt);
+		constraints.push_back(constraint);
+	}
 }
 
 ap_abstract1_t BasicBlock::abstractOfTconsList(

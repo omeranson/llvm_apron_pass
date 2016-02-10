@@ -52,6 +52,8 @@ public:
 	virtual std::string toString();
 	virtual llvm::BasicBlock * getLLVMBasicBlock();
 	virtual void setChanged();
+	virtual void populateConstraintsFromAbstractValue(
+			std::list<ap_tcons1_t> & constraints);
 	virtual bool update();
 
 	virtual bool join(BasicBlock & basicBlock);
