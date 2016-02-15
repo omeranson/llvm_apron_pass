@@ -1,11 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int f2(int y, int z) {
-	int x = 1 - y - z;
-	return x;
-}
-
 int f(int y) {
 	int z = 5;
 	int x;
@@ -19,17 +14,9 @@ int f(int y) {
 	//return a;
 }
 
-int f4(int y) {
-	int z;
-	int x;
-	if (y < 0) {
-		z = -y+7;
-		x = y;
-	} else {
-		z = y-3;
-		x = -y;
-	}
-	return z+x;
+int f2(int y, int z) {
+	int x = 1 - y - z;
+	return x;
 }
 
 int f3(int y) {
@@ -41,6 +28,19 @@ int f3(int y) {
 		sum += cnt;
 	}
 	return sum;
+}
+
+int f4(int y) {
+	int z;
+	int x;
+	if (y < 0) {
+		z = -y+7;
+		x = y;
+	} else {
+		z = y-3;
+		x = -y;
+	}
+	return z+x;
 }
 
 int main(int argc, char * argv[]) {

@@ -90,9 +90,9 @@ namespace {
 				bool wasSeen = isSeen(block);
 				see(block);
 				bool isModified = block->update();
-				printf("%s: isModified: %s\n",
-						block->toString().c_str(),
-						isModified ? "True" : "False");
+				llvm::errs() << block->toString() <<
+						": isModified: " <<
+						isModified  << "\n";
 				if (!wasSeen || isModified) {
 					callGraph.populateWithSuccessors(
 							worklist, block);
@@ -101,12 +101,13 @@ namespace {
 		}
 		
 		void print() {
-			printf("Apron: Library %s, version %s\n",
-					ap_manager->library,
-					ap_manager->version);
+			llvm::errs() << "Apron: Library " <<
+					ap_manager->library <<
+					", version " <<
+					ap_manager->version << "\n";
 			std::set<BasicBlock *>::iterator it;
 			for (it = seen.begin(); it != seen.end(); it++) {
-				printf("%s\n", (*it)->toString().c_str());
+				llvm::errs() << (*it)->toString() << "\n";
 			}
 		}
 	};
@@ -173,6 +174,9 @@ namespace {
 			llvm::BasicBlock * llvmfirst =  &F.getEntryBlock();
 			BasicBlock * first = BasicBlockManager::getInstance().getBasicBlock(
 					llvmfirst);
+			//ap_environment_t * ap_environment =
+			//		ap_environment_alloc_empty();
+			//first->setEnvironment(ap_environment);
 			CallGraph funcCallGraph(F.getName().str(), first);
 			funcCallGraph.printAsDot();
 			ChaoticExecution chaoticExecution(funcCallGraph);

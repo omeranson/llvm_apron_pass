@@ -4,6 +4,7 @@
 #include <list>
 #include <map>
 #include <string>
+#include <ostream>
 
 #include <llvm/IR/BasicBlock.h>
 
@@ -35,7 +36,7 @@ protected:
 	ap_abstract1_t m_abst_value;
 	std::string m_name;
 	ap_manager_t * m_manager;
-	//ap_environment_t *m_ap_environment;
+	ap_environment_t *m_ap_environment;
 	bool m_markedForChanged;
 
 	BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock);
@@ -46,6 +47,10 @@ protected:
 			llvm::Instruction & inst);
 	virtual void addBogusInitialConstarints(
 		std::list<ap_tcons1_t>  & constraints);
+	template <class stream> void streamAbstract1(
+			stream & s, ap_abstract1_t & abst1);
+	template <class stream> void streamTCons1(
+			stream & s, ap_tcons1_t & tcons);
 public:
 	virtual std::string getName();
 	virtual ap_abstract1_t & getAbstractValue();

@@ -4,6 +4,7 @@
 #include <set>
 
 #include <llvm/IR/InstrTypes.h>
+#include <llvm/Support/raw_ostream.h>
 
 CallGraph::CallGraph(std::string name, BasicBlock * root) :
 		m_root(root), m_name(name) {
@@ -47,7 +48,7 @@ void CallGraph::populateWithSuccessors(
 	stop = m_nexts.upper_bound(block);
 	for (it = m_nexts.lower_bound(block); it != stop; it++) {
 		BasicBlock * succ = it->second;
-		std::cerr << block->getName() << " -> " << succ->getName() << std::endl;
+		std::cerr << block->getName() << " -> " << succ->getName() << "\n";
 		bool isSuccModified = succ->join(*block);
 		if (isSuccModified) {
 			succ->setChanged();
@@ -62,21 +63,21 @@ void CallGraph::populateWithPredecessors(
 	std::multimap<BasicBlock *, BasicBlock *>::iterator stop;
 	stop = m_prevs.upper_bound(block);
 	for (it = m_prevs.lower_bound(block); it != stop; it++) {
-		std::cerr << block->getName() << " -> " << it->second->getName() << std::endl;
+		std::cerr << block->getName() << " -> " << it->second->getName() << "\n";
 		list.push_back(it->second);
 	}
 }
 
 void CallGraph::printAsDot() {
 	std::multimap<BasicBlock *, BasicBlock *>::iterator it;
-	std::cout << "digraph \"" << getName() << "\" {" << std::endl;
+	llvm::errs() << "digraph \"" << getName() << "\" {" << "\n";
 	for (it = m_nexts.begin(); it != m_nexts.end(); it++) {
-		std::cout << "\t"
+		llvm::errs() << "\t"
 				<< "\"" << it->first->getName() << "\""
 				<< " -> "
 				<< "\"" << it->second->getName() << "\""
-				<< std::endl;
+				<< "\n";
 	}
-	std::cout << "}" << std::endl;
+	llvm::errs() << "}" << "\n";
 }
 

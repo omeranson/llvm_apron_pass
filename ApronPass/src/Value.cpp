@@ -1077,7 +1077,9 @@ void BranchInstructionValue::populateTreeConstraintsUnconditional(
 	BasicBlock * basicBlock = getBasicBlock();
 	ap_abstract1_t abst_value = basicBlock->abstractOfTconsList(
 			constraints);
-	succBasicBlock->join(abst_value);
+	if (succBasicBlock->unify(abst_value)) {
+		succBasicBlock->setChanged();
+	}
 }
 
 void BranchInstructionValue::populateTreeConstraints(

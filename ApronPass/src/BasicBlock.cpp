@@ -49,7 +49,7 @@ int BasicBlock::basicBlockCount = 0;
 BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
 		m_manager(manager),
-		//m_ap_environment(ap_environment_alloc_empty()),
+		m_ap_environment(ap_environment_alloc_empty()),
 		m_markedForChanged(false) {
 	m_abst_value = ap_abstract1_bottom(manager, getEnvironment());
 	if (!basicBlock->hasName()) {
@@ -111,9 +111,10 @@ ap_texpr1_t* BasicBlock::getVariable(Value * value) {
 		// NOTE: getEnvironment() returns the *extended* environment
 		result = ap_texpr1_var(getEnvironment(), var);
 		if (!result) {
-			printf("This one is still not in env %p: %p %s\n",
-					getEnvironment(),
-					var, (char*)var);
+			llvm::errs() << "This one is still not in env " <<
+					(void*)getEnvironment() << ": " <<
+					(void*)var << " " <<
+					(char*)var << "\n";
 			abort();
 		}
 	}
@@ -137,10 +138,6 @@ bool BasicBlock::join(ap_abstract1_t & abst_value) {
 			&m_abst_value, getEnvironment(), false);
 	m_abst_value = ap_abstract1_join(manager, false,
 			&m_abst_value, &abst_value);
-	printf("Join: Prev value: ");
-	ap_abstract1_fprint(stdout, manager, &prev);
-	printf("Join: Curr value: ");
-	ap_abstract1_fprint(stdout, manager, &m_abst_value);
 	return is_eq(prev);
 }
 
@@ -172,10 +169,6 @@ bool BasicBlock::meet(ap_abstract1_t & abst_value) {
 	ap_manager_t * manager = getManager();
 	m_abst_value = ap_abstract1_unify(manager, false,
 			&m_abst_value, &abst_value);
-	printf("Meet: Prev value: ");
-	ap_abstract1_fprint(stdout, manager, &prev);
-	printf("Meet: Curr value: ");
-	ap_abstract1_fprint(stdout, manager, &m_abst_value);
 	return is_eq(prev);
 }
 
@@ -279,9 +272,33 @@ void BasicBlock::setChanged() {
 	m_markedForChanged = true;
 }
 
+template <class stream>
+void BasicBlock::streamAbstract1(
+			stream & s, ap_abstract1_t & abst1) {
+	char * buffer;
+	size_t size;
+	FILE * bufferfp = open_memstream(&buffer, &size);
+	ap_abstract1_fprint(bufferfp, getManager(), &abst1);
+	fputc('\0', bufferfp);
+	fclose(bufferfp);
+	s << buffer;
+}
+
+template <class stream>
+void BasicBlock::streamTCons1(
+			stream & s, ap_tcons1_t & tcons) {
+	char * buffer;
+	size_t size;
+	FILE * bufferfp = open_memstream(&buffer, &size);
+	ap_tcons1_fprint(bufferfp, &tcons);
+	fputc('\0', bufferfp);
+	fclose(bufferfp);
+	s << buffer;
+}
+
 bool BasicBlock::update() {
 	/* Process the block. Return true if the block's context is modified.*/
-	std::cout << "Processing block " << getName() << std::endl;
+	llvm::errs() << "Processing block '" << getName() << "'\n";
 	std::list<ap_tcons1_t> constraints;
 	populateConstraintsFromAbstractValue(constraints);
 
@@ -295,34 +312,29 @@ bool BasicBlock::update() {
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
 	
-	fprintf(stdout,"Block prev abstract value:\n");
-	ap_abstract1_fprint(stdout, manager, &prev);
-	fprintf(stdout,"isTop: %s. isBottom: %s\n",
-			isTop(prev) ? "True" : "False",
-			isBottom(prev) ? "True" : "False" );
-	
+	llvm::errs() << "Block prev abstract value:\n";
+	streamAbstract1(llvm::errs(), prev);
+	llvm::errs() << "isTop: " << isTop(prev) <<
+			". isBottom: " << isBottom(prev) << "\n";
 
-	// Not using abstractOfTconsList sinse we want to add debugs
 	ap_abstract1_t abs = abstractOfTconsList(constraints);
 	// Some debug output
 	std::list<ap_tcons1_t>::iterator cons_it;
-	fprintf(stdout,"List of %lu constraints:\n", constraints.size());
+	llvm::errs() << "List of " << constraints.size() << " constraints:\n";
 	for (cons_it = constraints.begin(); cons_it != constraints.end(); cons_it++) {
-		ap_tcons1_fprint(stdout, &(*cons_it));
-		fprintf(stdout,"\n");
+		streamTCons1(llvm::errs(), *cons_it);
+		llvm::errs() << "\n";
 	}
-	fprintf(stdout,"Calculated abstract value:\n");
-	ap_abstract1_fprint(stdout, manager, &abs);
-	fprintf(stdout,"isTop: %s. isBottom: %s\n",
-			isTop(abs) ? "True" : "False",
-			isBottom(abs) ? "True" : "False" );
+	llvm::errs() << "Calculated abstract value:\n";
+	streamAbstract1(llvm::errs(), abs);
+	llvm::errs() << "isTop: " << isTop(abs) <<
+			". isBottom: " << isBottom(abs) << "\n";
 
 	bool isChanged = join(abs);
-	fprintf(stdout,"Block new abstract value:\n");
-	ap_abstract1_fprint(stdout, manager, &m_abst_value);
-	fprintf(stdout,"isTop: %s. isBottom: %s\n",
-			isTop() ? "True" : "False",
-			isBottom() ? "True" : "False" );
+	llvm::errs() << "Block new abstract value:\n";
+	streamAbstract1(llvm::errs(), m_abst_value);
+	llvm::errs() << "isTop: " << isTop() <<
+			". isBottom: " << isBottom() << "\n";
 	bool markedForChanged = m_markedForChanged;
 	m_markedForChanged = false;
 	return markedForChanged && isChanged;
@@ -375,19 +387,19 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(&inst);
 	if (!value) {
-		/*llvm::errs() << "Skipping UNKNOWN instruction: ";
+		llvm::errs() << "Skipping UNKNOWN instruction: ";
 		inst.print(llvm::errs());
-		llvm::errs() << "\n";*/
+		llvm::errs() << "\n";
 		return;
 	}
 	if (value->isSkip()) {
 		/*llvm::errs() << "Skipping set-skipped instruction: " << value->toString() << "\n";*/
 		return;
 	}
-	/*std::cout << "Apron: Instruction: "
+	llvm::errs() << "Apron: Instruction: "
 			// << scope->getFilename() << ": "
 			<< debugLoc.getLine() << ": "
-			<< value->toString() << "\n";*/
+			<< value->toString() << "\n";
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->populateTreeConstraints(constraints);

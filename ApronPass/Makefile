@@ -29,4 +29,5 @@ all: ${OBJS} libapron.so
 	@ ${CXX} -c -o $@ $^ ${CXXFLAGS}
 
 clean:
+	@ echo '[RM]	[${OBJS} libapron.so]'
 	@ rm -f ${OBJS} libapron.so
