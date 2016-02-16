@@ -2,7 +2,8 @@
 APRON_INSTALL=${HOME}/opt/apron-install
 LLVM_INSTALL=${HOME}/opt/llvm-install
 
-APRON_MANAGER=libboxMPQ
+#APRON_MANAGER=boxMPQ
+APRON_MANAGER=ap_ppl
 
 LLVM_BIN=${LLVM_INSTALL}/bin
 CC=${LLVM_BIN}/clang
@@ -24,4 +25,4 @@ OPT=${LLVM_BIN}/opt
 	${OBJDUMP} -d $^ > $@
 
 %.apron: %.bc
-	${OPT} -load ${APRON_INSTALL}/lib/${APRON_MANAGER}_debug.so -load ${APRON_INSTALL}/lib/libapron_debug.so -load ../ApronPass/libapron.so -apron < $^ 2> $@
+	${OPT} -load ${APRON_INSTALL}/lib/lib${APRON_MANAGER}_debug.so -load ${APRON_INSTALL}/lib/libapron_debug.so -load ../ApronPass/libapron.so -apron < $^ 2> $@

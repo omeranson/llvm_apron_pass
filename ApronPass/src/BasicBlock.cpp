@@ -15,6 +15,7 @@
 #include <oct.h>
 #include <pk.h>
 #include <pkeq.h>
+#include <ap_ppl.h>
 
 ap_environment_t * m_ap_environment = ap_environment_alloc_empty();
 /*			       BasicBlockManager			     */
@@ -23,7 +24,7 @@ BasicBlockManager & BasicBlockManager::getInstance() {
 	return instance;
 }
 
-BasicBlockManager::BasicBlockManager() : m_manager(box_manager_alloc()) {}
+BasicBlockManager::BasicBlockManager() : m_manager(ap_ppl_poly_manager_alloc(true)) {}
 BasicBlock * BasicBlockManager::createBasicBlock(llvm::BasicBlock * basicBlock) {
 	BasicBlock * result = new BasicBlock(m_manager, basicBlock);
 	return result;
@@ -291,10 +292,36 @@ void BasicBlock::setChanged() {
 }
 
 template <class stream>
+void BasicBlock::streamAbstract1Manually(
+			stream & s, ap_abstract1_t & abst1) {
+	char * buffer;
+	size_t size;
+	FILE * bufferfp = open_memstream(&buffer, &size);
+	// Despite the docs, this method doesn't exist
+	//ap_manager_t* manager = ap_abstract1_manager (&abst1)
+	ap_manager_t* manager = getManager();
+	ap_environment_t * environment = ap_abstract1_environment(manager, &abst1);
+	int env_size = environment->intdim;
+	for (int cnt = 0; cnt < env_size; cnt++) {
+		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
+		ap_interval_t* interval = ap_abstract1_bound_variable(
+			manager, &abst1, var);
+		fprintf(bufferfp, "%s: ", (char*)var);
+		ap_interval_fprint(bufferfp, interval);
+		fputc('\n', bufferfp);
+	}
+	// TODO Manually iterate vars in env, and print intervals from abst val
+	fputc('\0', bufferfp);
+	fclose(bufferfp);
+	s << buffer;
+}
+
+template <class stream>
 void BasicBlock::streamAbstract1(
 			stream & s, ap_abstract1_t & abst1) {
 	char * buffer;
 	size_t size;
+	ap_abstract1_canonicalize(getManager(), &abst1);
 	FILE * bufferfp = open_memstream(&buffer, &size);
 	ap_abstract1_fprint(bufferfp, getManager(), &abst1);
 	fputc('\0', bufferfp);
@@ -331,7 +358,7 @@ bool BasicBlock::update() {
 	ap_environment_t* env = getEnvironment();
 	
 	llvm::errs() << "Block prev abstract value:\n";
-	streamAbstract1(llvm::errs(), prev);
+	streamAbstract1Manually(llvm::errs(), prev);
 	llvm::errs() << "isTop: " << isTop(prev) <<
 			". isBottom: " << isBottom(prev) << "\n";
 
@@ -344,13 +371,14 @@ bool BasicBlock::update() {
 		llvm::errs() << "\n";
 	}
 	llvm::errs() << "Calculated abstract value:\n";
-	streamAbstract1(llvm::errs(), abs);
+	streamAbstract1Manually(llvm::errs(), abs);
 	llvm::errs() << "isTop: " << isTop(abs) <<
 			". isBottom: " << isBottom(abs) << "\n";
 
-	bool isChanged = join(abs);
+	bool isChanged = !is_eq(abs);
+	m_abst_value = abs;
 	llvm::errs() << "Block new abstract value:\n";
-	streamAbstract1(llvm::errs(), m_abst_value);
+	streamAbstract1Manually(llvm::errs(), m_abst_value);
 	llvm::errs() << "isTop: " << isTop() <<
 			". isBottom: " << isBottom() << "\n";
 	bool markedForChanged = m_markedForChanged;

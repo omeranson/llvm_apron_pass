@@ -22,6 +22,7 @@
 #include <oct.h>
 #include <pk.h>
 #include <pkeq.h>
+#include <ap_ppl.h>
 
 #include <Value.h>
 #include <CallGraph.h>
@@ -66,11 +67,9 @@ namespace {
 		CallGraph & callGraph;
 		std::list<BasicBlock *> worklist;
 		std::set<BasicBlock *> seen;
-		struct ap_manager_t * ap_manager;
 	public:
 		ChaoticExecution(CallGraph & callGraph) :
-				callGraph(callGraph),
-				ap_manager(box_manager_alloc()) {
+				callGraph(callGraph) {
 		}
 
 		bool isSeen(BasicBlock * block) {
@@ -102,9 +101,9 @@ namespace {
 		
 		void print() {
 			llvm::errs() << "Apron: Library " <<
-					ap_manager->library <<
+					BasicBlockManager::getInstance().m_manager->library <<
 					", version " <<
-					ap_manager->version << "\n";
+					BasicBlockManager::getInstance().m_manager->version << "\n";
 			std::set<BasicBlock *>::iterator it;
 			for (it = seen.begin(); it != seen.end(); it++) {
 				llvm::errs() << (*it)->toString() << "\n";

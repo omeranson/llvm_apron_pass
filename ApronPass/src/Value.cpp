@@ -312,15 +312,11 @@ std::string ConstantIntValue::getConstantString()  {
 	return apint.toString(10, true);
 }
 
-ap_texpr1_t * ConstantIntValue:: createTreeExpression(
+ap_texpr1_t * ConstantIntValue::createTreeExpression(
 		BasicBlock * basicBlock) {
 	llvm::ConstantInt & intValue = llvm::cast<llvm::ConstantInt>(*m_value);
 	const llvm::APInt & apint = intValue.getValue();
-	uint64_t value = apint.getLimitedValue();
-	int64_t svalue = value;
-	if (apint.isNegative()) {
-		svalue = -value;
-	}
+	int64_t svalue = apint.getSExtValue();
 	ap_texpr1_t * result = ap_texpr1_cst_scalar_int(
 			basicBlock->getEnvironment(), svalue);
 	return result;
@@ -898,7 +894,9 @@ std::string CastOperationValue::getValueString() {
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(operand);
 	std::ostringstream oss;
-	oss << "cast(" << value->getValueString() << ")";
+	oss << "cast(";
+	appendValueName(oss, value, "<value unknown>");
+	oss << ")";
 	return oss.str();
 }
 
@@ -907,7 +905,11 @@ bool CastOperationValue::isSkip() {
 }
 
 ap_texpr1_t * CastOperationValue::createRHSTreeExpression() {
-	return createTreeExpression(getBasicBlock());
+	llvm::UnaryInstruction * inst = asUnaryInstruction();
+	llvm::Value * operand = inst->getOperand(0);
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * value = factory->getValue(operand);
+	return value->createTreeExpression(getBasicBlock());
 }
 
 class BranchInstructionValue : public InstructionValue {
@@ -1043,14 +1045,6 @@ void BranchInstructionValue::populateTreeConstraintsConditional(
 			basicBlock->abstractOfTconsList(constraintsTrue);
 	ap_abstract1_t abstValueFalse =
 			basicBlock->abstractOfTconsList(constraintsFalse);
-	/*
-	printf("BranchInstructionValue::populateTreeConstraintsConditional: abstract value true: ");
-	ap_abstract1_fprint(stdout, basicBlock->getManager(), &abstValueTrue);
-	printf("\n");
-	printf("BranchInstructionValue::populateTreeConstraintsConditional: abstract value false: ");
-	ap_abstract1_fprint(stdout, basicBlock->getManager(), &abstValueFalse);
-	printf("\n");
-	*/
 
 	BasicBlockManager & manager = BasicBlockManager::getInstance();
 	BasicBlock * trueSuccBB = manager.getBasicBlock(trueSuccessor);
@@ -1061,14 +1055,6 @@ void BranchInstructionValue::populateTreeConstraintsConditional(
 	if (falseSuccBB->join(abstValueFalse)) {
 		falseSuccBB->setChanged();
 	}
-	/*
-	printf("BranchInstructionValue::populateTreeConstraintsConditional: BB abstract value true: ");
-	ap_abstract1_fprint(stdout, trueSuccBB->getManager(), &trueSuccBB->getAbstractValue());
-	printf("\n");
-	printf("BranchInstructionValue::populateTreeConstraintsConditional: BB abstract value false: ");
-	ap_abstract1_fprint(stdout, falseSuccBB->getManager(), &falseSuccBB->getAbstractValue());
-	printf("\n");
-	*/
 }
 
 void BranchInstructionValue::populateTreeConstraintsUnconditional(

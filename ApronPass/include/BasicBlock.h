@@ -19,12 +19,14 @@ protected:
 	static BasicBlockManager instance;
 	std::map<llvm::BasicBlock *, BasicBlock *> instances;
 	BasicBlock * createBasicBlock(llvm::BasicBlock * basicBlock);
-	ap_manager_t * m_manager;
+	// TODO Move m_manager to ChaoticExecution class
 
 	BasicBlockManager();
 public:
 	static BasicBlockManager & getInstance();
 	BasicBlock * getBasicBlock(llvm::BasicBlock * basicBlock);
+
+	ap_manager_t * m_manager;
 };
 
 class BasicBlock {
@@ -47,6 +49,8 @@ protected:
 			llvm::Instruction & inst);
 	virtual void addBogusInitialConstarints(
 		std::list<ap_tcons1_t>  & constraints);
+	template <class stream> void streamAbstract1Manually(
+			stream & s, ap_abstract1_t & abst1);
 	template <class stream> void streamAbstract1(
 			stream & s, ap_abstract1_t & abst1);
 	template <class stream> void streamTCons1(
