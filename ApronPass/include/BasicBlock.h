@@ -36,7 +36,7 @@ protected:
 	ap_abstract1_t m_abst_value;
 	std::string m_name;
 	ap_manager_t * m_manager;
-	ap_environment_t *m_ap_environment;
+	//ap_environment_t *m_ap_environment;
 	bool m_markedForChanged;
 
 	BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock);
@@ -83,7 +83,8 @@ public:
 	virtual ap_environment_t * getEnvironment();
 	virtual void setEnvironment(ap_environment_t * nenv);
 	virtual void extendEnvironment(Value * value);
-	virtual ap_texpr1_t * getVariable(Value * value);
+	virtual ap_texpr1_t * getVariableTExpr(Value * value);
+	virtual ap_interval_t * getVariableInterval(Value * value);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
 	virtual ap_abstract1_t abstractOfTconsList(

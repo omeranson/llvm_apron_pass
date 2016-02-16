@@ -584,9 +584,9 @@ bool IntegerCompareValue::isSkip() {
 class PhiValue : public InstructionValue {
 protected:
 	virtual llvm::PHINode * asPHINode();
-	virtual ap_tcons1_t getSetValueTcons(int i);
-	virtual void populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints);
+	virtual ap_interval_t * joinIntervals(
+			ap_interval_t * interval1, ap_interval_t * interval2);
+	virtual ap_texpr1_t * createRHSTreeExpression();
 public:
 	PhiValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
@@ -618,49 +618,52 @@ bool PhiValue::isSkip() {
 	return false;
 }
 
-ap_tcons1_t PhiValue::getSetValueTcons(int i) {
-	ValueFactory * factory = ValueFactory::getInstance();
-	llvm::PHINode * phiNode = asPHINode();
-	llvm::Value * incomingValue = phiNode->getIncomingValue(i);
-	Value * value = factory->getValue(incomingValue);
-
-	
-	BasicBlock * basicBlock = getBasicBlock();
-	return Value::getSetValueTcons(basicBlock, value);
+ap_interval_t * PhiValue::joinIntervals(
+		ap_interval_t * interval1, ap_interval_t * interval2) {
+	if (ap_interval_is_bottom(interval1)) {
+		return ap_interval_alloc_set(interval2);
+	}
+	if (ap_interval_is_bottom(interval2)) {
+		return ap_interval_alloc_set(interval1);
+	}
+	ap_scalar_t * sup = ap_scalar_alloc_set(interval1->sup);
+	if (ap_scalar_cmp(sup, interval2->sup) > 0) {
+		ap_scalar_set(sup, interval2->sup);
+	}
+	ap_scalar_t * inf = ap_scalar_alloc_set(interval1->inf);
+	if (ap_scalar_cmp(inf, interval2->inf) < 0) {
+		ap_scalar_set(inf, interval2->inf);
+	}
+	ap_interval_t * result = ap_interval_alloc();
+	ap_interval_set_scalar(result, inf, sup);
+	return result;
 }
 
-void PhiValue::populateTreeConstraints(
-		std::list<ap_tcons1_t> & constraints) {
-	/*
-	 * Like in select, but no conditions. 
+ap_texpr1_t * PhiValue::createRHSTreeExpression() {
+	/* The plan:
+	 * for each pair basicBlock, value in phi operands:
+	 * 	interval <- approx of value in basicBlock
+	 * new value <- join over all intervals
 	 */
-	std::list<ap_tcons1_t> constraintsFirst = constraints;
-	std::list<ap_tcons1_t> constraintsSecond = constraints;
+	ap_interval_t * result = ap_interval_alloc();
+	ap_interval_set_bottom(result);
 
-	ap_tcons1_t setFirstValue = getSetValueTcons(0);
-	ap_tcons1_t setSecondValue = getSetValueTcons(1);
-
-	// TODO Copied from @SelectValueInstruction::populateTreeConstraints
-	constraintsFirst.push_back(setFirstValue);
-	constraintsSecond.push_back(setSecondValue);
-
-	BasicBlock * basicBlock = getBasicBlock();
-	ap_abstract1_t abstValueFirst =
-			basicBlock->abstractOfTconsList(constraintsFirst);
-	ap_abstract1_t abstValueSecond =
-			basicBlock->abstractOfTconsList(constraintsSecond);
-
-	ap_abstract1_t joinedValue = ap_abstract1_join(basicBlock->getManager(),
-			false, &abstValueFirst, &abstValueSecond);
-	
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
-			basicBlock->getManager(), &joinedValue);
-
-	size_t arraySize = ap_tcons1_array_size(&array);
-	for (int idx = 0; idx < arraySize; idx++) {
-		ap_tcons1_t constraint = ap_tcons1_array_get(&array, idx);
-		constraints.push_back(constraint);
+	// TODO(omeranson) This is probably very very wrong
+	llvm::PHINode * phi = &llvm::cast<llvm::PHINode>(*m_value);
+	int count = phi->getNumIncomingValues();
+	BasicBlockManager & manager = BasicBlockManager::getInstance();
+	ValueFactory * factory = ValueFactory::getInstance();
+	for (int cnt = 0; cnt < count; cnt++) {
+		llvm::BasicBlock * llvmBasicBlock = phi->getIncomingBlock(cnt);
+		BasicBlock * basicBlock = manager.getBasicBlock(llvmBasicBlock);
+		llvm::Value * llvmValue = phi->getIncomingValue(cnt);
+		Value * value = factory->getValue(llvmValue);
+		ap_interval_t * interval = basicBlock->getVariableInterval(
+				value);
+		result = joinIntervals(result, interval);
 	}
+
+	return ap_texpr1_cst_interval(getBasicBlock()->getEnvironment(), result);
 }
 
 class SelectValueInstruction : public InstructionValue {
@@ -1145,7 +1148,7 @@ ap_var_t Value::varName() {
 }
 
 ap_texpr1_t * Value::createTreeExpression(BasicBlock * basicBlock) {
-	return basicBlock->getVariable(this);
+	return basicBlock->getVariableTExpr(this);
 }
 
 ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {

@@ -174,9 +174,9 @@ namespace {
 			llvm::BasicBlock * llvmfirst =  &F.getEntryBlock();
 			BasicBlock * first = BasicBlockManager::getInstance().getBasicBlock(
 					llvmfirst);
-			//ap_environment_t * ap_environment =
-			//		ap_environment_alloc_empty();
-			//first->setEnvironment(ap_environment);
+			ap_environment_t * ap_environment =
+					ap_environment_alloc_empty();
+			first->setEnvironment(ap_environment);
 			CallGraph funcCallGraph(F.getName().str(), first);
 			funcCallGraph.printAsDot();
 			ChaoticExecution chaoticExecution(funcCallGraph);

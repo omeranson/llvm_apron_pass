@@ -49,7 +49,7 @@ int BasicBlock::basicBlockCount = 0;
 BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
 		m_manager(manager),
-		m_ap_environment(ap_environment_alloc_empty()),
+		//m_ap_environment(ap_environment_alloc_empty()),
 		m_markedForChanged(false) {
 	m_abst_value = ap_abstract1_bottom(manager, getEnvironment());
 	if (!basicBlock->hasName()) {
@@ -103,12 +103,30 @@ void BasicBlock::extendEnvironment(Value * value) {
 	// TODO Memory leak?
 }
 
-ap_texpr1_t* BasicBlock::getVariable(Value * value) {
+ap_interval_t * BasicBlock::getVariableInterval(Value * value) {
+	ap_var_t var = value->varName();
+	ap_interval_t* result = ap_abstract1_bound_variable(
+			getManager(), &m_abst_value, var);
+	if (!result) {
+		extendEnvironment(value);
+		result = ap_abstract1_bound_variable(
+				getManager(), &m_abst_value, var);
+		if (!result) {
+			llvm::errs() << "This one is still not in env " <<
+					(void*)getEnvironment() << ": " <<
+					(void*)var << " " <<
+					(char*)var << "\n";
+			abort();
+		}
+	}
+	return result;
+}
+
+ap_texpr1_t* BasicBlock::getVariableTExpr(Value * value) {
 	ap_var_t var = value->varName();
 	ap_texpr1_t* result = ap_texpr1_var(getEnvironment(), var);
 	if (!result) {
 		extendEnvironment(value);
-		// NOTE: getEnvironment() returns the *extended* environment
 		result = ap_texpr1_var(getEnvironment(), var);
 		if (!result) {
 			llvm::errs() << "This one is still not in env " <<
