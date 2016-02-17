@@ -580,13 +580,13 @@ bool IntegerCompareValue::isSkip() {
 class PhiValue : public InstructionValue {
 protected:
 	virtual llvm::PHINode * asPHINode();
-	virtual ap_interval_t * joinIntervals(
-			ap_interval_t * interval1, ap_interval_t * interval2);
-	virtual ap_texpr1_t * createRHSTreeExpression();
+	virtual ap_abstract1_t getAbstractValueWithSet(int idx);
 public:
 	PhiValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip();
+	virtual void populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints);
 };
 
 llvm::PHINode * PhiValue::asPHINode() {
@@ -614,52 +614,54 @@ bool PhiValue::isSkip() {
 	return false;
 }
 
-ap_interval_t * PhiValue::joinIntervals(
-		ap_interval_t * interval1, ap_interval_t * interval2) {
-	if (ap_interval_is_bottom(interval1)) {
-		return ap_interval_alloc_set(interval2);
-	}
-	if (ap_interval_is_bottom(interval2)) {
-		return ap_interval_alloc_set(interval1);
-	}
-	ap_scalar_t * sup = ap_scalar_alloc_set(interval1->sup);
-	if (ap_scalar_cmp(sup, interval2->sup) > 0) {
-		ap_scalar_set(sup, interval2->sup);
-	}
-	ap_scalar_t * inf = ap_scalar_alloc_set(interval1->inf);
-	if (ap_scalar_cmp(inf, interval2->inf) < 0) {
-		ap_scalar_set(inf, interval2->inf);
-	}
-	ap_interval_t * result = ap_interval_alloc();
-	ap_interval_set_scalar(result, inf, sup);
-	return result;
-}
-
-ap_texpr1_t * PhiValue::createRHSTreeExpression() {
-	/* The plan:
-	 * for each pair basicBlock, value in phi operands:
-	 * 	interval <- approx of value in basicBlock
-	 * new value <- join over all intervals
-	 */
-	ap_interval_t * result = ap_interval_alloc();
-	ap_interval_set_bottom(result);
-
-	// TODO(omeranson) This is probably very very wrong
-	llvm::PHINode * phi = &llvm::cast<llvm::PHINode>(*m_value);
-	int count = phi->getNumIncomingValues();
+ap_abstract1_t PhiValue::getAbstractValueWithSet(int idx) {
 	BasicBlockManager & manager = BasicBlockManager::getInstance();
 	ValueFactory * factory = ValueFactory::getInstance();
-	for (int cnt = 0; cnt < count; cnt++) {
-		llvm::BasicBlock * llvmBasicBlock = phi->getIncomingBlock(cnt);
-		BasicBlock * basicBlock = manager.getBasicBlock(llvmBasicBlock);
-		llvm::Value * llvmValue = phi->getIncomingValue(cnt);
-		Value * value = factory->getValue(llvmValue);
-		ap_interval_t * interval = basicBlock->getVariableInterval(
-				value);
-		result = joinIntervals(result, interval);
-	}
 
-	return ap_texpr1_cst_interval(getBasicBlock()->getEnvironment(), result);
+	llvm::PHINode * phi = &llvm::cast<llvm::PHINode>(*m_value);
+	llvm::BasicBlock * llvmBasicBlock = phi->getIncomingBlock(idx);
+	BasicBlock * basicBlock = manager.getBasicBlock(llvmBasicBlock);
+	llvm::Value * llvmValue = phi->getIncomingValue(idx);
+	Value * value = factory->getValue(llvmValue);
+
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
+			basicBlock->getManager(),
+			&basicBlock->getAbstractValue());
+	std::list<ap_tcons1_t> constraints;
+	size_t arraySize = ap_tcons1_array_size(&array);
+	for (int idx = 0; idx < arraySize; idx++) {
+		ap_tcons1_t constraint = ap_tcons1_array_get(&array, idx);
+		constraints.push_back(constraint);
+	}
+	ap_tcons1_t setValueTCons = getSetValueTcons(
+			getBasicBlock(), value);
+	constraints.push_back(setValueTCons);
+	return getBasicBlock()->abstractOfTconsList(constraints);
+}
+
+void PhiValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
+	/* The plan:
+	 * for each pair basicBlock, value in phi operands:
+	 * 	myValue <- abstract(me == value, constraints from basicBlock)
+	 * new value <- join over all myValue
+	 */
+	llvm::PHINode * phi = &llvm::cast<llvm::PHINode>(*m_value);
+	int count = phi->getNumIncomingValues();
+	// NOTE Change to alloca if you don't like variable sized arrays
+	ap_abstract1_t abstractValues[count];
+	for (int idx = 0; idx < count; idx++) {
+		abstractValues[idx] = getAbstractValueWithSet(idx);
+	}
+	ap_abstract1_t joinedValue = ap_abstract1_join_array(
+			getBasicBlock()->getManager(), abstractValues, count);
+
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
+			getBasicBlock()->getManager(), &joinedValue);
+	size_t arraySize = ap_tcons1_array_size(&array);
+	for (int idx = 0; idx < arraySize; idx++) {
+		ap_tcons1_t constraint = ap_tcons1_array_get(&array, idx);
+		constraints.push_back(constraint);
+	}
 }
 
 class SelectValueInstruction : public InstructionValue {

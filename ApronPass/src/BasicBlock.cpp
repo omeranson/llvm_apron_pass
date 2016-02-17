@@ -25,6 +25,8 @@ BasicBlockManager & BasicBlockManager::getInstance() {
 }
 
 BasicBlockManager::BasicBlockManager() : m_manager(ap_ppl_poly_manager_alloc(true)) {}
+//BasicBlockManager::BasicBlockManager() : m_manager(box_manager_alloc()) {}
+
 BasicBlock * BasicBlockManager::createBasicBlock(llvm::BasicBlock * basicBlock) {
 	BasicBlock * result = new BasicBlock(m_manager, basicBlock);
 	return result;
@@ -358,12 +360,13 @@ bool BasicBlock::update() {
 	ap_environment_t* env = getEnvironment();
 	
 	llvm::errs() << "Block prev abstract value:\n";
-	streamAbstract1Manually(llvm::errs(), prev);
+	streamAbstract1(llvm::errs(), prev);
 	llvm::errs() << "isTop: " << isTop(prev) <<
 			". isBottom: " << isBottom(prev) << "\n";
 
 	ap_abstract1_t abs = abstractOfTconsList(constraints);
 	// Some debug output
+	/*
 	std::list<ap_tcons1_t>::iterator cons_it;
 	llvm::errs() << "List of " << constraints.size() << " constraints:\n";
 	for (cons_it = constraints.begin(); cons_it != constraints.end(); cons_it++) {
@@ -371,19 +374,24 @@ bool BasicBlock::update() {
 		llvm::errs() << "\n";
 	}
 	llvm::errs() << "Calculated abstract value:\n";
-	streamAbstract1Manually(llvm::errs(), abs);
+	streamAbstract1(llvm::errs(), abs);
 	llvm::errs() << "isTop: " << isTop(abs) <<
 			". isBottom: " << isBottom(abs) << "\n";
 
-	bool isChanged = !is_eq(abs);
-	m_abst_value = abs;
 	llvm::errs() << "Block new abstract value:\n";
-	streamAbstract1Manually(llvm::errs(), m_abst_value);
+	streamAbstract1(llvm::errs(), m_abst_value);
 	llvm::errs() << "isTop: " << isTop() <<
 			". isBottom: " << isBottom() << "\n";
+	llvm::errs() << "Block values ranges:\n";
+	streamAbstract1Manually(llvm::errs(), m_abst_value);
+	llvm::errs() << "\n";
+	*/
 	bool markedForChanged = m_markedForChanged;
 	m_markedForChanged = false;
+	bool isChanged = !is_eq(abs);
+	m_abst_value = abs;
 	return markedForChanged && isChanged;
+	
 }
 
 void BasicBlock::populateConstraintsFromAbstractValue(
@@ -453,14 +461,10 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 
 std::string BasicBlock::toString() {
 	std::ostringstream oss;
-	char * cbuf = NULL;
-	size_t ncbuf = 0;
-	FILE * buffer = open_memstream(&cbuf, &ncbuf);
-	ap_abstract1_fprint(buffer, getManager(), &m_abst_value);
-	fclose(buffer);
-	oss << getName() << ": " << cbuf;
-	free(cbuf);
-	cbuf = NULL;
+	oss << getName() << ": ";
+	streamAbstract1(oss, m_abst_value);
+	oss << "\nRanges:";
+	streamAbstract1Manually(oss, m_abst_value);
 	return oss.str();
 }
 
