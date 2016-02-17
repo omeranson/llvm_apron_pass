@@ -1,6 +1,8 @@
 #include <BasicBlock.h>
 #include <Value.h>
-
+extern "C" {
+#include <Adaptor.h>
+}
 #include <cstdio>
 #include <iostream>
 #include <sstream>
@@ -24,7 +26,8 @@ BasicBlockManager & BasicBlockManager::getInstance() {
 	return instance;
 }
 
-BasicBlockManager::BasicBlockManager() : m_manager(ap_ppl_poly_manager_alloc(true)) {}
+BasicBlockManager::BasicBlockManager() : m_manager(create_manager()) {}
+//BasicBlockManager::BasicBlockManager() : m_manager(ap_ppl_poly_manager_alloc(true)) {}
 //BasicBlockManager::BasicBlockManager() : m_manager(box_manager_alloc()) {}
 
 BasicBlock * BasicBlockManager::createBasicBlock(llvm::BasicBlock * basicBlock) {
@@ -308,7 +311,7 @@ void BasicBlock::streamAbstract1Manually(
 		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
 		ap_interval_t* interval = ap_abstract1_bound_variable(
 			manager, &abst1, var);
-		fprintf(bufferfp, "%s: ", (char*)var);
+		fprintf(bufferfp, "\t%s: ", (char*)var);
 		ap_interval_fprint(bufferfp, interval);
 		fputc('\n', bufferfp);
 	}
@@ -358,15 +361,15 @@ bool BasicBlock::update() {
 
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
+	ap_abstract1_t abs = abstractOfTconsList(constraints);
 	
+	// Some debug output
+	/*
 	llvm::errs() << "Block prev abstract value:\n";
 	streamAbstract1(llvm::errs(), prev);
 	llvm::errs() << "isTop: " << isTop(prev) <<
 			". isBottom: " << isBottom(prev) << "\n";
 
-	ap_abstract1_t abs = abstractOfTconsList(constraints);
-	// Some debug output
-	/*
 	std::list<ap_tcons1_t>::iterator cons_it;
 	llvm::errs() << "List of " << constraints.size() << " constraints:\n";
 	for (cons_it = constraints.begin(); cons_it != constraints.end(); cons_it++) {
@@ -463,7 +466,7 @@ std::string BasicBlock::toString() {
 	std::ostringstream oss;
 	oss << getName() << ": ";
 	streamAbstract1(oss, m_abst_value);
-	oss << "\nRanges:";
+	oss << "\nRanges:\n";
 	streamAbstract1Manually(oss, m_abst_value);
 	return oss.str();
 }
