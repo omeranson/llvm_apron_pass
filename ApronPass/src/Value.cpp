@@ -78,7 +78,7 @@ void InstructionValue::populateTreeConstraints(
 	basicBlock->extendTexprEnvironment(value_texpr);
 
 	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr, 
+			AP_TEXPR_SUB, value_texpr, var_texpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
 	constraints.push_back(result);
@@ -652,6 +652,14 @@ void PhiValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	for (int idx = 0; idx < count; idx++) {
 		abstractValues[idx] = getAbstractValueWithSet(idx);
 	}
+	for (int idx = 0; idx < count; idx++) {
+		abstractValues[idx] = ap_abstract1_change_environment(
+				getBasicBlock()->getManager(),
+				false,
+				&abstractValues[idx],
+				getBasicBlock()->getEnvironment(),
+				false);
+	}
 	ap_abstract1_t joinedValue = ap_abstract1_join_array(
 			getBasicBlock()->getManager(), abstractValues, count);
 
@@ -780,7 +788,7 @@ ap_tcons1_t SelectValueInstruction::getConditionTcons(
 				AP_RTYPE_INT, AP_RDIR_ZERO);
 	} else {
 		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, left, right, 
+				AP_TEXPR_SUB, left, right,
 				AP_RTYPE_INT, AP_RDIR_ZERO);
 	}
 	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
@@ -814,7 +822,7 @@ ap_tcons1_t SelectValueInstruction::getSetFalseValueTcons() {
 
 void SelectValueInstruction::populateTreeConstraints(
 		std::list<ap_tcons1_t> & constraints) {
-	/* 
+	/*
 	The command is %4 <- select %1, %2, %3
 	We have all the information (it is in the list<ap_tcons1_t>). What if we
 	do the following?:
@@ -855,7 +863,7 @@ void SelectValueInstruction::populateTreeConstraints(
 
 	ap_abstract1_t joinedValue = ap_abstract1_join(basicBlock->getManager(),
 			false, &abstValueTrue, &abstValueFalse);
-	
+
 	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
 			basicBlock->getManager(), &joinedValue);
 
@@ -1010,7 +1018,7 @@ ap_tcons1_t BranchInstructionValue::getConditionTcons(
 				AP_RTYPE_INT, AP_RDIR_ZERO);
 	} else {
 		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, left, right, 
+				AP_TEXPR_SUB, left, right,
 				AP_RTYPE_INT, AP_RDIR_ZERO);
 	}
 	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
@@ -1148,7 +1156,7 @@ ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
 	basicBlock->extendTexprEnvironment(var_texpr);
 	basicBlock->extendTexprEnvironment(value_texpr);
 	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr, 
+			AP_TEXPR_SUB, value_texpr, var_texpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
 	return result;
