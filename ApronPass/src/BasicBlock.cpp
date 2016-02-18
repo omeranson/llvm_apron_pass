@@ -72,7 +72,21 @@ void BasicBlock::initialiseBlockName() {
 }
 
 bool BasicBlock::is_eq(ap_abstract1_t & value) {
-	return ap_abstract1_is_eq(getManager(), &m_abst_value, &value);
+	ap_manager_t * manager = getManager();
+	ap_environment_t * environment = getEnvironment();
+	ap_abstract1_t lclValue = ap_abstract1_change_environment(
+			manager,
+			false,
+			&value,
+			environment,
+			false);
+	m_abst_value = ap_abstract1_change_environment(
+			manager,
+			false,
+			&m_abst_value,
+			environment,
+			false);
+	return ap_abstract1_is_eq(getManager(), &m_abst_value, &lclValue);
 }
 
 std::string BasicBlock::getName() {
@@ -149,7 +163,7 @@ void BasicBlock::extendTexprEnvironment(ap_texpr1_t * texpr) {
 	// returns true on error. WTF?
 	assert(!ap_texpr1_extend_environment_with(texpr, getEnvironment()));
 }
-	
+
 void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
 	// returns true on error. WTF?
 	assert(!ap_tcons1_extend_environment_with(tcons, getEnvironment()));
@@ -287,7 +301,7 @@ void BasicBlock::addBogusInitialConstarints(
 
 	ap_tcons1_t constraint1 = ap_tcons1_make(AP_CONS_SUPEQ, y, zero);
 	ap_tcons1_t constraint2 = ap_tcons1_make(AP_CONS_SUPEQ, z, zero);
-	
+
 	constraints.push_back(constraint1);
 	constraints.push_back(constraint2);
 }
@@ -362,7 +376,7 @@ bool BasicBlock::update() {
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
 	ap_abstract1_t abs = abstractOfTconsList(constraints);
-	
+
 	// Some debug output
 	/*
 	llvm::errs() << "Block prev abstract value:\n";
@@ -394,7 +408,6 @@ bool BasicBlock::update() {
 	bool isChanged = !is_eq(abs);
 	m_abst_value = abs;
 	return markedForChanged && isChanged;
-	
 }
 
 void BasicBlock::populateConstraintsFromAbstractValue(
