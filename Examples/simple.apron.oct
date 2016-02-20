@@ -1,0 +1,548 @@
+WARNING: You're attempting to print out a bitcode file.
+This is inadvisable as it may cause display problems. If
+you REALLY want to taste LLVM bitcode first-hand, you
+can force output with the `-f' option.
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f
+digraph "f" {
+}
+Processing block 'entry'
+Apron: Instruction: 8: sub <- (0 - y)
+Apron: Instruction: 7: x.0 <- ((y < 0) ? (0 - y) : 5)
+entry: octagon of dim (3,0)
+-sub + x.0 >= 0
+x.0 - 1 >= 0
+sub + y >= 0
+x.0 + y >= 0
+-sub - y >= 0
+
+Ranges:
+	sub: [-oo,+oo]
+	x.0: [1,+oo]
+	y: [-oo,+oo]
+: isModified: 0
+Apron: Library oct, version 1.0 with NUM_MPQ
+entry: octagon of dim (3,0)
+-sub + x.0 >= 0
+x.0 - 1 >= 0
+sub + y >= 0
+x.0 + y >= 0
+-sub - y >= 0
+
+Ranges:
+	sub: [-oo,+oo]
+	x.0: [1,+oo]
+	y: [-oo,+oo]
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f2
+digraph "f2" {
+}
+Processing block 'entry'
+Apron: Instruction: 18: sub <- (1 - y)
+Apron: Instruction: 18: sub1 <- (sub - z)
+entry: octagon of dim (4,0)
+sub + y - 1 >= 0
+-sub - y + 1 >= 0
+
+Ranges:
+	sub: [-oo,+oo]
+	sub1: [-oo,+oo]
+	y: [-oo,+oo]
+	z: [-oo,+oo]
+: isModified: 0
+Apron: Library oct, version 1.0 with NUM_MPQ
+entry: octagon of dim (4,0)
+sub + y - 1 >= 0
+-sub - y + 1 >= 0
+
+Ranges:
+	sub: [-oo,+oo]
+	sub1: [-oo,+oo]
+	y: [-oo,+oo]
+	z: [-oo,+oo]
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f3
+digraph "f3" {
+	"for.cond.preheader" -> "for.body.lr.ph"
+	"for.cond.preheader" -> "return"
+	"for.body.lr.ph" -> "return"
+	"entry" -> "return"
+	"entry" -> "for.cond.preheader"
+}
+Processing block 'entry'
+Apron: Instruction: 23: %9 <- %9
+Condition: cmp <- (y > 100)
+Condition: cmp <- (y > 100)
+Condition: cmp <- (y > 100)
+Condition: cmp <- (y > 100)
+entry: empty octagon of dim (1,0)
+
+Ranges:
+	y: [1,-1]
+: isModified: 0
+entry -> return
+entry -> for.cond.preheader
+Processing block 'return'
+Apron: Instruction: 0: retval.0 <- phi ( entry -> -1 ) ( for.body.lr.ph -> %10 ) ( for.cond.preheader -> 0 )
+return: empty octagon of dim (3,0)
+
+Ranges:
+	%10: [1,-1]
+	retval.0: [1,-1]
+	y: [1,-1]
+: isModified: 1
+Processing block 'for.cond.preheader'
+Apron: Instruction: 27: %12 <- %12
+Condition: cmp16 <- (y > 1)
+Condition: cmp16 <- (y > 1)
+Condition: cmp16 <- (y > 1)
+Condition: cmp16 <- (y > 1)
+for.cond.preheader: octagon of dim (3,0)
+-y + 100 >= 0
+
+Ranges:
+	%10: [-oo,+oo]
+	retval.0: [-oo,+oo]
+	y: [-oo,100]
+: isModified: 1
+for.cond.preheader -> for.body.lr.ph
+for.cond.preheader -> return
+Processing block 'for.body.lr.ph'
+Apron: Instruction: 27: %13 <- (y  <<  1)
+Apron: Instruction: 27: %14 <- (y + -2)
+Apron: Instruction: 0: %15 <- cast(%14)
+Apron: Instruction: 27: %16 <- (y + -3)
+Apron: Instruction: 0: %17 <- cast(%16)
+Apron: Instruction: 27: %18 <- (%15 * %17)
+Apron: Instruction: 27: %19 <- (%18  <<  1)
+Apron: Instruction: 0: %20 <- cast(%19)
+Apron: Instruction: 27: %21 <- (%13 + %20)
+Apron: Instruction: 27: %10 <- (%21 + -3)
+Apron: Instruction: 27: %22 <- %22
+for.body.lr.ph: octagon of dim (12,0)
+%13 - 4 >= 0
+-%13 + 200 >= 0
+-%13 + %14 + 102 >= 0
+%13 + %14 - 4 >= 0
+%14 >= 0
+-%13 - %14 + 298 >= 0
+%13 - %14 - 4 >= 0
+-%14 + 98 >= 0
+-%13 + %15 + 102 >= 0
+%13 + %15 - 4 >= 0
+-%14 + %15 >= 0
+%14 + %15 >= 0
+%15 >= 0
+-%13 - %15 + 298 >= 0
+%13 - %15 - 4 >= 0
+-%14 - %15 + 196 >= 0
+%14 - %15 >= 0
+-%15 + 98 >= 0
+-%13 + %16 + 103 >= 0
+%13 + %16 - 3 >= 0
+-%14 + %16 + 1 >= 0
+%14 + %16 + 1 >= 0
+-%15 + %16 + 1 >= 0
+%15 + %16 + 1 >= 0
+%16 + 1 >= 0
+-%13 - %16 + 297 >= 0
+%13 - %16 - 5 >= 0
+-%14 - %16 + 195 >= 0
+%14 - %16 - 1 >= 0
+-%15 - %16 + 195 >= 0
+%15 - %16 - 1 >= 0
+-%16 + 97 >= 0
+-%13 + %17 + 103 >= 0
+%13 + %17 - 3 >= 0
+-%14 + %17 + 1 >= 0
+%14 + %17 + 1 >= 0
+-%15 + %17 + 1 >= 0
+%15 + %17 + 1 >= 0
+-%16 + %17 >= 0
+%16 + %17 + 2 >= 0
+%17 + 1 >= 0
+-%13 - %17 + 297 >= 0
+%13 - %17 - 5 >= 0
+-%14 - %17 + 195 >= 0
+%14 - %17 - 1 >= 0
+-%15 - %17 + 195 >= 0
+%15 - %17 - 1 >= 0
+-%16 - %17 + 194 >= 0
+%16 - %17 >= 0
+-%17 + 97 >= 0
+-%19 + %20 >= 0
+%19 - %20 >= 0
+-%10 + %21 - 3 >= 0
+%10 - %21 + 3 >= 0
+-%13 + y + 100 >= 0
+%13 + y - 6 >= 0
+-%14 + y - 2 >= 0
+%14 + y - 2 >= 0
+-%15 + y - 2 >= 0
+%15 + y - 2 >= 0
+-%16 + y - 3 >= 0
+%16 + y - 1 >= 0
+-%17 + y - 3 >= 0
+%17 + y - 1 >= 0
+y - 2 >= 0
+-%13 - y + 300 >= 0
+%13 - y - 2 >= 0
+-%14 - y + 198 >= 0
+%14 - y + 2 >= 0
+-%15 - y + 198 >= 0
+%15 - y + 2 >= 0
+-%16 - y + 197 >= 0
+%16 - y + 3 >= 0
+-%17 - y + 197 >= 0
+%17 - y + 3 >= 0
+-y + 100 >= 0
+
+Ranges:
+	%10: [-oo,+oo]
+	%13: [4,200]
+	%14: [0,98]
+	%15: [0,98]
+	%16: [-1,97]
+	%17: [-1,97]
+	%18: [-oo,+oo]
+	%19: [-oo,+oo]
+	%20: [-oo,+oo]
+	%21: [-oo,+oo]
+	retval.0: [-oo,+oo]
+	y: [2,100]
+: isModified: 1
+for.body.lr.ph -> return
+Processing block 'return'
+Apron: Instruction: 0: retval.0 <- phi ( entry -> -1 ) ( for.body.lr.ph -> %10 ) ( for.cond.preheader -> 0 )
+return: octagon of dim (12,0)
+-y + 100 >= 0
+
+Ranges:
+	%10: [-oo,+oo]
+	%13: [-oo,+oo]
+	%14: [-oo,+oo]
+	%15: [-oo,+oo]
+	%16: [-oo,+oo]
+	%17: [-oo,+oo]
+	%18: [-oo,+oo]
+	%19: [-oo,+oo]
+	%20: [-oo,+oo]
+	%21: [-oo,+oo]
+	retval.0: [-oo,+oo]
+	y: [-oo,100]
+: isModified: 1
+Processing block 'return'
+Apron: Instruction: 0: retval.0 <- phi ( entry -> -1 ) ( for.body.lr.ph -> %10 ) ( for.cond.preheader -> 0 )
+return: octagon of dim (12,0)
+-y + 100 >= 0
+
+Ranges:
+	%10: [-oo,+oo]
+	%13: [-oo,+oo]
+	%14: [-oo,+oo]
+	%15: [-oo,+oo]
+	%16: [-oo,+oo]
+	%17: [-oo,+oo]
+	%18: [-oo,+oo]
+	%19: [-oo,+oo]
+	%20: [-oo,+oo]
+	%21: [-oo,+oo]
+	retval.0: [-oo,+oo]
+	y: [-oo,100]
+: isModified: 0
+Apron: Library oct, version 1.0 with NUM_MPQ
+for.cond.preheader: octagon of dim (3,0)
+-y + 100 >= 0
+
+Ranges:
+	%10: [-oo,+oo]
+	retval.0: [-oo,+oo]
+	y: [-oo,100]
+
+for.body.lr.ph: octagon of dim (12,0)
+%13 - 4 >= 0
+-%13 + 200 >= 0
+-%13 + %14 + 102 >= 0
+%13 + %14 - 4 >= 0
+%14 >= 0
+-%13 - %14 + 298 >= 0
+%13 - %14 - 4 >= 0
+-%14 + 98 >= 0
+-%13 + %15 + 102 >= 0
+%13 + %15 - 4 >= 0
+-%14 + %15 >= 0
+%14 + %15 >= 0
+%15 >= 0
+-%13 - %15 + 298 >= 0
+%13 - %15 - 4 >= 0
+-%14 - %15 + 196 >= 0
+%14 - %15 >= 0
+-%15 + 98 >= 0
+-%13 + %16 + 103 >= 0
+%13 + %16 - 3 >= 0
+-%14 + %16 + 1 >= 0
+%14 + %16 + 1 >= 0
+-%15 + %16 + 1 >= 0
+%15 + %16 + 1 >= 0
+%16 + 1 >= 0
+-%13 - %16 + 297 >= 0
+%13 - %16 - 5 >= 0
+-%14 - %16 + 195 >= 0
+%14 - %16 - 1 >= 0
+-%15 - %16 + 195 >= 0
+%15 - %16 - 1 >= 0
+-%16 + 97 >= 0
+-%13 + %17 + 103 >= 0
+%13 + %17 - 3 >= 0
+-%14 + %17 + 1 >= 0
+%14 + %17 + 1 >= 0
+-%15 + %17 + 1 >= 0
+%15 + %17 + 1 >= 0
+-%16 + %17 >= 0
+%16 + %17 + 2 >= 0
+%17 + 1 >= 0
+-%13 - %17 + 297 >= 0
+%13 - %17 - 5 >= 0
+-%14 - %17 + 195 >= 0
+%14 - %17 - 1 >= 0
+-%15 - %17 + 195 >= 0
+%15 - %17 - 1 >= 0
+-%16 - %17 + 194 >= 0
+%16 - %17 >= 0
+-%17 + 97 >= 0
+-%19 + %20 >= 0
+%19 - %20 >= 0
+-%10 + %21 - 3 >= 0
+%10 - %21 + 3 >= 0
+-%13 + y + 100 >= 0
+%13 + y - 6 >= 0
+-%14 + y - 2 >= 0
+%14 + y - 2 >= 0
+-%15 + y - 2 >= 0
+%15 + y - 2 >= 0
+-%16 + y - 3 >= 0
+%16 + y - 1 >= 0
+-%17 + y - 3 >= 0
+%17 + y - 1 >= 0
+y - 2 >= 0
+-%13 - y + 300 >= 0
+%13 - y - 2 >= 0
+-%14 - y + 198 >= 0
+%14 - y + 2 >= 0
+-%15 - y + 198 >= 0
+%15 - y + 2 >= 0
+-%16 - y + 197 >= 0
+%16 - y + 3 >= 0
+-%17 - y + 197 >= 0
+%17 - y + 3 >= 0
+-y + 100 >= 0
+
+Ranges:
+	%10: [-oo,+oo]
+	%13: [4,200]
+	%14: [0,98]
+	%15: [0,98]
+	%16: [-1,97]
+	%17: [-1,97]
+	%18: [-oo,+oo]
+	%19: [-oo,+oo]
+	%20: [-oo,+oo]
+	%21: [-oo,+oo]
+	retval.0: [-oo,+oo]
+	y: [2,100]
+
+entry: empty octagon of dim (1,0)
+
+Ranges:
+	y: [1,-1]
+
+return: octagon of dim (12,0)
+-y + 100 >= 0
+
+Ranges:
+	%10: [-oo,+oo]
+	%13: [-oo,+oo]
+	%14: [-oo,+oo]
+	%15: [-oo,+oo]
+	%16: [-oo,+oo]
+	%17: [-oo,+oo]
+	%18: [-oo,+oo]
+	%19: [-oo,+oo]
+	%20: [-oo,+oo]
+	%21: [-oo,+oo]
+	retval.0: [-oo,+oo]
+	y: [-oo,100]
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f4
+digraph "f4" {
+	"if.else" -> "if.end"
+	"if.then" -> "if.end"
+	"entry" -> "if.then"
+	"entry" -> "if.else"
+}
+Processing block 'entry'
+Apron: Instruction: 36: %24 <- %24
+Condition: cmp <- (y < 0)
+Condition: cmp <- (y < 0)
+Condition: cmp <- (y < 0)
+Condition: cmp <- (y < 0)
+entry: empty octagon of dim (1,0)
+
+Ranges:
+	y: [1,-1]
+: isModified: 0
+entry -> if.then
+entry -> if.else
+Processing block 'if.then'
+Apron: Instruction: 37: add <- (7 - y)
+Apron: Instruction: 39: %27 <- %27
+if.then: octagon of dim (2,0)
+add - 8 >= 0
+add + y - 7 >= 0
+-add - y + 7 >= 0
+add - y - 9 >= 0
+-y - 1 >= 0
+
+Ranges:
+	add: [8,+oo]
+	y: [-oo,-1]
+: isModified: 1
+if.then -> if.end
+Processing block 'if.else'
+Apron: Instruction: 40: sub1 <- (y + -3)
+Apron: Instruction: 41: sub2 <- (0 - y)
+Apron: Instruction: 0: %30 <- %30
+if.else: octagon of dim (4,0)
+sub1 + 3 >= 0
+sub1 + sub2 + 3 >= 0
+-sub1 - sub2 - 3 >= 0
+sub1 - sub2 + 3 >= 0
+-sub2 >= 0
+-sub1 + y - 3 >= 0
+sub1 + y + 3 >= 0
+-sub2 + y >= 0
+sub2 + y >= 0
+y >= 0
+sub1 - y + 3 >= 0
+-sub2 - y >= 0
+
+Ranges:
+	add: [-oo,+oo]
+	sub1: [-3,+oo]
+	sub2: [-oo,0]
+	y: [0,+oo]
+: isModified: 1
+if.else -> if.end
+Processing block 'if.end'
+Apron: Instruction: 0: z.0 <- phi ( if.then -> add ) ( if.else -> sub1 )
+Apron: Instruction: 0: x.0 <- phi ( if.then -> y ) ( if.else -> sub2 )
+Apron: Instruction: 43: add3 <- (x.0 + z.0)
+if.end: octagon of dim (7,0)
+add3 - x.0 + 3 >= 0
+-x.0 >= 0
+-x.0 + y >= 0
+-x.0 - y >= 0
+-add3 + z.0 >= 0
+-x.0 + z.0 + 3 >= 0
+-y + z.0 + 3 >= 0
+y + z.0 + 3 >= 0
+z.0 + 3 >= 0
+
+Ranges:
+	add: [-oo,+oo]
+	add3: [-oo,+oo]
+	sub1: [-oo,+oo]
+	sub2: [-oo,+oo]
+	x.0: [-oo,0]
+	y: [-oo,+oo]
+	z.0: [-3,+oo]
+: isModified: 1
+Processing block 'if.end'
+Apron: Instruction: 0: z.0 <- phi ( if.then -> add ) ( if.else -> sub1 )
+Apron: Instruction: 0: x.0 <- phi ( if.then -> y ) ( if.else -> sub2 )
+Apron: Instruction: 43: add3 <- (x.0 + z.0)
+if.end: octagon of dim (7,0)
+add3 - x.0 + 3 >= 0
+-x.0 >= 0
+-x.0 + y >= 0
+-x.0 - y >= 0
+-add3 + z.0 >= 0
+-x.0 + z.0 + 3 >= 0
+-y + z.0 + 3 >= 0
+y + z.0 + 3 >= 0
+z.0 + 3 >= 0
+
+Ranges:
+	add: [-oo,+oo]
+	add3: [-oo,+oo]
+	sub1: [-oo,+oo]
+	sub2: [-oo,+oo]
+	x.0: [-oo,0]
+	y: [-oo,+oo]
+	z.0: [-3,+oo]
+: isModified: 0
+Apron: Library oct, version 1.0 with NUM_MPQ
+if.else: octagon of dim (4,0)
+sub1 + 3 >= 0
+sub1 + sub2 + 3 >= 0
+-sub1 - sub2 - 3 >= 0
+sub1 - sub2 + 3 >= 0
+-sub2 >= 0
+-sub1 + y - 3 >= 0
+sub1 + y + 3 >= 0
+-sub2 + y >= 0
+sub2 + y >= 0
+y >= 0
+sub1 - y + 3 >= 0
+-sub2 - y >= 0
+
+Ranges:
+	add: [-oo,+oo]
+	sub1: [-3,+oo]
+	sub2: [-oo,0]
+	y: [0,+oo]
+
+if.then: octagon of dim (2,0)
+add - 8 >= 0
+add + y - 7 >= 0
+-add - y + 7 >= 0
+add - y - 9 >= 0
+-y - 1 >= 0
+
+Ranges:
+	add: [8,+oo]
+	y: [-oo,-1]
+
+entry: empty octagon of dim (1,0)
+
+Ranges:
+	y: [1,-1]
+
+if.end: octagon of dim (7,0)
+add3 - x.0 + 3 >= 0
+-x.0 >= 0
+-x.0 + y >= 0
+-x.0 - y >= 0
+-add3 + z.0 >= 0
+-x.0 + z.0 + 3 >= 0
+-y + z.0 + 3 >= 0
+y + z.0 + 3 >= 0
+z.0 + 3 >= 0
+
+Ranges:
+	add: [-oo,+oo]
+	add3: [-oo,+oo]
+	sub1: [-oo,+oo]
+	sub2: [-oo,+oo]
+	x.0: [-oo,0]
+	y: [-oo,+oo]
+	z.0: [-3,+oo]
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

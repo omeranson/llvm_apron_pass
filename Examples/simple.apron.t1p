@@ -1,0 +1,35 @@
+WARNING: You're attempting to print out a bitcode file.
+This is inadvisable as it may cause display problems. If
+you REALLY want to taste LLVM bitcode first-hand, you
+can force output with the `-f' option.
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f
+digraph "f" {
+}
+Processing block 'entry'
+Apron: Abort because of following exception:
+exception NOT_IMPLEMENTED in function to_tcons_array:
+function t1p_to_tcons_array not yet implemented at t1p_constructor.c:323
+0  opt                0x0000000001282995 llvm::sys::PrintStackTrace(_IO_FILE*) + 37
+1  opt                0x0000000001282df3
+2  libpthread.so.0    0x00007f85d7c47430
+3  libc.so.6          0x00007f85d6bdc9c8 gsignal + 56
+4  libc.so.6          0x00007f85d6bde65a abort + 362
+5  libapron_debug.so  0x00007f85d8129395 ap_manager_raise_exception + 126
+6  libt1pMPQ_debug.so 0x00007f85d823696c t1p_to_tcons_array + 136
+7  libapron_debug.so  0x00007f85d812b8da ap_abstract0_to_tcons_array + 84
+8  libapron_debug.so  0x00007f85d8138077 ap_abstract1_to_tcons_array + 42
+9  libapron.so        0x00007f85d827f9e8 BasicBlock::populateConstraintsFromAbstractValue(std::list<ap_tcons1_t, std::allocator<ap_tcons1_t> >&) + 72
+10 libapron.so        0x00007f85d827f891 BasicBlock::update() + 209
+11 libapron.so        0x00007f85d8278d2f
+12 opt                0x000000000121637b llvm::FPPassManager::runOnFunction(llvm::Function&) + 539
+13 opt                0x00000000012165eb llvm::FPPassManager::runOnModule(llvm::Module&) + 43
+14 opt                0x0000000001216b67 llvm::legacy::PassManagerImpl::run(llvm::Module&) + 967
+15 opt                0x000000000056207b main + 7499
+16 libc.so.6          0x00007f85d6bc8700 __libc_start_main + 240
+17 opt                0x000000000055c879 _start + 41
+Stack dump:
+0.	Program arguments: /home/oanson/opt/llvm-install/bin/opt -load /home/oanson/opt/apron-install/lib/libt1pMPQ_debug.so -load /home/oanson/opt/apron-install/lib/libapron_debug.so -load ../ApronPass/adaptors/libt1p_adaptor.so -load ../ApronPass/libapron.so -apron 
+1.	Running pass 'Function Pass Manager' on module '<stdin>'.
+2.	Running pass 'Numerical analysis with Apron' on function '@f'
