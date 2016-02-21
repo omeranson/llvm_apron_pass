@@ -12,23 +12,23 @@ Apron: Instruction: 8: sub <- (0 - y)
 Apron: Instruction: 7: x.0 <- ((y < 0) ? (0 - y) : 5)
 entry: interval of dim (3,0):
      sub in [-oo,+oo]
-     x.0 in [-oo,+oo]
+     x.0 in [1,+oo]
        y in [-oo,+oo]
 
 Ranges:
 	sub: [-oo,+oo]
-	x.0: [-oo,+oo]
+	x.0: [1,+oo]
 	y: [-oo,+oo]
 : isModified: 0
 Apron: Library box, version 1.0 with NUM_MPQ
 entry: interval of dim (3,0):
      sub in [-oo,+oo]
-     x.0 in [-oo,+oo]
+     x.0 in [1,+oo]
        y in [-oo,+oo]
 
 Ranges:
 	sub: [-oo,+oo]
-	x.0: [-oo,+oo]
+	x.0: [1,+oo]
 	y: [-oo,+oo]
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -105,13 +105,13 @@ Condition: cmp16 <- (y > 1)
 for.cond.preheader: interval of dim (3,0):
      %10 in [-oo,+oo]
 retval.0 in [-oo,+oo]
-       y in [-oo,-100]
+       y in [-oo,100]
 
 Ranges:
 	%10: [-oo,+oo]
 	retval.0: [-oo,+oo]
-	y: [+oo,-100]
-: isModified: 1
+	y: [-oo,100]
+: isModified: 0
 for.cond.preheader -> for.body.lr.ph
 for.cond.preheader -> return
 Processing block 'for.body.lr.ph'
@@ -128,31 +128,31 @@ Apron: Instruction: 27: %10 <- (%21 + -3)
 Apron: Instruction: 27: %22 <- %22
 for.body.lr.ph: interval of dim (12,0):
      %10 in [-oo,+oo]
-     %13 in [-oo,+oo]
-     %14 in [-oo,+oo]
-     %15 in [-oo,+oo]
-     %16 in [-oo,+oo]
-     %17 in [-oo,+oo]
+     %13 in [4,200]
+     %14 in [0,98]
+     %15 in [0,98]
+     %16 in [-1,97]
+     %17 in [-1,97]
      %18 in [-oo,+oo]
      %19 in [-oo,+oo]
      %20 in [-oo,+oo]
      %21 in [-oo,+oo]
 retval.0 in [-oo,+oo]
-       y in [-oo,-100]
+       y in [2,100]
 
 Ranges:
 	%10: [-oo,+oo]
-	%13: [-oo,+oo]
-	%14: [-oo,+oo]
-	%15: [-oo,+oo]
-	%16: [-oo,+oo]
-	%17: [-oo,+oo]
+	%13: [4,200]
+	%14: [0,98]
+	%15: [0,98]
+	%16: [-1,97]
+	%17: [-1,97]
 	%18: [-oo,+oo]
 	%19: [-oo,+oo]
 	%20: [-oo,+oo]
 	%21: [-oo,+oo]
 	retval.0: [-oo,+oo]
-	y: [-oo,-100]
+	y: [2,100]
 : isModified: 1
 for.body.lr.ph -> return
 Processing block 'return'
@@ -169,7 +169,7 @@ return: interval of dim (12,0):
      %20 in [-oo,+oo]
      %21 in [-oo,+oo]
 retval.0 in [-oo,+oo]
-       y in [-oo,-100]
+       y in [-oo,100]
 
 Ranges:
 	%10: [-oo,+oo]
@@ -183,7 +183,7 @@ Ranges:
 	%20: [-oo,+oo]
 	%21: [-oo,+oo]
 	retval.0: [-oo,+oo]
-	y: [-oo,-100]
+	y: [-oo,100]
 : isModified: 1
 Processing block 'return'
 Apron: Instruction: 0: retval.0 <- phi ( entry -> -1 ) ( for.body.lr.ph -> %10 ) ( for.cond.preheader -> 0 )
@@ -199,7 +199,7 @@ return: interval of dim (12,0):
      %20 in [-oo,+oo]
      %21 in [-oo,+oo]
 retval.0 in [-oo,+oo]
-       y in [-oo,-100]
+       y in [-oo,100]
 
 Ranges:
 	%10: [-oo,+oo]
@@ -213,7 +213,7 @@ Ranges:
 	%20: [-oo,+oo]
 	%21: [-oo,+oo]
 	retval.0: [-oo,+oo]
-	y: [-oo,-100]
+	y: [-oo,100]
 : isModified: 0
 Apron: Library box, version 1.0 with NUM_MPQ
 entry: interval of dim (1,0): bottom
@@ -233,7 +233,7 @@ return: interval of dim (12,0):
      %20 in [-oo,+oo]
      %21 in [-oo,+oo]
 retval.0 in [-oo,+oo]
-       y in [-oo,-100]
+       y in [-oo,100]
 
 Ranges:
 	%10: [-oo,+oo]
@@ -247,45 +247,45 @@ Ranges:
 	%20: [-oo,+oo]
 	%21: [-oo,+oo]
 	retval.0: [-oo,+oo]
-	y: [-oo,-100]
+	y: [-oo,100]
 
 for.cond.preheader: interval of dim (3,0):
      %10 in [-oo,+oo]
 retval.0 in [-oo,+oo]
-       y in [-oo,-100]
+       y in [-oo,100]
 
 Ranges:
 	%10: [-oo,+oo]
 	retval.0: [-oo,+oo]
-	y: [+oo,-100]
+	y: [-oo,100]
 
 for.body.lr.ph: interval of dim (12,0):
      %10 in [-oo,+oo]
-     %13 in [-oo,+oo]
-     %14 in [-oo,+oo]
-     %15 in [-oo,+oo]
-     %16 in [-oo,+oo]
-     %17 in [-oo,+oo]
+     %13 in [4,200]
+     %14 in [0,98]
+     %15 in [0,98]
+     %16 in [-1,97]
+     %17 in [-1,97]
      %18 in [-oo,+oo]
      %19 in [-oo,+oo]
      %20 in [-oo,+oo]
      %21 in [-oo,+oo]
 retval.0 in [-oo,+oo]
-       y in [-oo,-100]
+       y in [2,100]
 
 Ranges:
 	%10: [-oo,+oo]
-	%13: [-oo,+oo]
-	%14: [-oo,+oo]
-	%15: [-oo,+oo]
-	%16: [-oo,+oo]
-	%17: [-oo,+oo]
+	%13: [4,200]
+	%14: [0,98]
+	%15: [0,98]
+	%16: [-1,97]
+	%17: [-1,97]
 	%18: [-oo,+oo]
 	%19: [-oo,+oo]
 	%20: [-oo,+oo]
 	%21: [-oo,+oo]
 	retval.0: [-oo,+oo]
-	y: [-oo,-100]
+	y: [2,100]
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -313,13 +313,13 @@ Processing block 'if.then'
 Apron: Instruction: 37: add <- (7 - y)
 Apron: Instruction: 39: %27 <- %27
 if.then: interval of dim (2,0):
-     add in [-oo,+oo]
-       y in [-oo,0]
+     add in [8,+oo]
+       y in [-oo,-1]
 
 Ranges:
-	add: [-oo,+oo]
-	y: [-oo,0]
-: isModified: 0
+	add: [8,+oo]
+	y: [-oo,-1]
+: isModified: 1
 if.then -> if.end
 Processing block 'if.else'
 Apron: Instruction: 40: sub1 <- (y + -3)
@@ -327,16 +327,16 @@ Apron: Instruction: 41: sub2 <- (0 - y)
 Apron: Instruction: 0: %30 <- %30
 if.else: interval of dim (4,0):
      add in [-oo,+oo]
-    sub1 in [-oo,+oo]
-    sub2 in [-oo,+oo]
+    sub1 in [-3,+oo]
+    sub2 in [-oo,0]
        y in [0,+oo]
 
 Ranges:
 	add: [-oo,+oo]
-	sub1: [-oo,+oo]
-	sub2: [-oo,+oo]
+	sub1: [-3,+oo]
+	sub2: [-oo,0]
 	y: [0,+oo]
-: isModified: 0
+: isModified: 1
 if.else -> if.end
 Processing block 'if.end'
 Apron: Instruction: 0: z.0 <- phi ( if.then -> add ) ( if.else -> sub1 )
@@ -347,18 +347,18 @@ if.end: interval of dim (7,0):
     add3 in [-oo,+oo]
     sub1 in [-oo,+oo]
     sub2 in [-oo,+oo]
-     x.0 in [-oo,+oo]
+     x.0 in [-oo,0]
        y in [-oo,+oo]
-     z.0 in [-oo,+oo]
+     z.0 in [-3,+oo]
 
 Ranges:
 	add: [-oo,+oo]
 	add3: [-oo,+oo]
 	sub1: [-oo,+oo]
 	sub2: [-oo,+oo]
-	x.0: [-oo,+oo]
+	x.0: [-oo,0]
 	y: [-oo,+oo]
-	z.0: [-oo,+oo]
+	z.0: [-3,+oo]
 : isModified: 1
 Processing block 'if.end'
 Apron: Instruction: 0: z.0 <- phi ( if.then -> add ) ( if.else -> sub1 )
@@ -369,18 +369,18 @@ if.end: interval of dim (7,0):
     add3 in [-oo,+oo]
     sub1 in [-oo,+oo]
     sub2 in [-oo,+oo]
-     x.0 in [-oo,+oo]
+     x.0 in [-oo,0]
        y in [-oo,+oo]
-     z.0 in [-oo,+oo]
+     z.0 in [-3,+oo]
 
 Ranges:
 	add: [-oo,+oo]
 	add3: [-oo,+oo]
 	sub1: [-oo,+oo]
 	sub2: [-oo,+oo]
-	x.0: [-oo,+oo]
+	x.0: [-oo,0]
 	y: [-oo,+oo]
-	z.0: [-oo,+oo]
+	z.0: [-3,+oo]
 : isModified: 0
 Apron: Library box, version 1.0 with NUM_MPQ
 entry: interval of dim (1,0): bottom
@@ -389,23 +389,23 @@ Ranges:
 	y: [1,-1]
 
 if.then: interval of dim (2,0):
-     add in [-oo,+oo]
-       y in [-oo,0]
+     add in [8,+oo]
+       y in [-oo,-1]
 
 Ranges:
-	add: [-oo,+oo]
-	y: [-oo,0]
+	add: [8,+oo]
+	y: [-oo,-1]
 
 if.else: interval of dim (4,0):
      add in [-oo,+oo]
-    sub1 in [-oo,+oo]
-    sub2 in [-oo,+oo]
+    sub1 in [-3,+oo]
+    sub2 in [-oo,0]
        y in [0,+oo]
 
 Ranges:
 	add: [-oo,+oo]
-	sub1: [-oo,+oo]
-	sub2: [-oo,+oo]
+	sub1: [-3,+oo]
+	sub2: [-oo,0]
 	y: [0,+oo]
 
 if.end: interval of dim (7,0):
@@ -413,17 +413,17 @@ if.end: interval of dim (7,0):
     add3 in [-oo,+oo]
     sub1 in [-oo,+oo]
     sub2 in [-oo,+oo]
-     x.0 in [-oo,+oo]
+     x.0 in [-oo,0]
        y in [-oo,+oo]
-     z.0 in [-oo,+oo]
+     z.0 in [-3,+oo]
 
 Ranges:
 	add: [-oo,+oo]
 	add3: [-oo,+oo]
 	sub1: [-oo,+oo]
 	sub2: [-oo,+oo]
-	x.0: [-oo,+oo]
+	x.0: [-oo,0]
 	y: [-oo,+oo]
-	z.0: [-oo,+oo]
+	z.0: [-3,+oo]
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
