@@ -1,23 +1,47 @@
+# Inttroduction
+
 An LLVM compiler pass, which uses apron to infer numeric properties about
 functions.
 
-Installation:
-	Install apron [1].
-	Install llvm [2]. Tested with version 3.4.2.
+#Installation
 
-Verify the paths in the Makefiles are correct.
-To run the pass: opt -apron -load ... < file.bc. file.bc is a bitcode file
-compiled by LLVM from a source file (e.g. a C file). The -load parameter must
-include each used library, e.g. the compilation output of the ApronPass folder,
-and the relevant apron shared objects.
+Install apron [1].
+Install llvm [2]. Tested with llvm version 3.4.2.
 
-e.g.:
-source environment.sh
-$LLVM_INSTALL/bin/opt -load $HOME/opt/apron-install/lib/libboxMPQ_debug.so -load ../ApronPass/libapron.so -load $HOME/opt/apron-install/lib/libapron_debug.so -apron < simple.bc
+Verify the paths in the Makefiles are correct. Specifically, verify that
+APRON\_INSTALL and LLVM\_INSTALL are point to the installation folders of apron
+and llvm respectively, in all Makefiles.
+
+# Usage
+
+The Makefile in the Examples folder provides utilities to compile LLVM bitconde,
+textual output, and apron outputs.
+
+* To create llvm bitcode: *make <filename>.bc*
+* To create textual representation of llvm bitcode: *make <filename>.ll*
+* To create apron output: *make <filename>.apron APRON_MANAGER=<manager>*
+
+Note that *<filename>.c* is the source c file. <manager> is the APRON manager
+to use. Currently, the following are supported:
+* box
+* ap\_ppl
+* oct
+* polka
+
+Others can be added in the *adaptors* folder.
+
+You may need to source environment.sh for things to work: *source environment.sh*
 
 The output format hasn't been decided upon. It changes on the whim of what we're
 looking for at a given moment.
 
-[1] http://apron.cri.ensmp.fr/library/
-[2] http://llvm.org/
+# Folder Structure 
+
+The folder structure is as follows:
+* ApronPass - The actual code for the LLVM apron pas
+* Examples - Some example c programmes, and code to analyse them.
+
+
+* [1] http://apron.cri.ensmp.fr/library/
+* [2] http://llvm.org/
 
