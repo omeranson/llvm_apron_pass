@@ -161,12 +161,14 @@ ap_texpr1_t* BasicBlock::getVariableTExpr(Value * value) {
 
 void BasicBlock::extendTexprEnvironment(ap_texpr1_t * texpr) {
 	// returns true on error. WTF?
-	assert(!ap_texpr1_extend_environment_with(texpr, getEnvironment()));
+	bool failed = ap_texpr1_extend_environment_with(texpr, getEnvironment());
+	assert(!failed);
 }
 
 void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
 	// returns true on error. WTF?
-	assert(!ap_tcons1_extend_environment_with(tcons, getEnvironment()));
+	bool failed = ap_tcons1_extend_environment_with(tcons, getEnvironment());
+	assert(!failed);
 }
 
 bool BasicBlock::join(ap_abstract1_t & abst_value) {
@@ -192,7 +194,8 @@ bool BasicBlock::join(std::list<ap_abstract1_t> & abst_values) {
 bool BasicBlock::join(ap_tcons1_t & constraint) {
 	ap_tcons1_array_t array = ap_tcons1_array_make(getEnvironment(), 1);
 	extendTconsEnvironment(&constraint);
-	assert(!ap_tcons1_array_set(&array, 0, &constraint));
+	bool failed = ap_tcons1_array_set(&array, 0, &constraint);
+	assert(!failed);
 	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
 			getManager(), getEnvironment(), &array);
 	return join(abs);
@@ -223,7 +226,8 @@ bool BasicBlock::meet(std::list<ap_abstract1_t> & abst_values) {
 bool BasicBlock::meet(ap_tcons1_t & constraint) {
 	ap_tcons1_array_t array = ap_tcons1_array_make(getEnvironment(), 1);
 	extendTconsEnvironment(&constraint);
-	assert(!ap_tcons1_array_set(&array, 0, &constraint));
+	bool failed = ap_tcons1_array_set(&array, 0, &constraint);
+	assert(!failed);
 	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
 			getManager(), getEnvironment(), &array);
 	return meet(abs);
@@ -257,7 +261,8 @@ bool BasicBlock::unify(std::list<ap_abstract1_t> & abst_values) {
 bool BasicBlock::unify(ap_tcons1_t & constraint) {
 	ap_tcons1_array_t array = ap_tcons1_array_make(getEnvironment(), 1);
 	extendTconsEnvironment(&constraint);
-	assert(!ap_tcons1_array_set(&array, 0, &constraint));
+	bool failed = ap_tcons1_array_set(&array, 0, &constraint);
+	assert(!failed);
 	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
 			getManager(), getEnvironment(), &array);
 	return unify(abs);
@@ -445,7 +450,8 @@ ap_tcons1_array_t BasicBlock::createTcons1Array(
 		ap_tcons1_t & constraint = *it;
 		ap_tcons1_t constraint2 = ap_tcons1_copy(&constraint);
 		extendTconsEnvironment(&constraint2);
-		assert(!ap_tcons1_array_set(&array, idx++, &constraint2));
+		bool failed = ap_tcons1_array_set(&array, idx++, &constraint2);
+		assert(!failed);
 	}
 	return array;
 }
