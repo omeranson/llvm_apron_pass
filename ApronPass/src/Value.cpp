@@ -72,7 +72,9 @@ void InstructionValue::populateTreeConstraints(
 
 	BasicBlock * basicBlock = getBasicBlock();
 	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
+	assert(var_texpr && "Tree expression is NULL");
 	ap_texpr1_t * value_texpr = createRHSTreeExpression();
+	assert(value_texpr && "RHS Tree expression is NULL");
 
 	basicBlock->extendTexprEnvironment(var_texpr);
 	basicBlock->extendTexprEnvironment(value_texpr);
