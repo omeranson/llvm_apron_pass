@@ -11,6 +11,10 @@ include ../ApronPass/Makefile.env
 	@ echo '[CC]	[$<]	[$@]'
 	${CC} -o $@ $^ -O3
 
+%-mergereturn.bc: %.bc
+	@ echo '[OPT -mergereturn]	[$^]	[$@]'
+	${OPT} -mergereturn $^ > $@
+
 %-named.bc: %.bc
 	@ echo '[OPT -instnamer]	[$^]	[$@]'
 	${OPT} -instnamer $^ > $@
