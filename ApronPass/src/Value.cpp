@@ -48,11 +48,19 @@ void appendValue(std::ostringstream & oss,
 
 class NopInstructionValue : public InstructionValue {
 public:
+	NopInstructionValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual bool isSkip() { return true; }
-}
+};
 
-class LoadValue : public NopInstructionValue {};
-class StoreValue : public NopInstructionValue {};
+class LoadValue : public NopInstructionValue {
+public:
+	LoadValue(llvm::Value * value) : NopInstructionValue(value) {}
+};
+
+class StoreValue : public NopInstructionValue {
+public:
+	StoreValue(llvm::Value * value) : NopInstructionValue(value) {}
+};
 
 class VariableValue : public Value {
 public:
@@ -368,6 +376,7 @@ class CallValue : public Value {
 protected:
 	llvm::CallInst * asCallInst();
 	virtual std::string getCalledFunctionName();
+	bool isDebugFunction(const std::string & funcName) const;
 public:
 	CallValue(llvm::Value * value) : Value(value) {}
 	virtual std::string getValueString();
@@ -408,7 +417,7 @@ std::string CallValue::getValueString() {
 	return oss.str();
 }
 
-bool CallValue::isDebugFunction(std::string * funcName) {
+bool CallValue::isDebugFunction(const std::string & funcName) const {
 	const std::string comparator = "llvm.dbg.";
 	return comparator.compare(0, comparator.size(),
 			funcName, 0, comparator.size()) == 0;
@@ -1029,6 +1038,9 @@ ap_tcons1_t BranchInstructionValue::getConditionTcons(
 	ap_texpr1_t * left = compareValue->createOperandTreeExpression(0);
 	ap_texpr1_t * right = compareValue->createOperandTreeExpression(1);
 	ap_texpr1_t * texpr ;
+	BasicBlock * basicBlock = getBasicBlock();
+	basicBlock->extendTexprEnvironment(left);
+	basicBlock->extendTexprEnvironment(right);
 	if (reverse) {
 		texpr = ap_texpr1_binop(
 				AP_TEXPR_SUB, right, left,
