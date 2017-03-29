@@ -11,6 +11,10 @@ include ../ApronPass/Makefile.env
 	@ echo '[CC]	[$<]	[$@]'
 	${CC} -o $@ $^ -O3
 
+%-named.bc: %.bc
+	@ echo '[OPT -instnamer]	[$^]	[$@]'
+	${OPT} -instnamer $^ > $@
+
 %.ll: %.bc
 	${DIS} $^
 
