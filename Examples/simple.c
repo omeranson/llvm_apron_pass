@@ -43,6 +43,18 @@ int f4(int y) {
 	return z+x;
 }
 
+int f5(int y) {
+	if (y >= 0) {
+		return y;
+	} else if (y == 0x800000) {
+		return 0;
+	} else if (y == -3) {
+		return 4;
+	} else {
+		return -y;
+	}
+}
+
 int main(int argc, char * argv[]) {
 	if (argc != 2) {
 		fprintf(stderr, "USAGE: %s <y>\n", argv[0]);
