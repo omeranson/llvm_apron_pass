@@ -2,18 +2,25 @@ APRON_MANAGER?=box
 
 include ../ApronPass/Makefile.env
 
+all: simple-O3-mergereturn-named.bc simple-O3-mergereturn-named.ll
+	@ ${MAKE} simple-O3-mergereturn-named.apron APRON_MANAGER=box
+
 %.bc: %.c
 	@ echo '[CC -emit-llvm]	[$<]	[$@]'
 	# It's important to have -O3 optimisation, to eliminate loads from code
-	@ ${CC} -emit-llvm -g -Wall -c $^ -O3
+	@ ${CC} -flto -Wall -c -o $@ $^
 
 %: %.c
 	@ echo '[CC]	[$<]	[$@]'
-	${CC} -o $@ $^ -O3
+	${CC} -o $@ $^
 
 %-mergereturn.bc: %.bc
 	@ echo '[OPT -mergereturn]	[$^]	[$@]'
 	${OPT} -mergereturn $^ > $@
+
+%-O3.bc: %.bc
+	@ echo '[OPT -instnamer]	[$^]	[$@]'
+	${OPT} -O3 $^ > $@
 
 %-named.bc: %.bc
 	@ echo '[OPT -instnamer]	[$^]	[$@]'
