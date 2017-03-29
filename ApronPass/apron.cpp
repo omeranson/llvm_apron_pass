@@ -28,6 +28,15 @@
 #include <CallGraph.h>
 
 namespace {
+	llvm::raw_ostream & operator<<(llvm::raw_ostream & ro, ap_scalar_t & scalar) {
+		char * buffer;
+		size_t size;
+		FILE * bufferfp = open_memstream(&buffer, &size);
+		ap_scalar_fprint(bufferfp, &scalar);
+		fclose(bufferfp);
+		ro << buffer;
+		return ro;
+	}
 /*
 	class Function {
 	private:
@@ -89,9 +98,9 @@ namespace {
 				bool wasSeen = isSeen(block);
 				see(block);
 				bool isModified = block->update();
-				llvm::errs() << block->toString() <<
-						": isModified: " <<
-						isModified  << "\n";
+				//llvm::errs() << block->toString() <<
+						//": isModified: " <<
+						//isModified  << "\n";
 				if (!wasSeen || isModified) {
 					callGraph.populateWithSuccessors(
 							worklist, block);
@@ -100,10 +109,10 @@ namespace {
 		}
 		
 		void print() {
-			llvm::errs() << "Apron: Library " <<
-					BasicBlockManager::getInstance().m_manager->library <<
-					", version " <<
-					BasicBlockManager::getInstance().m_manager->version << "\n";
+			//llvm::errs() << "Apron: Library " <<
+					//BasicBlockManager::getInstance().m_manager->library <<
+					//", version " <<
+					//BasicBlockManager::getInstance().m_manager->version << "\n";
 			std::set<BasicBlock *>::iterator it;
 			for (it = seen.begin(); it != seen.end(); it++) {
 				llvm::errs() << (*it)->toString() << "\n";
@@ -121,18 +130,18 @@ namespace {
 		Apron() : blockCount(0), llvm::FunctionPass(ID) {}
 
 		void runOnInstruction(llvm::Instruction & inst) {
-			llvm::errs() << "\t\tApron: instruction: " << inst.getDebugLoc().getLine() << ": ";
-			inst.print(llvm::errs());
-			llvm::errs() << "\n";
+			//llvm::errs() << "\t\tApron: instruction: " << inst.getDebugLoc().getLine() << ": ";
+			//inst.print(llvm::errs());
+			//llvm::errs() << "\n";
 		}
 
 		void runOnBasicBlock(llvm::BasicBlock & bb) {
-			llvm::errs() << "\tApron: Basic block: " << bb.getName() << "\n";
-			llvm::BasicBlock::iterator it;
-			for (it = bb.begin(); it != bb.end(); it ++) {
-				llvm::Instruction & inst = *it;
-				runOnInstruction(inst);
-			}
+			//llvm::errs() << "\tApron: Basic block: " << bb.getName() << "\n";
+			//llvm::BasicBlock::iterator it;
+			//for (it = bb.begin(); it != bb.end(); it ++) {
+				//llvm::Instruction & inst = *it;
+				//runOnInstruction(inst);
+			//}
 		}
 
 		void setName(llvm::BasicBlock & succ) {
@@ -163,13 +172,27 @@ namespace {
 			}
 		}
 
+		virtual llvm::ReturnInst * getReturnInstruction(llvm::Function &F) {
+			for (auto bbit = F.begin(), bbie = F.end(); bbit != bbie; bbit++) {
+				llvm::BasicBlock & bb = *bbit;
+				for (auto iit = bb.begin(), iie = bb.end(); iit != iie; iit++) {
+					llvm::Instruction & inst = *iit;
+					if (llvm::isa<llvm::ReturnInst>(inst)) {
+						llvm::ReturnInst & result = llvm::cast<llvm::ReturnInst>(inst);
+						return &result;
+					}
+				}
+			}
+			return NULL;
+		}
+
 		virtual bool runOnFunction(llvm::Function &F) {
 			if (F.getName().equals("main")) {
 				return false; /* Skip */
 			}
-			llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
-			llvm::errs() << "Apron: Function: ";
-			llvm::errs().write_escaped(F.getName()) << '\n';
+			// llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
+			// llvm::errs() << "Apron: Function: ";
+			// llvm::errs().write_escaped(F.getName()) << '\n';
 			llvm::BasicBlock * llvmfirst =  &F.getEntryBlock();
 			BasicBlock * first = BasicBlockManager::getInstance().getBasicBlock(
 					llvmfirst);
@@ -177,11 +200,37 @@ namespace {
 					ap_environment_alloc_empty();
 			first->setEnvironment(ap_environment);
 			CallGraph funcCallGraph(F.getName().str(), first);
-			funcCallGraph.printAsDot();
+			// funcCallGraph.printAsDot();
 			ChaoticExecution chaoticExecution(funcCallGraph);
 			chaoticExecution.execute();
-			chaoticExecution.print();
-			llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
+			// Get 'return' instruction
+			llvm::ReturnInst * returnInst = getReturnInstruction(F);
+			if (!returnInst) {
+				llvm::errs() << F.getName() << " " << "-inf" << " " << "inf" << "\n";
+				return false;
+			}
+			// get temporary
+			llvm::Value * llvmValue = returnInst->getReturnValue();
+			if (!llvmValue) {
+				llvm::errs() << F.getName() << " " << "-inf" << " " << "inf" << "\n";
+				return false;
+			}
+			ValueFactory * factory = ValueFactory::getInstance();
+			Value * val = factory->getValue(llvmValue);
+			if (!val) {
+				llvm::errs() << F.getName() << " " << "-inf" << " " << "inf" << "\n";
+				return false;
+			}
+			// get temporary's abstract value
+			llvm::BasicBlock * llvmlast = returnInst->getParent();
+			BasicBlock * last = BasicBlockManager::getInstance().getBasicBlock(
+					llvmlast);
+			ap_interval_t * interval = last->getVariableInterval(val);
+			// print it
+			llvm::errs() << F.getName() << " " << *interval->inf << " " << *interval->sup << "\n";
+
+			// chaoticExecution.print();
+			// llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
 			return false;
 		}
 	};

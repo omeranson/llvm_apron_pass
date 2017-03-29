@@ -367,7 +367,7 @@ void BasicBlock::streamTCons1(
 
 bool BasicBlock::update() {
 	/* Process the block. Return true if the block's context is modified.*/
-	llvm::errs() << "Processing block '" << getName() << "'\n";
+	//llvm::errs() << "Processing block '" << getName() << "'\n";
 	std::list<ap_tcons1_t> constraints;
 	populateConstraintsFromAbstractValue(constraints);
 
@@ -463,19 +463,19 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(&inst);
 	if (!value) {
-		llvm::errs() << "Skipping UNKNOWN instruction: ";
-		inst.print(llvm::errs());
-		llvm::errs() << "\n";
+		//llvm::errs() << "Skipping UNKNOWN instruction: ";
+		//inst.print(llvm::errs());
+		//llvm::errs() << "\n";
 		return;
 	}
 	if (value->isSkip()) {
 		/*llvm::errs() << "Skipping set-skipped instruction: " << value->toString() << "\n";*/
 		return;
 	}
-	llvm::errs() << "Apron: Instruction: "
-			// << scope->getFilename() << ": "
-			<< debugLoc.getLine() << ": "
-			<< value->toString() << "\n";
+	//llvm::errs() << "Apron: Instruction: "
+			//// << scope->getFilename() << ": "
+			//<< debugLoc.getLine() << ": "
+			//<< value->toString() << "\n";
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->populateTreeConstraints(constraints);

@@ -46,5 +46,5 @@ ifeq (${APRON_MANAGER},ap_ppl)
 else
 %.apron.${APRON_MANAGER}: %.bc
 	@ echo '[OPT2]	[$@]'
-	@ env LD_LIBRARY_PATH=${LD_LIBRARY_PATH} ${OPT} -load ${APRON_INSTALL}/lib/lib${APRON_MANAGER}MPQ_debug.so -load ${APRON_INSTALL}/lib/libapron_debug.so -load ../ApronPass/adaptors/lib${APRON_MANAGER}_adaptor.so -load ../ApronPass/libapronpass.so -apron < $^ 2> $@
+	@ env LD_LIBRARY_PATH=${LD_LIBRARY_PATH} ${OPT} -load ${APRON_INSTALL}/lib/lib${APRON_MANAGER}MPQ_debug.so -load ${APRON_INSTALL}/lib/libapron_debug.so -load ../ApronPass/adaptors/lib${APRON_MANAGER}_adaptor.so -load ../ApronPass/libapronpass.so -apron < $^ 1>/dev/null 2> $@
 endif

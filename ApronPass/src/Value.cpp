@@ -191,8 +191,8 @@ std::string BinaryOperationValue::getValueString()  {
 		if (operand) {
 			oss << operand->getName();
 		} else {
-			llvmOperand->print(llvm::errs());
-			llvm::errs() << "\n";
+			//llvmOperand->print(llvm::errs());
+			//llvm::errs() << "\n";
 			oss << "<Operand Unknown>";
 		}
 	}
@@ -209,9 +209,9 @@ ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(int idx) {
 	llvm::Value * llvmOperand = asUser()->getOperand(idx);
 	Value * operand = factory->getValue(llvmOperand);
 	if (!operand) {
-		llvm::errs() << "Unknown value:";
-		llvmOperand->print(llvm::errs());
-		llvm::errs() << "\n";
+		//llvm::errs() << "Unknown value:";
+		//llvmOperand->print(llvm::errs());
+		//llvm::errs() << "\n";
 		abort();
 	}
 	return operand->createTreeExpression(getBasicBlock());
@@ -733,7 +733,7 @@ Value * SelectValueInstruction::getCondition() {
 	llvm::Value * condition = asSelectInst()->getCondition();
 	Value * result = factory->getValue(condition);
 	if (!result) {
-		condition->print(llvm::errs());
+		//condition->print(llvm::errs());
 	}
 	return result;
 }
@@ -982,9 +982,9 @@ Value * BranchInstructionValue::getCondition() {
 	llvm::Value * condition = branchInst->getCondition();
 	Value * result = factory->getValue(condition);
 	if (!result) {
-		condition->print(llvm::errs());
+		//condition->print(llvm::errs());
 	} else {
-		llvm::errs() << "Condition: " << result->toString() << "\n";
+		//llvm::errs() << "Condition: " << result->toString() << "\n";
 	}
 	return result;
 }
@@ -1330,8 +1330,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	//case llvm::BinaryOperator::InsertValue:
 
 	default:
-		llvm::errs() << "<Unknown operator> " <<
-				instruction->getOpcodeName() << "\n";
+		//llvm::errs() << "<Unknown operator> " <<
+				//instruction->getOpcodeName() << "\n";
 		return NULL;
 	}
 }

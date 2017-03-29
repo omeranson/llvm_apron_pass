@@ -48,7 +48,7 @@ void CallGraph::populateWithSuccessors(
 	stop = m_nexts.upper_bound(block);
 	for (it = m_nexts.lower_bound(block); it != stop; it++) {
 		BasicBlock * succ = it->second;
-		std::cerr << block->getName() << " -> " << succ->getName() << "\n";
+		// llvm::errs() << block->getName() << " -> " << succ->getName() << "\n";
 		bool isSuccModified = succ->join(*block);
 		if (isSuccModified) {
 			succ->setChanged();
@@ -63,7 +63,7 @@ void CallGraph::populateWithPredecessors(
 	std::multimap<BasicBlock *, BasicBlock *>::iterator stop;
 	stop = m_prevs.upper_bound(block);
 	for (it = m_prevs.lower_bound(block); it != stop; it++) {
-		std::cerr << block->getName() << " -> " << it->second->getName() << "\n";
+		// llvm::errs() << block->getName() << " -> " << it->second->getName() << "\n";
 		list.push_back(it->second);
 	}
 }
