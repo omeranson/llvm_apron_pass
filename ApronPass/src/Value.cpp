@@ -46,6 +46,14 @@ void appendValue(std::ostringstream & oss,
 	}
 }
 
+class NopInstructionValue : public InstructionValue {
+public:
+	virtual bool isSkip() { return true; }
+}
+
+class LoadValue : public NopInstructionValue {};
+class StoreValue : public NopInstructionValue {};
+
 class VariableValue : public Value {
 public:
 	VariableValue(llvm::Value * value) : Value(value) {}
@@ -400,11 +408,18 @@ std::string CallValue::getValueString() {
 	return oss.str();
 }
 
-bool CallValue::isSkip() {
+bool CallValue::isDebugFunction(std::string * funcName) {
 	const std::string comparator = "llvm.dbg.";
-	const std::string funcName = getCalledFunctionName();
 	return comparator.compare(0, comparator.size(),
 			funcName, 0, comparator.size()) == 0;
+}
+
+bool CallValue::isSkip() {
+	const std::string funcName = getCalledFunctionName();
+	if (isDebugFunction(funcName)) {
+		return true;
+	}
+	return true;
 }
 
 class CompareValue : public BinaryOperationValue {
@@ -1260,8 +1275,10 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 
 	// Memory instructions...
 	//case llvm::BinaryOperator::Alloca:
-	//case llvm::BinaryOperator::Load:
-	//case llvm::BinaryOperator::Store:
+	case llvm::BinaryOperator::Load:
+		return new LoadValue(instruction);
+	case llvm::BinaryOperator::Store:
+		return new StoreValue(instruction);
 	//case llvm::BinaryOperator::GetElementPtr:
 
 	// Convert instructions...
