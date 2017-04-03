@@ -450,6 +450,18 @@ llvm::CallInst * CallValue::asCallInst() {
 std::string CallValue::getCalledFunctionName() {
 	llvm::CallInst * callInst = asCallInst();
 	llvm::Function * function = callInst->getCalledFunction();
+	if (!function) {
+		llvm::Value * value = callInst->getCalledValue();
+		if (value->hasName()) {
+			return value->getName().str();
+		}
+		if (llvm::User * user = llvm::dyn_cast<llvm::User>(value)) {
+			return user->getOperand(0)->getName().str();
+
+		}
+		llvm::errs() << "Function is null: " << *value << "\n";
+		abort();
+	}
 	return function->getName().str();
 }
 
