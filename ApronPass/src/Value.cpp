@@ -62,6 +62,11 @@ public:
 	virtual bool isSkip() { return true; }
 };
 
+class AllocaValue : public NopInstructionValue {
+public:
+	AllocaValue(llvm::Value * value) : NopInstructionValue(value) {}
+};
+
 class LoadValue : public NopInstructionValue {
 public:
 	LoadValue(llvm::Value * value) : NopInstructionValue(value) {}
@@ -1640,7 +1645,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	//case llvm::BinaryOperator::Xor:
 
 	// Memory instructions...
-	//case llvm::BinaryOperator::Alloca:
+	case llvm::BinaryOperator::Alloca:
+		return new AllocaValue(instruction);
 	case llvm::BinaryOperator::Load:
 		return new LoadValue(instruction);
 	case llvm::BinaryOperator::Store:
