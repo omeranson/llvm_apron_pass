@@ -202,7 +202,7 @@ bool BasicBlock::join(ap_tcons1_t & constraint) {
 }
 
 bool BasicBlock::join(BasicBlock & basicBlock) {
-	return join(m_abst_value);
+	return join(basicBlock.m_abst_value);
 }
 
 bool BasicBlock::meet(ap_abstract1_t & abst_value) {
@@ -234,7 +234,7 @@ bool BasicBlock::meet(ap_tcons1_t & constraint) {
 }
 
 bool BasicBlock::meet(BasicBlock & basicBlock) {
-	return meet(m_abst_value);
+	return meet(basicBlock.m_abst_value);
 }
 
 bool BasicBlock::unify(ap_abstract1_t & abst_value) {
