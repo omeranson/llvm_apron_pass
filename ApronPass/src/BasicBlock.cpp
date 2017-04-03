@@ -209,7 +209,9 @@ bool BasicBlock::join(ap_tcons1_t & constraint) {
 }
 
 bool BasicBlock::join(BasicBlock & basicBlock) {
-	return join(basicBlock.m_abst_value);
+	bool isChanged = join(basicBlock.m_abst_value);
+	bool isASChanged = m_abstractState.join(basicBlock.m_abstractState);
+	return isChanged || isASChanged;
 }
 
 bool BasicBlock::meet(ap_abstract1_t & abst_value) {
@@ -388,6 +390,7 @@ bool BasicBlock::update() {
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
 	ap_abstract1_t abs = abstractOfTconsList(constraints);
+	m_abstractState.updateUserOperationAbstract1();
 
 	// Some debug output
 	/*

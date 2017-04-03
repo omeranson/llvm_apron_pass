@@ -10,6 +10,8 @@
 
 #include <ap_abstract1.h>
 
+#include <AbstractState.h>
+
 class Value;
 
 class BasicBlock;
@@ -39,6 +41,7 @@ protected:
 	std::string m_name;
 	ap_manager_t * m_manager;
 	bool m_markedForChanged;
+	AbstractState m_abstractState;
 
 	BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock);
 	virtual void initialiseBlockName();
@@ -98,6 +101,8 @@ public:
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_tcons1_array_t createTcons1Array(
 			std::list<ap_tcons1_t> & constraints);
+
+	virtual AbstractState & getAbstractState();
 };
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock);
