@@ -182,49 +182,6 @@ namespace
 		/* OREN ISH SHALOM removed : Apron() : blockCount(0), llvm::FunctionPass(ID) {} */
 		Apron() : blockCount(0), llvm::CallGraphSCCPass(ID) {}
 
-		void runOnInstruction(llvm::Instruction & inst) {
-			//llvm::errs() << "\t\tApron: instruction: " << inst.getDebugLoc().getLine() << ": ";
-			//inst.print(llvm::errs());
-			//llvm::errs() << "\n";
-		}
-
-		void runOnBasicBlock(llvm::BasicBlock & bb) {
-			//llvm::errs() << "\tApron: Basic block: " << bb.getName() << "\n";
-			//llvm::BasicBlock::iterator it;
-			//for (it = bb.begin(); it != bb.end(); it ++) {
-				//llvm::Instruction & inst = *it;
-				//runOnInstruction(inst);
-			//}
-		}
-
-		void setName(llvm::BasicBlock & succ) {
-			if (succ.hasName()) {
-				return;
-			}
-			int name = ++blockCount;
-			//llvm::Twine twine(name);
-			succ.setName(llvm::Twine(name));
-		}
-
-		void runOnBasicBlocks(std::list<llvm::BasicBlock *> & bbs) {
-			std::set<llvm::BasicBlock *> seen;
-			while (!bbs.empty()) {
-				llvm::BasicBlock * bb = bbs.front();
-				bbs.pop_front();
-				const llvm::TerminatorInst *TInst = bb->getTerminator();
-				int NSucc = TInst->getNumSuccessors();
-				for (unsigned succIdx = 0; succIdx < NSucc; ++succIdx) {
-					llvm::BasicBlock * succ = TInst->getSuccessor(succIdx);
-					setName(*succ);
-					if (seen.find(succ) == seen.end()) {
-						bbs.push_back(succ);
-						seen.insert(succ);
-					}
-				}
-				runOnBasicBlock(*bb);
-			}
-		}
-
 		virtual llvm::ReturnInst * getReturnInstruction(llvm::Function &F) {
 			for (auto bbit = F.begin(), bbie = F.end(); bbit != bbie; bbit++) {
 				llvm::BasicBlock & bb = *bbit;
@@ -271,43 +228,61 @@ namespace
                     /****************************************************************/
                     /* OREN ISH SHALOM: From here downward, lots of F. to F-> stuff */
                     /****************************************************************/
-			        // llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
-			        // llvm::errs() << "Apron: Function: ";
-			        // llvm::errs().write_escaped(F.getName()) << '\n';
-			        llvm::BasicBlock * llvmfirst =  &(F->getEntryBlock());
-			        BasicBlock * first = BasicBlockManager::getInstance().getBasicBlock(
-					        llvmfirst);
-			        ap_environment_t * ap_environment =
-					        ap_environment_alloc_empty();
-			        first->setEnvironment(ap_environment);
-			        CallGraph funcCallGraph(F->getName().str(), first);
-			        // funcCallGraph.printAsDot();
-			        ChaoticExecution chaoticExecution(funcCallGraph);
-			        chaoticExecution.execute();
-			        // Get 'return' instruction
-			        llvm::ReturnInst * returnInst = getReturnInstruction(*F);
-			        if (!returnInst) {
-				        llvm::errs() << F->getName() << " " << "-oo" << " " << "+oo" << "\n";
-				        return false;
-			        }
-			        // get temporary
-			        llvm::Value * llvmValue = returnInst->getReturnValue();
-			        if (!llvmValue) {
-				        llvm::errs() << F->getName() << " " << "-oo" << " " << "+oo" << "\n";
-				        return false;
-			        }
-			        ValueFactory * factory = ValueFactory::getInstance();
-			        Value * val = factory->getValue(llvmValue);
-			        if (!val) {
-				        llvm::errs() << F->getName() << " " << "-oo" << " " << "+oo" << "\n";
-				        return false;
-			        }
-			        // get temporary's abstract value
-			        llvm::BasicBlock * llvmlast = returnInst->getParent();
-			        BasicBlock * last = BasicBlockManager::getInstance().getBasicBlock(
-					        llvmlast);
-			        ap_interval_t * interval = last->getVariableInterval(val);
-			        // print it
+			if (Debug) {
+				llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
+				llvm::errs() << "Apron: Function: ";
+				llvm::errs().write_escaped(F->getName()) << '\n';
+			}
+			// Analyze
+			llvm::BasicBlock * llvmfirst =  &F->getEntryBlock();
+			BasicBlock * first = BasicBlockManager::getInstance().getBasicBlock(
+					llvmfirst);
+			ap_environment_t * ap_environment =
+					ap_environment_alloc_empty();
+			first->setEnvironment(ap_environment);
+			CallGraph funcCallGraph(F->getName().str(), first);
+			ChaoticExecution chaoticExecution(funcCallGraph);
+			chaoticExecution.execute();
+			// Print
+			if (Debug) {
+				chaoticExecution.print();
+			}
+
+			// Get 'return' instruction
+			llvm::ReturnInst * returnInst = getReturnInstruction(*F);
+			if (!returnInst) {
+				llvm::errs() << F->getName() << " " << "-inf" << " " << "inf" << "\n";
+				return false;
+			}
+			// get temporary
+			llvm::Value * llvmValue = returnInst->getReturnValue();
+			if (!llvmValue) {
+				llvm::errs() << F->getName() << " " << "-inf" << " " << "inf" << "\n";
+				return false;
+			}
+			ValueFactory * factory = ValueFactory::getInstance();
+			Value * val = factory->getValue(llvmValue);
+			if (!val) {
+				llvm::errs() << F->getName() << " " << "-inf" << " " << "inf" << "\n";
+				return false;
+			}
+			// get temporary's abstract value
+			llvm::BasicBlock * llvmlast = returnInst->getParent();
+			BasicBlock * last = BasicBlockManager::getInstance().getBasicBlock(
+					llvmlast);
+			ap_interval_t * interval = last->getVariableInterval(val);
+			if (Debug) {
+				llvm::errs() << last->getAbstractState() << "\n";
+				{
+					char * buffer;
+					size_t size;
+					FILE * bufferfp = open_memstream(&buffer, &size);
+					ap_abstract1_fprint(bufferfp, last->getManager(), &last->getAbstractValue());
+					fclose(bufferfp);
+					llvm::errs() << buffer << "\n";
+				}
+			}
+			        // chaoticExecution.print();
                     /*********************************************/
                     /* OREN ISH SHALOM: Print the way I like it! */
                     /*********************************************/
