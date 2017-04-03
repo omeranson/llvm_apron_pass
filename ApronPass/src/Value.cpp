@@ -792,9 +792,6 @@ Value * SelectValueInstruction::getCondition() {
 	ValueFactory * factory = ValueFactory::getInstance();
 	llvm::Value * condition = asSelectInst()->getCondition();
 	Value * result = factory->getValue(condition);
-	if (!result) {
-		//condition->print(llvm::errs());
-	}
 	return result;
 }
 
@@ -1323,10 +1320,10 @@ Value * ValueFactory::getValue(llvm::Value * value) {
 	}
 	Value * result = createValue(value);
 	if (!result) {
-		//llvm::errs() << "Unknown value: ";
-		//value->print(llvm::errs());
-		//llvm::errs() << "\n";
-		return NULL;
+		llvm::errs() << "Unknown value: ";
+		value->print(llvm::errs());
+		llvm::errs() << "\n";
+		abort();
 	}
 	values.insert(std::pair<llvm::Value *, Value*>(value, result));
 	return result;
