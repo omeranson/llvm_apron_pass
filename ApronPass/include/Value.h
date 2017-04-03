@@ -55,6 +55,9 @@ public:
 	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
 	virtual ap_tcons1_t getSetValueTcons(
 			BasicBlock * basicBlock, Value * other);
+
+	virtual unsigned getBitSize();
+	virtual unsigned getByteSize();
 };
 
 std::ostream& operator<<(std::ostream& os,  Value& value);

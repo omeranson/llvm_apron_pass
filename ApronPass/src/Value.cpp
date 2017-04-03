@@ -15,10 +15,12 @@
 /* INCLUDE FILES :: llvm */
 /*************************/
 #include <llvm/Pass.h>
+#include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/InstrTypes.h>
+#include <llvm/IR/Module.h>
 //#include <llvm/IR/DebugLoc.h>
 #include <llvm/DebugInfo.h>
 #include <llvm/IR/Constants.h>
@@ -334,6 +336,7 @@ protected:
 public:
 	ConstantIntValue(llvm::Value * value) : ConstantValue(value) {}
 	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
+	virtual unsigned getBitSize();
 };
 
 std::string ConstantIntValue::getConstantString()  {
@@ -350,6 +353,10 @@ ap_texpr1_t * ConstantIntValue::createTreeExpression(
 	ap_texpr1_t * result = ap_texpr1_cst_scalar_int(
 			basicBlock->getEnvironment(), svalue);
 	return result;
+}
+
+unsigned ConstantIntValue::getBitSize() {
+	return llvm::cast<llvm::ConstantInt>(*m_value).getBitWidth();
 }
 
 class ConstantFloatValue : public ConstantValue {
@@ -1199,6 +1206,41 @@ std::string Value::llvmValueName(llvm::Value * value) {
 	std::ostringstream oss;
 	oss << "%" << valuesIndex++;
 	return oss.str();
+}
+
+static const llvm::Module *getModuleFromVal(const llvm::Value *V) {
+  if (const llvm::Argument *MA = llvm::dyn_cast<llvm::Argument>(V))
+    return MA->getParent() ? MA->getParent()->getParent() : 0;
+
+  if (const llvm::BasicBlock *BB = llvm::dyn_cast<llvm::BasicBlock>(V))
+    return BB->getParent() ? BB->getParent()->getParent() : 0;
+
+  if (const llvm::Instruction *I = llvm::dyn_cast<llvm::Instruction>(V)) {
+    const llvm::Function *M = I->getParent() ? I->getParent()->getParent() : 0;
+    return M ? M->getParent() : 0;
+  }
+
+  if (const llvm::GlobalValue *GV = llvm::dyn_cast<llvm::GlobalValue>(V))
+    return GV->getParent();
+  return 0;
+}
+
+unsigned Value::getBitSize() {
+	llvm::Type * type = m_value->getType();
+	const llvm::Module * module = getModuleFromVal(m_value);
+	if (!module) {
+		llvm::errs() << "No module for? :" << *m_value << "\n";
+		abort();
+	}
+	std::string dlstr = module->getDataLayout();
+	const llvm::DataLayout dataLayout(module);
+	unsigned bits = dataLayout.getTypeSizeInBits(type);
+	return bits;
+}
+
+unsigned Value::getByteSize() {
+	unsigned bits = getBitSize();
+	return ((bits >> 3) + ((bits & 0x7) != 0));
 }
 
 std::string & Value::getName()  {
