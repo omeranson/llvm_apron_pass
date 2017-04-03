@@ -13,13 +13,14 @@ extern "C" {
 #include <ap_global0.h>
 #include <ap_global1.h>
 #include <ap_abstract1.h>
+#include <ap_tcons1.h>
+#include <ap_lincons1.h>
 #include <box.h>
 #include <oct.h>
 #include <pk.h>
 #include <pkeq.h>
 #include <ap_ppl.h>
 
-ap_environment_t * m_ap_environment = ap_environment_alloc_empty();
 /*			       BasicBlockManager			     */
 BasicBlockManager BasicBlockManager::instance;
 BasicBlockManager & BasicBlockManager::getInstance() {
@@ -55,9 +56,8 @@ int BasicBlock::basicBlockCount = 0;
 BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
 		m_manager(manager),
-		//m_ap_environment(ap_environment_alloc_empty()),
-		m_markedForChanged(false) {
-	m_abst_value = ap_abstract1_bottom(manager, getEnvironment());
+		m_markedForChanged(false),
+		m_abst_value(ap_abstract1_bottom(manager, ap_environment_alloc_empty())) {
 	if (!basicBlock->hasName()) {
 		initialiseBlockName();
 	}
@@ -74,19 +74,12 @@ void BasicBlock::initialiseBlockName() {
 bool BasicBlock::is_eq(ap_abstract1_t & value) {
 	ap_manager_t * manager = getManager();
 	ap_environment_t * environment = getEnvironment();
-	ap_abstract1_t lclValue = ap_abstract1_change_environment(
-			manager,
-			false,
-			&value,
-			environment,
-			false);
-	m_abst_value = ap_abstract1_change_environment(
-			manager,
-			false,
-			&m_abst_value,
-			environment,
-			false);
-	return ap_abstract1_is_eq(getManager(), &m_abst_value, &lclValue);
+	if (ap_environment_is_eq(
+			ap_abstract1_environment(manager, &m_abst_value),
+			ap_abstract1_environment(manager, &value))) {
+		return ap_abstract1_is_eq(manager, &m_abst_value, &value);
+	}
+	return false;
 }
 
 std::string BasicBlock::getName() {
@@ -107,11 +100,12 @@ ap_manager_t * BasicBlock::getManager() {
 }
 
 ap_environment_t * BasicBlock::getEnvironment() {
-	return m_ap_environment;
+	return ap_abstract1_environment(getManager(), &m_abst_value);
 }
 
 void BasicBlock::setEnvironment(ap_environment_t * nenv) {
-	m_ap_environment = nenv;
+	m_abst_value = ap_abstract1_change_environment(getManager(), false,
+			&m_abst_value, nenv, true);
 }
 
 void BasicBlock::extendEnvironment(Value * value) {
@@ -174,10 +168,18 @@ void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
 bool BasicBlock::join(ap_abstract1_t & abst_value) {
 	ap_abstract1_t prev = m_abst_value;
 	ap_manager_t * manager = getManager();
+	ap_dimchange_t * dimchange1 = NULL;
+	ap_dimchange_t * dimchange2 = NULL;
+	ap_environment_t * environment = ap_environment_lce(
+			ap_abstract1_environment(manager, &m_abst_value),
+			ap_abstract1_environment(manager, &abst_value),
+			&dimchange1, &dimchange2);
 	m_abst_value = ap_abstract1_change_environment(manager, false,
-			&m_abst_value, getEnvironment(), false);
+			&m_abst_value, environment, true);
+	ap_abstract1_t lcl_abst_val = ap_abstract1_change_environment(manager, false,
+			&abst_value, environment, true);
 	m_abst_value = ap_abstract1_join(manager, false,
-			&m_abst_value, &abst_value);
+			&m_abst_value, &lcl_abst_val);
 	return is_eq(prev);
 }
 

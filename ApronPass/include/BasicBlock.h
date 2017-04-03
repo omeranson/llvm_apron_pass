@@ -38,7 +38,6 @@ protected:
 	ap_abstract1_t m_abst_value;
 	std::string m_name;
 	ap_manager_t * m_manager;
-	//ap_environment_t *m_ap_environment;
 	bool m_markedForChanged;
 
 	BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock);
