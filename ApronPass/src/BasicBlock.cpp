@@ -485,14 +485,22 @@ std::string BasicBlock::toString() {
 	std::ostringstream oss;
 	oss << getName() << ": ";
 	streamAbstract1(oss, m_abst_value);
-	oss << "\nRanges:\n";
-	streamAbstract1Manually(oss, m_abst_value);
 	return oss.str();
 }
 
-std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock) {
-	os << basicBlock.toString();
-	return os;
+
+AbstractState & BasicBlock::getAbstractState() {
+	return m_abstractState;
+}
+
+llvm::raw_ostream& operator<<(llvm::raw_ostream& ro,  BasicBlock& basicBlock) {
+	ro << basicBlock.toString();
+	return ro;
+}
+
+llvm::raw_ostream& operator<<(llvm::raw_ostream& ro,  BasicBlock* basicBlock) {
+	ro << basicBlock->toString();
+	return ro;
 }
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock* basicBlock) {
@@ -500,3 +508,7 @@ std::ostream& operator<<(std::ostream& os,  BasicBlock* basicBlock) {
 	return os;
 }
 
+std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock) {
+	os << basicBlock.toString();
+	return os;
+}

@@ -99,5 +99,7 @@ public:
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock);
 std::ostream& operator<<(std::ostream& os,  BasicBlock* basicBlock);
+llvm::raw_ostream& operator<<(llvm::raw_ostream& ro,  BasicBlock& basicBlock);
+llvm::raw_ostream& operator<<(llvm::raw_ostream& ro,  BasicBlock* basicBlock);
 
 #endif /* BASIC_BLOCK_H */
