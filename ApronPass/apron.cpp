@@ -17,6 +17,7 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/CommandLine.h"
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/InstrTypes.h>
@@ -42,6 +43,9 @@
 /***********************************/
 #include <Value.h>
 #include <CallGraph.h>
+
+bool Debug;
+llvm::cl::opt<bool, true> DebugOpt ("d", llvm::cl::desc("Enable additional debug output"), llvm::cl::location(Debug));
 
 /**************************/
 /* NAMESPACE :: anonymous */
@@ -135,10 +139,11 @@ namespace
 		}
 
 		void print() {
-			//llvm::errs() << "Apron: Library " <<
-					//BasicBlockManager::getInstance().m_manager->library <<
-					//", version " <<
-					//BasicBlockManager::getInstance().m_manager->version << "\n";
+			llvm::errs() << "Apron: Library " <<
+					BasicBlockManager::getInstance().m_manager->library <<
+					", version " <<
+					BasicBlockManager::getInstance().m_manager->version << "\n";
+			callGraph.printAsDot();
 			std::set<BasicBlock *>::iterator it;
 			for (it = seen.begin(); it != seen.end(); it++) {
 				llvm::errs() << (*it)->toString() << "\n";
@@ -171,7 +176,7 @@ namespace
     /*                                                  */
     /****************************************************/
     /**********************************************************************/
-	/* OREN ISH SHALOM removed: class Apron : public llvm::FunctionPass { */
+	/* OREN ISH SHALOM removed: class Apron : public llvm::FunctionPass   */
     /**********************************************************************/
 	class Apron : public llvm::CallGraphSCCPass {
 	private:
@@ -199,7 +204,7 @@ namespace
         /***************************************************/
         /* OREN ISH SHALOM removed:                        */
         /*                                                 */
-        /* virtual bool runOnFunction(llvm::Function &F) { */
+        /* virtual bool runOnFunction(llvm::Function &F)   */
         /*                                                 */
         /***************************************************/
         virtual bool runOnSCC(llvm::CallGraphSCC &SCC)
@@ -283,6 +288,7 @@ namespace
 				}
 			}
 			        // chaoticExecution.print();
+			        // llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
                     /*********************************************/
                     /* OREN ISH SHALOM: Print the way I like it! */
                     /*********************************************/
@@ -306,12 +312,6 @@ namespace
 	                /*************************************************************************/
 	                /* OREN ISH SHALOM: Keep Omer's original printing -- He's a nice guy :)) */
 	                /*************************************************************************/
-			        llvm::errs() << F->getName()   << " ";
-			        llvm::errs() << *interval->inf << " ";
-			        llvm::errs() << *interval->sup << "\n";
-
-			        // chaoticExecution.print();
-			        // llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
 			        return false;
                 }
             }
