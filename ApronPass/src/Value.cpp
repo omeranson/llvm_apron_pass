@@ -10,6 +10,7 @@
 /* PROJECT INCLUDE FILES */
 /*************************/
 #include <Value.h>
+#include <AbstractState.h>
 
 /*************************/
 /* INCLUDE FILES :: llvm */
@@ -396,6 +397,36 @@ protected:
 	llvm::CallInst * asCallInst();
 	virtual std::string getCalledFunctionName();
 	bool isDebugFunction(const std::string & funcName) const;
+	bool isKernelUserMemoryOperation(const std::string & funcName) const;
+	bool isKernelUserMemoryTestOperation(const std::string & funcName) const;
+
+	virtual void populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints);
+	void populateTreeConstraintsForGetPutUser(
+		std::list<ap_tcons1_t> & constraints,
+		user_pointer_operation_e op);
+	virtual void populateTreeConstraintsForGetUser(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraintsForPutUser(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraintsForClearUser(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraintsForCopyToUser(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraintsForCopyFromUser(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraintsForStrnlenUser(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraintsForStrncpyFromUser(std::list<ap_tcons1_t> & constraints);
+
+	void populateMPT();
+	virtual void populateTreeConstraintsForUserMemoryOperation(
+			std::string & ptr, ap_texpr1_t * size,
+			user_pointer_operation_e op);
+	virtual void populateTreeConstraintsForUserMemoryOperation(
+			Value * ptr, ap_texpr1_t * size,
+			user_pointer_operation_e op);
+	virtual void populateTreeConstraintsForUserMemoryOperation(
+			llvm::Value * llvmptr, ap_texpr1_t * size,
+			user_pointer_operation_e op);
+	virtual void populateTreeConstraintsForGetPutUser(
+			user_pointer_operation_e op);
+	virtual void populateTreeConstraintsForLiteralSize(llvm::Value * ptr,
+			llvm::Value * llvmsize, user_pointer_operation_e op);
+	virtual void populateTreeConstraintsForCopyToFromUser(user_pointer_operation_e op);
 public:
 	CallValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
@@ -405,6 +436,8 @@ public:
     /* OREN ISH SHALOM added: */
     /**************************/
     virtual ap_texpr1_t *createRHSTreeExpression();
+	virtual void populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints);
 };
 
 ap_texpr1_t *CallValue::createRHSTreeExpression()
@@ -495,12 +528,223 @@ bool CallValue::isDebugFunction(const std::string & funcName) const {
 			funcName, 0, comparator.size()) == 0;
 }
 
+bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const {
+	// TODO Memoize this method
+	if ("access_ok" == funcName) {
+		return true;
+	}
+	if ("get_user" == funcName) {
+		return true;
+	}
+	if ("put_user" == funcName) {
+		return true;
+	}
+	if ("clear_user" == funcName) {
+		return true;
+	}
+	if ("copy_to_user" == funcName) {
+		return true;
+	}
+	if ("copy_from_user" == funcName) {
+		return true;
+	}
+	if ("strnlen_user" == funcName) {
+		return true;
+	}
+	if ("strncpy_from_user" == funcName) {
+		return true;
+	}
+	return false;
+}
+
+bool CallValue::isKernelUserMemoryTestOperation(const std::string & funcName) const {
+	// TODO Memoize this method
+	if ("add_user_pointer" == funcName) {
+		return true;
+	}
+	return false;
+}
+
 bool CallValue::isSkip() {
 	const std::string funcName = getCalledFunctionName();
 	if (isDebugFunction(funcName)) {
 		return true;
 	}
 	return false;
+}
+
+void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
+	const std::string funcName = getCalledFunctionName();
+	if (isKernelUserMemoryOperation(funcName)) {
+		if ("access_ok" == funcName) {
+			populateTreeConstraintsForAccessOK(constraints);
+			return;
+		}
+		if ("get_user" == funcName) {
+			populateTreeConstraintsForGetUser(constraints);
+			return;
+		}
+		if ("put_user" == funcName) {
+			populateTreeConstraintsForPutUser(constraints);
+			return;
+		}
+		if ("clear_user" == funcName) {
+			populateTreeConstraintsForClearUser(constraints);
+			return;
+		}
+		if ("copy_to_user" == funcName) {
+			populateTreeConstraintsForCopyToUser(constraints);
+			return;
+		}
+		if ("copy_from_user" == funcName) {
+			populateTreeConstraintsForCopyFromUser(constraints);
+			return;
+		}
+		if ("strnlen_user" == funcName) {
+			populateTreeConstraintsForStrnlenUser(constraints);
+			return;
+		}
+		if ("strncpy_from_user" == funcName) {
+			populateTreeConstraintsForStrncpyFromUser(constraints);
+			return;
+		}
+	}
+	if (isKernelUserMemoryTestOperation(funcName)) {
+		if ("add_user_pointer" == funcName) {
+			populateMPT();
+			return;
+		}
+	}
+	InstructionValue::populateTreeConstraints(constraints);
+	return;
+}
+
+void CallValue::populateMPT() {
+	BasicBlock * bb = getBasicBlock();
+	AbstractState & abstractState = bb->getAbstractState();
+	llvm::CallInst * callinst = asCallInst();
+	assert(callinst->getNumArgOperands() == 3);
+	// 0 -> source pointer
+	// 1 -> dest pointer
+	// 2 -> offset
+	llvm::Value * llvmsrc = callinst->getArgOperand(0);
+	llvm::Value * llvmdest = callinst->getArgOperand(1);
+	llvm::Value * llvmoffset = callinst->getArgOperand(2);
+	abstractState.may_points_to[llvmsrc->getName().str()][llvmdest->getName().str()].insert(llvmoffset);
+}
+
+void CallValue::populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints) {
+	// Do nothing
+}
+
+void CallValue::populateTreeConstraintsForUserMemoryOperation(
+		std::string & ptr, ap_texpr1_t * size,
+		user_pointer_operation_e op) {
+	BasicBlock * bb = getBasicBlock();
+	ValueFactory * valueFactory = ValueFactory::getInstance();
+	AbstractState & abstractState = bb->getAbstractState();
+	AbstractState::may_points_to_t & may_points_to = abstractState.may_points_to[ptr];
+	for (auto & it : may_points_to) {
+		std::string userPtr = it.first;
+		std::set<llvm::Value*> & llvmoffsets = it.second;
+		for (llvm::Value * llvmoffset : llvmoffsets) {
+			Value * offset = valueFactory->getValue(llvmoffset);
+			ap_texpr1_t * offsetExpr = offset->createTreeExpression(bb);
+			std::string & userPtrOp = abstractState.getUserPointerName(userPtr, op);
+			ap_environment_t * env = bb->getEnvironment();
+			MemoryAccessAbstractValue maav(
+					env, userPtrOp, offsetExpr, size);
+			// Placed back in abstractState to be joined at end of BB
+			abstractState.memoryAccessAbstractValues.push_back(maav);
+		}
+	}
+}
+
+void CallValue::populateTreeConstraintsForUserMemoryOperation(
+		Value * ptr, ap_texpr1_t * size,
+		user_pointer_operation_e op) {
+	populateTreeConstraintsForUserMemoryOperation(ptr->getName(), size, op);
+}
+
+void CallValue::populateTreeConstraintsForUserMemoryOperation(
+		llvm::Value * llvmptr, ap_texpr1_t * size,
+		user_pointer_operation_e op) {
+	ValueFactory * valueFactory = ValueFactory::getInstance();
+	Value * ptr = valueFactory->getValue(llvmptr);
+	populateTreeConstraintsForUserMemoryOperation(ptr, size, op);
+}
+
+void CallValue::populateTreeConstraintsForGetPutUser(
+		user_pointer_operation_e op) {
+	/*
+	 * Update the constraints to include that the pointer was 'read from'
+	 */
+	llvm::CallInst * callinst = asCallInst();
+	assert(callinst->getNumArgOperands() == 2);
+	ValueFactory * valueFactory = ValueFactory::getInstance();
+	// Size: Width of first parameter
+	llvm::Value * llvmdest = callinst->getArgOperand(0);
+	Value * dest = valueFactory->getValue(llvmdest);
+	unsigned size = dest->getByteSize();
+	ap_texpr1_t * apsize = getBasicBlock()->getConstantTExpr(size);
+	// Pointer + offset: Second parameter
+	llvm::Value * src = callinst->getArgOperand(1);
+	populateTreeConstraintsForUserMemoryOperation(src, apsize, op);
+}
+
+void CallValue::populateTreeConstraintsForGetUser(std::list<ap_tcons1_t> & constraints) {
+	populateTreeConstraintsForGetPutUser(user_pointer_operation_read);
+}
+
+void CallValue::populateTreeConstraintsForPutUser(std::list<ap_tcons1_t> & constraints) {
+	populateTreeConstraintsForGetPutUser(user_pointer_operation_write);
+}
+
+void CallValue::populateTreeConstraintsForLiteralSize(llvm::Value * ptr,
+		llvm::Value * llvmsize, user_pointer_operation_e op) {
+	ValueFactory * valueFactory = ValueFactory::getInstance();
+	Value * sizeValue = valueFactory->getValue(llvmsize);
+	ap_texpr1_t * size = sizeValue->createTreeExpression(getBasicBlock());
+
+	populateTreeConstraintsForUserMemoryOperation(ptr, size, op);
+}
+
+void CallValue::populateTreeConstraintsForClearUser(std::list<ap_tcons1_t> & constraints) {
+	llvm::CallInst * callinst = asCallInst();
+	assert(callinst->getNumArgOperands() == 2);
+	llvm::Value * ptr = callinst->getArgOperand(0);
+	llvm::Value * size = callinst->getArgOperand(1);
+	populateTreeConstraintsForLiteralSize(ptr, size, user_pointer_operation_write);
+}
+
+void CallValue::populateTreeConstraintsForCopyToFromUser(user_pointer_operation_e op) {
+	llvm::CallInst * callinst = asCallInst();
+	assert(callinst->getNumArgOperands() == 3);
+	llvm::Value * ptr = callinst->getArgOperand(0);
+	llvm::Value * size = callinst->getArgOperand(2);
+	populateTreeConstraintsForLiteralSize(ptr, size, op);
+}
+
+void CallValue::populateTreeConstraintsForCopyToUser(std::list<ap_tcons1_t> & constraints) {
+	populateTreeConstraintsForCopyToFromUser(user_pointer_operation_write);
+}
+
+void CallValue::populateTreeConstraintsForCopyFromUser(std::list<ap_tcons1_t> & constraints) {
+	populateTreeConstraintsForCopyToFromUser(user_pointer_operation_read);
+}
+
+void CallValue::populateTreeConstraintsForStrnlenUser(std::list<ap_tcons1_t> & constraints) {
+	// TODO Ignores first0
+	llvm::CallInst * callinst = asCallInst();
+	assert(callinst->getNumArgOperands() == 3);
+	llvm::Value * ptr = callinst->getArgOperand(0);
+	llvm::Value * size = callinst->getArgOperand(1);
+	populateTreeConstraintsForLiteralSize(ptr, size, user_pointer_operation_read);
+}
+
+void CallValue::populateTreeConstraintsForStrncpyFromUser(std::list<ap_tcons1_t> & constraints) {
+	// TODO Ignores first0
+	populateTreeConstraintsForCopyFromUser(constraints);
 }
 
 class CompareValue : public BinaryOperationValue {
