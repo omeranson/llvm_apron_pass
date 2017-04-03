@@ -86,42 +86,27 @@ ap_manager_t * AbstractState::getManager() const {
 void AbstractState::updateUserOperationAbstract1() {
 	ap_manager_t * manager = getManager();
 	// Construct the environment
-	typedef ap_environment_t * ap_environment_t_p;
 	unsigned size = memoryAccessAbstractValues.size();
 	if (Debug) {
 		llvm::errs() << "Updating: " << size << " maavs\n";
 	}
-	ap_environment_t * environment = 0;
-	if (size > 0) {
-		// Construct the abstract value for each maav
-		ap_abstract1_t values[size];
-		ap_environment_t_p envs[size];
-		for (unsigned idx = 0; idx < size; idx++) {
-			envs[idx] = memoryAccessAbstractValues[idx].m_environment;
-		}
-		ap_dimchange_t** ptdimchange;
-		environment = ap_environment_lce_array(envs, size, &ptdimchange);
-
-		for (unsigned idx = 0; idx < size; idx++) {
-			values[idx] = ap_abstract1_of_tcons_array(manager,
-					memoryAccessAbstractValues[idx].m_environment,
-					&memoryAccessAbstractValues[idx].m_constraints);
-			values[idx] = ap_abstract1_change_environment(manager, false, &values[idx], environment, true);
-		}
-		// Set the new environment for each maav's abstract value (Don't have to)
-		// Join all maav's abstract values
-		ap_abstract1_t abstract = ap_abstract1_join_array(manager, values, size);
-		joinAbstract1(&abstract);
-		if (Debug) {
-			char * buffer;
-			size_t size;
-			FILE * bufferfp = open_memstream(&buffer, &size);
-			ap_abstract1_fprint(bufferfp, manager, &m_abstract1);
-			ap_environment_fdump(bufferfp, environment);
-			fclose(bufferfp);
-			llvm::errs() << "Updated: Abstract value: " <<
-					buffer << "\n";
-		}
+	std::vector<ap_abstract1_t> values;
+	for (unsigned idx = 0; idx < size; idx++) {
+		values.push_back(ap_abstract1_of_tcons_array(manager,
+				memoryAccessAbstractValues[idx].m_environment,
+				&memoryAccessAbstractValues[idx].m_constraints));
+	}
+	ap_abstract1_t abstract = join(values);
+	joinAbstract1(&abstract);
+	if (Debug) {
+		char * buffer;
+		size_t size;
+		FILE * bufferfp = open_memstream(&buffer, &size);
+		ap_abstract1_fprint(bufferfp, manager, &m_abstract1);
+		ap_environment_fdump(bufferfp,
+				ap_abstract1_environment(manager, &m_abstract1));
+		fclose(bufferfp);
+		llvm::errs() << "Updated: Abstract value: " << buffer << "\n";
 	}
 }
 
@@ -148,16 +133,7 @@ bool AbstractState::joinMayPointsTo(std::map<std::string, may_points_to_t > mpts
 bool AbstractState::joinAbstract1(ap_abstract1_t * abstract1) {
 	ap_manager_t * manager = getManager();
 	ap_abstract1_t prev = m_abstract1;
-	ap_dimchange_t * dimchange1 = NULL;
-	ap_dimchange_t * dimchange2 = NULL;
-	ap_environment_t * environment = ap_environment_lce(
-			ap_abstract1_environment(manager, &m_abstract1),
-			ap_abstract1_environment(manager, abstract1),
-			&dimchange1, &dimchange2);
-	m_abstract1 = ap_abstract1_change_environment(manager, false, &m_abstract1, environment, true);
-	ap_abstract1_t lcl_abst_val = ap_abstract1_change_environment(manager, false, abstract1, environment, true);
-	m_abstract1 = ap_abstract1_join(manager, false,
-			&m_abstract1, &lcl_abst_val);
+	m_abstract1 = join(&m_abstract1, abstract1);
 	bool isChanged = !(ap_environment_is_eq(
 				ap_abstract1_environment(manager, &m_abstract1),
 				ap_abstract1_environment(manager, &prev)) &&
@@ -185,6 +161,44 @@ bool AbstractState::join(AbstractState & as) {
 				buffer << "\n";
 	}
 	return isChanged;
+}
+
+ap_abstract1_t AbstractState::join(ap_abstract1_t * val1, ap_abstract1_t * val2) {
+	ap_manager_t * manager = getManager();
+	ap_dimchange_t * dimchange1 = NULL;
+	ap_dimchange_t * dimchange2 = NULL;
+	ap_environment_t * environment = ap_environment_lce(
+			ap_abstract1_environment(manager, val1),
+			ap_abstract1_environment(manager, val2),
+			&dimchange1, &dimchange2);
+	ap_abstract1_t lcl_val1 = ap_abstract1_change_environment(
+			manager, false, val1, environment, true);
+	ap_abstract1_t lcl_val2 = ap_abstract1_change_environment(
+			manager, false, val2, environment, true);
+	return ap_abstract1_join(manager, false, &lcl_val1, &lcl_val2);
+}
+
+ap_abstract1_t AbstractState::join(std::vector<ap_abstract1_t> & a_values) {
+	unsigned size = a_values.size();
+	ap_manager_t * manager = getManager();
+	if (size == 0) {
+		ap_environment_t * env = ap_environment_alloc_empty();
+		return ap_abstract1_bottom(manager, env);
+	}
+	ap_abstract1_t values[size];
+	typedef ap_environment_t* ap_environment_t_p;
+	ap_environment_t_p envs[size];
+	for (unsigned idx = 0; idx < size; idx++) {
+		envs[idx] = ap_abstract1_environment(manager, &a_values[idx]);
+	}
+	ap_dimchange_t** ptdimchange;
+	ap_environment_t * environment = ap_environment_lce_array(envs, size,
+			&ptdimchange);
+	for (unsigned idx = 0; idx < size; idx++) {
+		values[idx] = ap_abstract1_change_environment(manager, false,
+				&a_values[idx], environment, true);
+	}
+	return ap_abstract1_join_array(manager, values, size);
 }
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, AbstractState & as) {

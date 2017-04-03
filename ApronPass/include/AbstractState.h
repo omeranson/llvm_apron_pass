@@ -69,6 +69,9 @@ public:
 	//virtual bool isTop();
 	//virtual bool isBottom();
 	//virtual bool operator==(AbstractState &);
+
+	ap_abstract1_t join(ap_abstract1_t * val1, ap_abstract1_t * val2);
+	ap_abstract1_t join(std::vector<ap_abstract1_t> & values);
 };
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, AbstractState & as);
