@@ -9,6 +9,7 @@
 #include <list>
 
 #include <llvm/IR/Instruction.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <ap_global0.h>
 #include <ap_global1.h>
@@ -58,6 +59,8 @@ public:
 
 std::ostream& operator<<(std::ostream& os,  Value& value);
 std::ostream& operator<<(std::ostream& os,  Value* value);
+llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, Value& value);
+llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, Value* value);
 
 class InstructionValue : public Value {
 protected:

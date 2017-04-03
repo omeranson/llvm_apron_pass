@@ -16,7 +16,6 @@
 /*************************/
 #include <llvm/Pass.h>
 #include <llvm/IR/Function.h>
-#include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/InstrTypes.h>
@@ -1253,6 +1252,18 @@ std::ostream& operator<<(std::ostream& os, Value* value)
 {
     os << value->toString();
     return os;
+}
+
+llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, Value& value)
+{
+    ro << value.toString();
+    return ro;
+}
+
+llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, Value* value)
+{
+    ro << value->toString();
+    return ro;
 }
 
 ValueFactory * ValueFactory::instance = NULL;
