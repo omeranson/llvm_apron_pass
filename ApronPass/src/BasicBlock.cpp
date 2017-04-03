@@ -108,36 +108,33 @@ void BasicBlock::setEnvironment(ap_environment_t * nenv) {
 			&m_abst_value, nenv, true);
 }
 
-void BasicBlock::extendEnvironment(Value * value) {
+void BasicBlock::extendEnvironment(std::string & varname) {
 	ap_environment_t* env = getEnvironment();
-	ap_var_t var = value->varName();
+	ap_var_t var = (ap_var_t)varname.c_str();
 	// TODO Handle reals
 	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
 	setEnvironment(nenv);
 	// TODO Memory leak?
 }
 
-ap_interval_t * BasicBlock::getVariableInterval(Value * value) {
-	ap_var_t var = value->varName();
+void BasicBlock::extendEnvironment(Value * value) {
+	extendEnvironment(value->getName());
+}
+
+ap_interval_t * BasicBlock::getVariableInterval(std::string & value) {
+	extendEnvironment(value);
+	ap_var_t var = (ap_var_t)value.c_str();
 	ap_interval_t* result = ap_abstract1_bound_variable(
 			getManager(), &m_abst_value, var);
-	if (!result) {
-		extendEnvironment(value);
-		result = ap_abstract1_bound_variable(
-				getManager(), &m_abst_value, var);
-		if (!result) {
-			llvm::errs() << "This one is still not in env " <<
-					(void*)getEnvironment() << ": " <<
-					(void*)var << " " <<
-					(char*)var << "\n";
-			abort();
-		}
-	}
 	return result;
 }
 
-ap_texpr1_t* BasicBlock::getVariableTExpr(Value * value) {
-	ap_var_t var = value->varName();
+ap_interval_t * BasicBlock::getVariableInterval(Value * value) {
+	return getVariableInterval(value->getName());
+}
+
+ap_texpr1_t* BasicBlock::getVariableTExpr(std::string & value) {
+	ap_var_t var = (ap_var_t)value.c_str();
 	ap_texpr1_t* result = ap_texpr1_var(getEnvironment(), var);
 	if (!result) {
 		extendEnvironment(value);
@@ -151,6 +148,10 @@ ap_texpr1_t* BasicBlock::getVariableTExpr(Value * value) {
 		}
 	}
 	return result;
+}
+
+ap_texpr1_t* BasicBlock::getVariableTExpr(Value * value) {
+	return getVariableTExpr(value->getName());
 }
 
 void BasicBlock::extendTexprEnvironment(ap_texpr1_t * texpr) {

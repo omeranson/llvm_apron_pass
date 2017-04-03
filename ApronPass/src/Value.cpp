@@ -1261,10 +1261,6 @@ bool Value::isSkip() {
 	return false;
 }
 
-ap_var_t Value::varName() {
-	return (ap_var_t)getName().c_str();
-}
-
 ap_texpr1_t * Value::createTreeExpression(BasicBlock * basicBlock) {
 	return basicBlock->getVariableTExpr(this);
 }

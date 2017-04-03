@@ -86,8 +86,11 @@ public:
 	virtual ap_environment_t * getEnvironment();
 	virtual void setEnvironment(ap_environment_t * nenv);
 	virtual void extendEnvironment(Value * value);
+	virtual void extendEnvironment(std::string & varname);
 	virtual ap_texpr1_t * getVariableTExpr(Value * value);
 	virtual ap_interval_t * getVariableInterval(Value * value);
+	virtual ap_interval_t * getVariableInterval(std::string & value);
+	virtual ap_texpr1_t* getVariableTExpr(std::string & value);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
 	virtual ap_abstract1_t abstractOfTconsList(
