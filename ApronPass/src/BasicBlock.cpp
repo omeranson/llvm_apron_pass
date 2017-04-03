@@ -334,6 +334,7 @@ void BasicBlock::streamAbstract1Manually(
 	//ap_manager_t* manager = ap_abstract1_manager (&abst1)
 	ap_manager_t* manager = getManager();
 	ap_environment_t * environment = ap_abstract1_environment(manager, &abst1);
+	fprintf(bufferfp, "Variables:\n");
 	int env_size = environment->intdim;
 	for (int cnt = 0; cnt < env_size; cnt++) {
 		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
@@ -354,10 +355,17 @@ void BasicBlock::streamAbstract1(
 			stream & s, ap_abstract1_t & abst1) {
 	char * buffer;
 	size_t size;
-	ap_abstract1_canonicalize(getManager(), &abst1);
+	ap_manager_t* manager = getManager();
+	ap_abstract1_canonicalize(manager, &abst1);
 	FILE * bufferfp = open_memstream(&buffer, &size);
+	fprintf(bufferfp, "Abstract value:\n");
 	ap_abstract1_fprint(bufferfp, getManager(), &abst1);
-	fputc('\0', bufferfp);
+	fprintf(bufferfp, "Linear Condition:\n");
+	ap_lincons1_array_t lcons = ap_abstract1_to_lincons_array(manager, &abst1);
+	ap_lincons1_array_fprint(bufferfp, &lcons);
+	fprintf(bufferfp, "Tree Condition:\n");
+	ap_tcons1_array_t tcons = ap_abstract1_to_tcons_array(manager, &abst1);
+	ap_tcons1_array_fprint(bufferfp, &tcons);
 	fclose(bufferfp);
 	s << buffer;
 }
