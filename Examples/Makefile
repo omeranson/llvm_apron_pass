@@ -2,8 +2,14 @@ APRON_MANAGER?=box
 
 include ../ApronPass/Makefile.env
 
-all: simple-O3-mergereturn-named.bc simple-O3-mergereturn-named.ll
-	@ ${MAKE} simple-O3-mergereturn-named.apron APRON_MANAGER=box
+TARGET?=simple
+
+all: ${TARGET}-O3-mergereturn-named.bc ${TARGET}-O3-mergereturn-named.ll
+	@ ${MAKE} ${TARGET}-O3-mergereturn-named.apron APRON_MANAGER=box
+	@ ${MAKE} ${TARGET}-O3-mergereturn-named.apron APRON_MANAGER=oct
+	@ ${MAKE} ${TARGET}-O3-mergereturn-named.apron APRON_MANAGER=polka
+	@ ${MAKE} ${TARGET}-O3-mergereturn-named.apron APRON_MANAGER=ap_ppl
+	# @ ${MAKE} ${TARGET}-O3-mergereturn-named.apron APRON_MANAGER=t1p # Broken
 
 %.bc: %.c
 	@ echo '[CC -emit-llvm]	[$<]	[$@]'
