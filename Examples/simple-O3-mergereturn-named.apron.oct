@@ -1,0 +1,1142 @@
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 2
+
+entry: Variables:
+octagon of dim (3,0)
+-sub + x.0 >= 0
+x.0 - 1 >= 0
+sub + y >= 0
+x.0 + y >= 0
+-sub - y >= 0
+Linear Condition:
+-sub + x.0 >= 0
+x.0 - 1 >= 0
+sub + y >= 0
+x.0 + y >= 0
+-sub - y >= 0
+Tree Condition:
+0 + -1 * sub + 1 * x.0 >= 0
+-1 + 1 * x.0 >= 0
+0 + 1 * sub + 1 * y >= 0
+0 + 1 * x.0 + 1 * y >= 0
+0 + -1 * sub + -1 * y >= 0
+
+{'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+octagon of dim (3,0)
+-sub + x.0 >= 0
+x.0 - 1 >= 0
+sub + y >= 0
+x.0 + y >= 0
+-sub - y >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f2
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 2
+
+entry: Variables:
+octagon of dim (4,0)
+sub + y - 1 >= 0
+-sub - y + 1 >= 0
+Linear Condition:
+sub + y - 1 >= 0
+-sub - y + 1 >= 0
+Tree Condition:
+-1 + 1 * sub + 1 * y >= 0
+1 + -1 * sub + -1 * y >= 0
+
+{'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+octagon of dim (4,0)
+sub + y - 1 >= 0
+-sub - y + 1 >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f3
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 2
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 14
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 14
+
+entry: Variables:
+empty octagon of dim (1,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+for.cond.preheader: Variables:
+octagon of dim (1,0)
+-y + 100 >= 0
+Linear Condition:
+-y + 100 >= 0
+Tree Condition:
+100 + -1 * y >= 0
+
+for.body.lr.ph: Variables:
+octagon of dim (11,0)
+-tmp + 200 >= 0
+-tmp + tmp1 + 102 >= 0
+-tmp - tmp1 + 298 >= 0
+-tmp1 + 98 >= 0
+-tmp + tmp2 + 102 >= 0
+-tmp1 + tmp2 >= 0
+-tmp - tmp2 + 298 >= 0
+-tmp1 - tmp2 + 196 >= 0
+tmp1 - tmp2 >= 0
+-tmp2 + 98 >= 0
+-tmp + tmp3 + 103 >= 0
+-tmp1 + tmp3 + 1 >= 0
+-tmp2 + tmp3 + 1 >= 0
+-tmp - tmp3 + 297 >= 0
+-tmp1 - tmp3 + 195 >= 0
+tmp1 - tmp3 - 1 >= 0
+-tmp2 - tmp3 + 195 >= 0
+tmp2 - tmp3 - 1 >= 0
+-tmp3 + 97 >= 0
+-tmp + tmp4 + 103 >= 0
+-tmp1 + tmp4 + 1 >= 0
+-tmp2 + tmp4 + 1 >= 0
+-tmp3 + tmp4 >= 0
+-tmp - tmp4 + 297 >= 0
+-tmp1 - tmp4 + 195 >= 0
+tmp1 - tmp4 - 1 >= 0
+-tmp2 - tmp4 + 195 >= 0
+tmp2 - tmp4 - 1 >= 0
+-tmp3 - tmp4 + 194 >= 0
+tmp3 - tmp4 >= 0
+-tmp4 + 97 >= 0
+-tmp6 + tmp7 >= 0
+tmp6 - tmp7 >= 0
+-tmp8 + tmp9 + 3 >= 0
+tmp8 - tmp9 - 3 >= 0
+-tmp + y + 100 >= 0
+-tmp1 + y - 2 >= 0
+-tmp2 + y - 2 >= 0
+-tmp3 + y - 3 >= 0
+-tmp4 + y - 3 >= 0
+-tmp - y + 300 >= 0
+-tmp1 - y + 198 >= 0
+tmp1 - y + 2 >= 0
+-tmp2 - y + 198 >= 0
+tmp2 - y + 2 >= 0
+-tmp3 - y + 197 >= 0
+tmp3 - y + 3 >= 0
+-tmp4 - y + 197 >= 0
+tmp4 - y + 3 >= 0
+-y + 100 >= 0
+Linear Condition:
+-tmp + 200 >= 0
+-tmp + tmp1 + 102 >= 0
+-tmp - tmp1 + 298 >= 0
+-tmp1 + 98 >= 0
+-tmp + tmp2 + 102 >= 0
+-tmp1 + tmp2 >= 0
+-tmp - tmp2 + 298 >= 0
+-tmp1 - tmp2 + 196 >= 0
+tmp1 - tmp2 >= 0
+-tmp2 + 98 >= 0
+-tmp + tmp3 + 103 >= 0
+-tmp1 + tmp3 + 1 >= 0
+-tmp2 + tmp3 + 1 >= 0
+-tmp - tmp3 + 297 >= 0
+-tmp1 - tmp3 + 195 >= 0
+tmp1 - tmp3 - 1 >= 0
+-tmp2 - tmp3 + 195 >= 0
+tmp2 - tmp3 - 1 >= 0
+-tmp3 + 97 >= 0
+-tmp + tmp4 + 103 >= 0
+-tmp1 + tmp4 + 1 >= 0
+-tmp2 + tmp4 + 1 >= 0
+-tmp3 + tmp4 >= 0
+-tmp - tmp4 + 297 >= 0
+-tmp1 - tmp4 + 195 >= 0
+tmp1 - tmp4 - 1 >= 0
+-tmp2 - tmp4 + 195 >= 0
+tmp2 - tmp4 - 1 >= 0
+-tmp3 - tmp4 + 194 >= 0
+tmp3 - tmp4 >= 0
+-tmp4 + 97 >= 0
+-tmp6 + tmp7 >= 0
+tmp6 - tmp7 >= 0
+-tmp8 + tmp9 + 3 >= 0
+tmp8 - tmp9 - 3 >= 0
+-tmp + y + 100 >= 0
+-tmp1 + y - 2 >= 0
+-tmp2 + y - 2 >= 0
+-tmp3 + y - 3 >= 0
+-tmp4 + y - 3 >= 0
+-tmp - y + 300 >= 0
+-tmp1 - y + 198 >= 0
+tmp1 - y + 2 >= 0
+-tmp2 - y + 198 >= 0
+tmp2 - y + 2 >= 0
+-tmp3 - y + 197 >= 0
+tmp3 - y + 3 >= 0
+-tmp4 - y + 197 >= 0
+tmp4 - y + 3 >= 0
+-y + 100 >= 0
+Tree Condition:
+200 + -1 * tmp >= 0
+102 + -1 * tmp + 1 * tmp1 >= 0
+298 + -1 * tmp + -1 * tmp1 >= 0
+98 + -1 * tmp1 >= 0
+102 + -1 * tmp + 1 * tmp2 >= 0
+0 + -1 * tmp1 + 1 * tmp2 >= 0
+298 + -1 * tmp + -1 * tmp2 >= 0
+196 + -1 * tmp1 + -1 * tmp2 >= 0
+0 + 1 * tmp1 + -1 * tmp2 >= 0
+98 + -1 * tmp2 >= 0
+103 + -1 * tmp + 1 * tmp3 >= 0
+1 + -1 * tmp1 + 1 * tmp3 >= 0
+1 + -1 * tmp2 + 1 * tmp3 >= 0
+297 + -1 * tmp + -1 * tmp3 >= 0
+195 + -1 * tmp1 + -1 * tmp3 >= 0
+-1 + 1 * tmp1 + -1 * tmp3 >= 0
+195 + -1 * tmp2 + -1 * tmp3 >= 0
+-1 + 1 * tmp2 + -1 * tmp3 >= 0
+97 + -1 * tmp3 >= 0
+103 + -1 * tmp + 1 * tmp4 >= 0
+1 + -1 * tmp1 + 1 * tmp4 >= 0
+1 + -1 * tmp2 + 1 * tmp4 >= 0
+0 + -1 * tmp3 + 1 * tmp4 >= 0
+297 + -1 * tmp + -1 * tmp4 >= 0
+195 + -1 * tmp1 + -1 * tmp4 >= 0
+-1 + 1 * tmp1 + -1 * tmp4 >= 0
+195 + -1 * tmp2 + -1 * tmp4 >= 0
+-1 + 1 * tmp2 + -1 * tmp4 >= 0
+194 + -1 * tmp3 + -1 * tmp4 >= 0
+0 + 1 * tmp3 + -1 * tmp4 >= 0
+97 + -1 * tmp4 >= 0
+0 + -1 * tmp6 + 1 * tmp7 >= 0
+0 + 1 * tmp6 + -1 * tmp7 >= 0
+3 + -1 * tmp8 + 1 * tmp9 >= 0
+-3 + 1 * tmp8 + -1 * tmp9 >= 0
+100 + -1 * tmp + 1 * y >= 0
+-2 + -1 * tmp1 + 1 * y >= 0
+-2 + -1 * tmp2 + 1 * y >= 0
+-3 + -1 * tmp3 + 1 * y >= 0
+-3 + -1 * tmp4 + 1 * y >= 0
+300 + -1 * tmp + -1 * y >= 0
+198 + -1 * tmp1 + -1 * y >= 0
+2 + 1 * tmp1 + -1 * y >= 0
+198 + -1 * tmp2 + -1 * y >= 0
+2 + 1 * tmp2 + -1 * y >= 0
+197 + -1 * tmp3 + -1 * y >= 0
+3 + 1 * tmp3 + -1 * y >= 0
+197 + -1 * tmp4 + -1 * y >= 0
+3 + 1 * tmp4 + -1 * y >= 0
+100 + -1 * y >= 0
+
+return: Variables:
+octagon of dim (12,0)
+retval.0 >= 0
+-retval.0 >= 0
+-retval.0 - tmp + 200 >= 0
+retval.0 - tmp + 200 >= 0
+-tmp + 200 >= 0
+-tmp + tmp1 + 102 >= 0
+-retval.0 - tmp1 + 98 >= 0
+retval.0 - tmp1 + 98 >= 0
+-tmp - tmp1 + 298 >= 0
+-tmp1 + 98 >= 0
+-tmp + tmp2 + 102 >= 0
+-tmp1 + tmp2 >= 0
+-retval.0 - tmp2 + 98 >= 0
+retval.0 - tmp2 + 98 >= 0
+-tmp - tmp2 + 298 >= 0
+-tmp1 - tmp2 + 196 >= 0
+tmp1 - tmp2 >= 0
+-tmp2 + 98 >= 0
+-tmp + tmp3 + 103 >= 0
+-tmp1 + tmp3 + 1 >= 0
+-tmp2 + tmp3 + 1 >= 0
+-retval.0 - tmp3 + 97 >= 0
+retval.0 - tmp3 + 97 >= 0
+-tmp - tmp3 + 297 >= 0
+-tmp1 - tmp3 + 195 >= 0
+tmp1 - tmp3 - 1 >= 0
+-tmp2 - tmp3 + 195 >= 0
+tmp2 - tmp3 - 1 >= 0
+-tmp3 + 97 >= 0
+-tmp + tmp4 + 103 >= 0
+-tmp1 + tmp4 + 1 >= 0
+-tmp2 + tmp4 + 1 >= 0
+-tmp3 + tmp4 >= 0
+-retval.0 - tmp4 + 97 >= 0
+retval.0 - tmp4 + 97 >= 0
+-tmp - tmp4 + 297 >= 0
+-tmp1 - tmp4 + 195 >= 0
+tmp1 - tmp4 - 1 >= 0
+-tmp2 - tmp4 + 195 >= 0
+tmp2 - tmp4 - 1 >= 0
+-tmp3 - tmp4 + 194 >= 0
+tmp3 - tmp4 >= 0
+-tmp4 + 97 >= 0
+-tmp6 + tmp7 >= 0
+tmp6 - tmp7 >= 0
+-tmp8 + tmp9 + 3 >= 0
+tmp8 - tmp9 - 3 >= 0
+-tmp + y + 100 >= 0
+-tmp1 + y - 2 >= 0
+-tmp2 + y - 2 >= 0
+-tmp3 + y - 3 >= 0
+-tmp4 + y - 3 >= 0
+-retval.0 - y + 100 >= 0
+retval.0 - y + 100 >= 0
+-tmp - y + 300 >= 0
+-tmp1 - y + 198 >= 0
+tmp1 - y + 2 >= 0
+-tmp2 - y + 198 >= 0
+tmp2 - y + 2 >= 0
+-tmp3 - y + 197 >= 0
+tmp3 - y + 3 >= 0
+-tmp4 - y + 197 >= 0
+tmp4 - y + 3 >= 0
+-y + 100 >= 0
+Linear Condition:
+retval.0 >= 0
+-retval.0 >= 0
+-retval.0 - tmp + 200 >= 0
+retval.0 - tmp + 200 >= 0
+-tmp + 200 >= 0
+-tmp + tmp1 + 102 >= 0
+-retval.0 - tmp1 + 98 >= 0
+retval.0 - tmp1 + 98 >= 0
+-tmp - tmp1 + 298 >= 0
+-tmp1 + 98 >= 0
+-tmp + tmp2 + 102 >= 0
+-tmp1 + tmp2 >= 0
+-retval.0 - tmp2 + 98 >= 0
+retval.0 - tmp2 + 98 >= 0
+-tmp - tmp2 + 298 >= 0
+-tmp1 - tmp2 + 196 >= 0
+tmp1 - tmp2 >= 0
+-tmp2 + 98 >= 0
+-tmp + tmp3 + 103 >= 0
+-tmp1 + tmp3 + 1 >= 0
+-tmp2 + tmp3 + 1 >= 0
+-retval.0 - tmp3 + 97 >= 0
+retval.0 - tmp3 + 97 >= 0
+-tmp - tmp3 + 297 >= 0
+-tmp1 - tmp3 + 195 >= 0
+tmp1 - tmp3 - 1 >= 0
+-tmp2 - tmp3 + 195 >= 0
+tmp2 - tmp3 - 1 >= 0
+-tmp3 + 97 >= 0
+-tmp + tmp4 + 103 >= 0
+-tmp1 + tmp4 + 1 >= 0
+-tmp2 + tmp4 + 1 >= 0
+-tmp3 + tmp4 >= 0
+-retval.0 - tmp4 + 97 >= 0
+retval.0 - tmp4 + 97 >= 0
+-tmp - tmp4 + 297 >= 0
+-tmp1 - tmp4 + 195 >= 0
+tmp1 - tmp4 - 1 >= 0
+-tmp2 - tmp4 + 195 >= 0
+tmp2 - tmp4 - 1 >= 0
+-tmp3 - tmp4 + 194 >= 0
+tmp3 - tmp4 >= 0
+-tmp4 + 97 >= 0
+-tmp6 + tmp7 >= 0
+tmp6 - tmp7 >= 0
+-tmp8 + tmp9 + 3 >= 0
+tmp8 - tmp9 - 3 >= 0
+-tmp + y + 100 >= 0
+-tmp1 + y - 2 >= 0
+-tmp2 + y - 2 >= 0
+-tmp3 + y - 3 >= 0
+-tmp4 + y - 3 >= 0
+-retval.0 - y + 100 >= 0
+retval.0 - y + 100 >= 0
+-tmp - y + 300 >= 0
+-tmp1 - y + 198 >= 0
+tmp1 - y + 2 >= 0
+-tmp2 - y + 198 >= 0
+tmp2 - y + 2 >= 0
+-tmp3 - y + 197 >= 0
+tmp3 - y + 3 >= 0
+-tmp4 - y + 197 >= 0
+tmp4 - y + 3 >= 0
+-y + 100 >= 0
+Tree Condition:
+0 + 1 * retval.0 >= 0
+0 + -1 * retval.0 >= 0
+200 + -1 * retval.0 + -1 * tmp >= 0
+200 + 1 * retval.0 + -1 * tmp >= 0
+200 + -1 * tmp >= 0
+102 + -1 * tmp + 1 * tmp1 >= 0
+98 + -1 * retval.0 + -1 * tmp1 >= 0
+98 + 1 * retval.0 + -1 * tmp1 >= 0
+298 + -1 * tmp + -1 * tmp1 >= 0
+98 + -1 * tmp1 >= 0
+102 + -1 * tmp + 1 * tmp2 >= 0
+0 + -1 * tmp1 + 1 * tmp2 >= 0
+98 + -1 * retval.0 + -1 * tmp2 >= 0
+98 + 1 * retval.0 + -1 * tmp2 >= 0
+298 + -1 * tmp + -1 * tmp2 >= 0
+196 + -1 * tmp1 + -1 * tmp2 >= 0
+0 + 1 * tmp1 + -1 * tmp2 >= 0
+98 + -1 * tmp2 >= 0
+103 + -1 * tmp + 1 * tmp3 >= 0
+1 + -1 * tmp1 + 1 * tmp3 >= 0
+1 + -1 * tmp2 + 1 * tmp3 >= 0
+97 + -1 * retval.0 + -1 * tmp3 >= 0
+97 + 1 * retval.0 + -1 * tmp3 >= 0
+297 + -1 * tmp + -1 * tmp3 >= 0
+195 + -1 * tmp1 + -1 * tmp3 >= 0
+-1 + 1 * tmp1 + -1 * tmp3 >= 0
+195 + -1 * tmp2 + -1 * tmp3 >= 0
+-1 + 1 * tmp2 + -1 * tmp3 >= 0
+97 + -1 * tmp3 >= 0
+103 + -1 * tmp + 1 * tmp4 >= 0
+1 + -1 * tmp1 + 1 * tmp4 >= 0
+1 + -1 * tmp2 + 1 * tmp4 >= 0
+0 + -1 * tmp3 + 1 * tmp4 >= 0
+97 + -1 * retval.0 + -1 * tmp4 >= 0
+97 + 1 * retval.0 + -1 * tmp4 >= 0
+297 + -1 * tmp + -1 * tmp4 >= 0
+195 + -1 * tmp1 + -1 * tmp4 >= 0
+-1 + 1 * tmp1 + -1 * tmp4 >= 0
+195 + -1 * tmp2 + -1 * tmp4 >= 0
+-1 + 1 * tmp2 + -1 * tmp4 >= 0
+194 + -1 * tmp3 + -1 * tmp4 >= 0
+0 + 1 * tmp3 + -1 * tmp4 >= 0
+97 + -1 * tmp4 >= 0
+0 + -1 * tmp6 + 1 * tmp7 >= 0
+0 + 1 * tmp6 + -1 * tmp7 >= 0
+3 + -1 * tmp8 + 1 * tmp9 >= 0
+-3 + 1 * tmp8 + -1 * tmp9 >= 0
+100 + -1 * tmp + 1 * y >= 0
+-2 + -1 * tmp1 + 1 * y >= 0
+-2 + -1 * tmp2 + 1 * y >= 0
+-3 + -1 * tmp3 + 1 * y >= 0
+-3 + -1 * tmp4 + 1 * y >= 0
+100 + -1 * retval.0 + -1 * y >= 0
+100 + 1 * retval.0 + -1 * y >= 0
+300 + -1 * tmp + -1 * y >= 0
+198 + -1 * tmp1 + -1 * y >= 0
+2 + 1 * tmp1 + -1 * y >= 0
+198 + -1 * tmp2 + -1 * y >= 0
+2 + 1 * tmp2 + -1 * y >= 0
+197 + -1 * tmp3 + -1 * y >= 0
+3 + 1 * tmp3 + -1 * y >= 0
+197 + -1 * tmp4 + -1 * y >= 0
+3 + 1 * tmp4 + -1 * y >= 0
+100 + -1 * y >= 0
+
+{'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+octagon of dim (12,0)
+retval.0 >= 0
+-retval.0 >= 0
+-retval.0 - tmp + 200 >= 0
+retval.0 - tmp + 200 >= 0
+-tmp + 200 >= 0
+-tmp + tmp1 + 102 >= 0
+-retval.0 - tmp1 + 98 >= 0
+retval.0 - tmp1 + 98 >= 0
+-tmp - tmp1 + 298 >= 0
+-tmp1 + 98 >= 0
+-tmp + tmp2 + 102 >= 0
+-tmp1 + tmp2 >= 0
+-retval.0 - tmp2 + 98 >= 0
+retval.0 - tmp2 + 98 >= 0
+-tmp - tmp2 + 298 >= 0
+-tmp1 - tmp2 + 196 >= 0
+tmp1 - tmp2 >= 0
+-tmp2 + 98 >= 0
+-tmp + tmp3 + 103 >= 0
+-tmp1 + tmp3 + 1 >= 0
+-tmp2 + tmp3 + 1 >= 0
+-retval.0 - tmp3 + 97 >= 0
+retval.0 - tmp3 + 97 >= 0
+-tmp - tmp3 + 297 >= 0
+-tmp1 - tmp3 + 195 >= 0
+tmp1 - tmp3 - 1 >= 0
+-tmp2 - tmp3 + 195 >= 0
+tmp2 - tmp3 - 1 >= 0
+-tmp3 + 97 >= 0
+-tmp + tmp4 + 103 >= 0
+-tmp1 + tmp4 + 1 >= 0
+-tmp2 + tmp4 + 1 >= 0
+-tmp3 + tmp4 >= 0
+-retval.0 - tmp4 + 97 >= 0
+retval.0 - tmp4 + 97 >= 0
+-tmp - tmp4 + 297 >= 0
+-tmp1 - tmp4 + 195 >= 0
+tmp1 - tmp4 - 1 >= 0
+-tmp2 - tmp4 + 195 >= 0
+tmp2 - tmp4 - 1 >= 0
+-tmp3 - tmp4 + 194 >= 0
+tmp3 - tmp4 >= 0
+-tmp4 + 97 >= 0
+-tmp6 + tmp7 >= 0
+tmp6 - tmp7 >= 0
+-tmp8 + tmp9 + 3 >= 0
+tmp8 - tmp9 - 3 >= 0
+-tmp + y + 100 >= 0
+-tmp1 + y - 2 >= 0
+-tmp2 + y - 2 >= 0
+-tmp3 + y - 3 >= 0
+-tmp4 + y - 3 >= 0
+-retval.0 - y + 100 >= 0
+retval.0 - y + 100 >= 0
+-tmp - y + 300 >= 0
+-tmp1 - y + 198 >= 0
+tmp1 - y + 2 >= 0
+-tmp2 - y + 198 >= 0
+tmp2 - y + 2 >= 0
+-tmp3 - y + 197 >= 0
+tmp3 - y + 3 >= 0
+-tmp4 - y + 197 >= 0
+tmp4 - y + 3 >= 0
+-y + 100 >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f4
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 2
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 10
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 10
+
+entry: Variables:
+empty octagon of dim (1,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+if.then: Variables:
+octagon of dim (2,0)
+add - 8 >= 0
+add + y - 7 >= 0
+-add - y + 7 >= 0
+add - y - 9 >= 0
+-y - 1 >= 0
+Linear Condition:
+add - 8 >= 0
+add + y - 7 >= 0
+-add - y + 7 >= 0
+add - y - 9 >= 0
+-y - 1 >= 0
+Tree Condition:
+-8 + 1 * add >= 0
+-7 + 1 * add + 1 * y >= 0
+7 + -1 * add + -1 * y >= 0
+-9 + 1 * add + -1 * y >= 0
+-1 + -1 * y >= 0
+
+if.else: Variables:
+octagon of dim (3,0)
+sub1 + 3 >= 0
+sub1 + sub2 + 3 >= 0
+-sub1 - sub2 - 3 >= 0
+sub1 - sub2 + 3 >= 0
+-sub2 >= 0
+-sub1 + y - 3 >= 0
+sub1 + y + 3 >= 0
+-sub2 + y >= 0
+sub2 + y >= 0
+y >= 0
+sub1 - y + 3 >= 0
+-sub2 - y >= 0
+Linear Condition:
+sub1 + 3 >= 0
+sub1 + sub2 + 3 >= 0
+-sub1 - sub2 - 3 >= 0
+sub1 - sub2 + 3 >= 0
+-sub2 >= 0
+-sub1 + y - 3 >= 0
+sub1 + y + 3 >= 0
+-sub2 + y >= 0
+sub2 + y >= 0
+y >= 0
+sub1 - y + 3 >= 0
+-sub2 - y >= 0
+Tree Condition:
+3 + 1 * sub1 >= 0
+3 + 1 * sub1 + 1 * sub2 >= 0
+-3 + -1 * sub1 + -1 * sub2 >= 0
+3 + 1 * sub1 + -1 * sub2 >= 0
+0 + -1 * sub2 >= 0
+-3 + -1 * sub1 + 1 * y >= 0
+3 + 1 * sub1 + 1 * y >= 0
+0 + -1 * sub2 + 1 * y >= 0
+0 + 1 * sub2 + 1 * y >= 0
+0 + 1 * y >= 0
+3 + 1 * sub1 + -1 * y >= 0
+0 + -1 * sub2 + -1 * y >= 0
+
+if.end: Variables:
+octagon of dim (7,0)
+add >= 0
+-add >= 0
+-add + sub1 + 3 >= 0
+add + sub1 + 3 >= 0
+sub1 + 3 >= 0
+sub1 + sub2 + 3 >= 0
+-add - sub2 >= 0
+add - sub2 >= 0
+-sub1 - sub2 - 3 >= 0
+sub1 - sub2 + 3 >= 0
+-sub2 >= 0
+-add - x.0 >= 0
+add - x.0 >= 0
+add3 - x.0 + 3 >= 0
+-sub1 - x.0 - 3 >= 0
+sub1 - x.0 + 3 >= 0
+-sub2 - x.0 >= 0
+sub2 - x.0 >= 0
+-x.0 >= 0
+-add + y >= 0
+add + y >= 0
+-sub1 + y - 3 >= 0
+sub1 + y + 3 >= 0
+-sub2 + y >= 0
+sub2 + y >= 0
+-x.0 + y >= 0
+y >= 0
+sub1 - y + 3 >= 0
+-sub2 - y >= 0
+-x.0 - y >= 0
+-add + z.0 + 3 >= 0
+add + z.0 + 3 >= 0
+-add3 + z.0 >= 0
+-sub1 + z.0 >= 0
+sub1 + z.0 + 6 >= 0
+-sub2 + z.0 + 3 >= 0
+sub2 + z.0 + 3 >= 0
+-x.0 + z.0 + 3 >= 0
+-y + z.0 + 3 >= 0
+y + z.0 + 3 >= 0
+z.0 + 3 >= 0
+Linear Condition:
+add >= 0
+-add >= 0
+-add + sub1 + 3 >= 0
+add + sub1 + 3 >= 0
+sub1 + 3 >= 0
+sub1 + sub2 + 3 >= 0
+-add - sub2 >= 0
+add - sub2 >= 0
+-sub1 - sub2 - 3 >= 0
+sub1 - sub2 + 3 >= 0
+-sub2 >= 0
+-add - x.0 >= 0
+add - x.0 >= 0
+add3 - x.0 + 3 >= 0
+-sub1 - x.0 - 3 >= 0
+sub1 - x.0 + 3 >= 0
+-sub2 - x.0 >= 0
+sub2 - x.0 >= 0
+-x.0 >= 0
+-add + y >= 0
+add + y >= 0
+-sub1 + y - 3 >= 0
+sub1 + y + 3 >= 0
+-sub2 + y >= 0
+sub2 + y >= 0
+-x.0 + y >= 0
+y >= 0
+sub1 - y + 3 >= 0
+-sub2 - y >= 0
+-x.0 - y >= 0
+-add + z.0 + 3 >= 0
+add + z.0 + 3 >= 0
+-add3 + z.0 >= 0
+-sub1 + z.0 >= 0
+sub1 + z.0 + 6 >= 0
+-sub2 + z.0 + 3 >= 0
+sub2 + z.0 + 3 >= 0
+-x.0 + z.0 + 3 >= 0
+-y + z.0 + 3 >= 0
+y + z.0 + 3 >= 0
+z.0 + 3 >= 0
+Tree Condition:
+0 + 1 * add >= 0
+0 + -1 * add >= 0
+3 + -1 * add + 1 * sub1 >= 0
+3 + 1 * add + 1 * sub1 >= 0
+3 + 1 * sub1 >= 0
+3 + 1 * sub1 + 1 * sub2 >= 0
+0 + -1 * add + -1 * sub2 >= 0
+0 + 1 * add + -1 * sub2 >= 0
+-3 + -1 * sub1 + -1 * sub2 >= 0
+3 + 1 * sub1 + -1 * sub2 >= 0
+0 + -1 * sub2 >= 0
+0 + -1 * add + -1 * x.0 >= 0
+0 + 1 * add + -1 * x.0 >= 0
+3 + 1 * add3 + -1 * x.0 >= 0
+-3 + -1 * sub1 + -1 * x.0 >= 0
+3 + 1 * sub1 + -1 * x.0 >= 0
+0 + -1 * sub2 + -1 * x.0 >= 0
+0 + 1 * sub2 + -1 * x.0 >= 0
+0 + -1 * x.0 >= 0
+0 + -1 * add + 1 * y >= 0
+0 + 1 * add + 1 * y >= 0
+-3 + -1 * sub1 + 1 * y >= 0
+3 + 1 * sub1 + 1 * y >= 0
+0 + -1 * sub2 + 1 * y >= 0
+0 + 1 * sub2 + 1 * y >= 0
+0 + -1 * x.0 + 1 * y >= 0
+0 + 1 * y >= 0
+3 + 1 * sub1 + -1 * y >= 0
+0 + -1 * sub2 + -1 * y >= 0
+0 + -1 * x.0 + -1 * y >= 0
+3 + -1 * add + 1 * z.0 >= 0
+3 + 1 * add + 1 * z.0 >= 0
+0 + -1 * add3 + 1 * z.0 >= 0
+0 + -1 * sub1 + 1 * z.0 >= 0
+6 + 1 * sub1 + 1 * z.0 >= 0
+3 + -1 * sub2 + 1 * z.0 >= 0
+3 + 1 * sub2 + 1 * z.0 >= 0
+3 + -1 * x.0 + 1 * z.0 >= 0
+3 + -1 * y + 1 * z.0 >= 0
+3 + 1 * y + 1 * z.0 >= 0
+3 + 1 * z.0 >= 0
+
+{'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+octagon of dim (7,0)
+add >= 0
+-add >= 0
+-add + sub1 + 3 >= 0
+add + sub1 + 3 >= 0
+sub1 + 3 >= 0
+sub1 + sub2 + 3 >= 0
+-add - sub2 >= 0
+add - sub2 >= 0
+-sub1 - sub2 - 3 >= 0
+sub1 - sub2 + 3 >= 0
+-sub2 >= 0
+-add - x.0 >= 0
+add - x.0 >= 0
+add3 - x.0 + 3 >= 0
+-sub1 - x.0 - 3 >= 0
+sub1 - x.0 + 3 >= 0
+-sub2 - x.0 >= 0
+sub2 - x.0 >= 0
+-x.0 >= 0
+-add + y >= 0
+add + y >= 0
+-sub1 + y - 3 >= 0
+sub1 + y + 3 >= 0
+-sub2 + y >= 0
+sub2 + y >= 0
+-x.0 + y >= 0
+y >= 0
+sub1 - y + 3 >= 0
+-sub2 - y >= 0
+-x.0 - y >= 0
+-add + z.0 + 3 >= 0
+add + z.0 + 3 >= 0
+-add3 + z.0 >= 0
+-sub1 + z.0 >= 0
+sub1 + z.0 + 6 >= 0
+-sub2 + z.0 + 3 >= 0
+sub2 + z.0 + 3 >= 0
+-x.0 + z.0 + 3 >= 0
+-y + z.0 + 3 >= 0
+y + z.0 + 3 >= 0
+z.0 + 3 >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f5
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 2
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 10
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 10
+
+entry: Variables:
+empty octagon of dim (1,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+if.else: Variables:
+octagon of dim (3,0)
+.sub - 1 >= 0
+-.sub + sub + 1 >= 0
+.sub + sub - 2 >= 0
+sub - 1 >= 0
+.sub - sub >= 0
+.sub + y >= 0
+sub + y >= 0
+-.sub - y + 1 >= 0
+.sub - y - 2 >= 0
+-sub - y >= 0
+sub - y - 2 >= 0
+-y - 1 >= 0
+Linear Condition:
+.sub - 1 >= 0
+-.sub + sub + 1 >= 0
+.sub + sub - 2 >= 0
+sub - 1 >= 0
+.sub - sub >= 0
+.sub + y >= 0
+sub + y >= 0
+-.sub - y + 1 >= 0
+.sub - y - 2 >= 0
+-sub - y >= 0
+sub - y - 2 >= 0
+-y - 1 >= 0
+Tree Condition:
+-1 + 1 * .sub >= 0
+1 + -1 * .sub + 1 * sub >= 0
+-2 + 1 * .sub + 1 * sub >= 0
+-1 + 1 * sub >= 0
+0 + 1 * .sub + -1 * sub >= 0
+0 + 1 * .sub + 1 * y >= 0
+0 + 1 * sub + 1 * y >= 0
+1 + -1 * .sub + -1 * y >= 0
+-2 + 1 * .sub + -1 * y >= 0
+0 + -1 * sub + -1 * y >= 0
+-2 + 1 * sub + -1 * y >= 0
+-1 + -1 * y >= 0
+
+return: Variables:
+octagon of dim (1,0)
+y >= 0
+Linear Condition:
+y >= 0
+Tree Condition:
+0 + 1 * y >= 0
+
+UnifiedReturnBlock: Variables:
+octagon of dim (4,0)
+.sub - 1 >= 0
+-.sub + UnifiedRetVal + 1 >= 0
+.sub + UnifiedRetVal - 2 >= 0
+UnifiedRetVal - 1 >= 0
+-.sub + sub + 1 >= 0
+.sub + sub - 2 >= 0
+UnifiedRetVal + sub - 2 >= 0
+sub - 1 >= 0
+.sub - sub >= 0
+UnifiedRetVal - sub >= 0
+.sub + y >= 0
+UnifiedRetVal + y >= 0
+sub + y >= 0
+-.sub - y + 1 >= 0
+.sub - y - 2 >= 0
+UnifiedRetVal - y - 2 >= 0
+-sub - y >= 0
+sub - y - 2 >= 0
+-y - 1 >= 0
+Linear Condition:
+.sub - 1 >= 0
+-.sub + UnifiedRetVal + 1 >= 0
+.sub + UnifiedRetVal - 2 >= 0
+UnifiedRetVal - 1 >= 0
+-.sub + sub + 1 >= 0
+.sub + sub - 2 >= 0
+UnifiedRetVal + sub - 2 >= 0
+sub - 1 >= 0
+.sub - sub >= 0
+UnifiedRetVal - sub >= 0
+.sub + y >= 0
+UnifiedRetVal + y >= 0
+sub + y >= 0
+-.sub - y + 1 >= 0
+.sub - y - 2 >= 0
+UnifiedRetVal - y - 2 >= 0
+-sub - y >= 0
+sub - y - 2 >= 0
+-y - 1 >= 0
+Tree Condition:
+-1 + 1 * .sub >= 0
+1 + -1 * .sub + 1 * UnifiedRetVal >= 0
+-2 + 1 * .sub + 1 * UnifiedRetVal >= 0
+-1 + 1 * UnifiedRetVal >= 0
+1 + -1 * .sub + 1 * sub >= 0
+-2 + 1 * .sub + 1 * sub >= 0
+-2 + 1 * UnifiedRetVal + 1 * sub >= 0
+-1 + 1 * sub >= 0
+0 + 1 * .sub + -1 * sub >= 0
+0 + 1 * UnifiedRetVal + -1 * sub >= 0
+0 + 1 * .sub + 1 * y >= 0
+0 + 1 * UnifiedRetVal + 1 * y >= 0
+0 + 1 * sub + 1 * y >= 0
+1 + -1 * .sub + -1 * y >= 0
+-2 + 1 * .sub + -1 * y >= 0
+-2 + 1 * UnifiedRetVal + -1 * y >= 0
+0 + -1 * sub + -1 * y >= 0
+-2 + 1 * sub + -1 * y >= 0
+-1 + -1 * y >= 0
+
+{'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+octagon of dim (4,0)
+.sub - 1 >= 0
+-.sub + UnifiedRetVal + 1 >= 0
+.sub + UnifiedRetVal - 2 >= 0
+UnifiedRetVal - 1 >= 0
+-.sub + sub + 1 >= 0
+.sub + sub - 2 >= 0
+UnifiedRetVal + sub - 2 >= 0
+sub - 1 >= 0
+.sub - sub >= 0
+UnifiedRetVal - sub >= 0
+.sub + y >= 0
+UnifiedRetVal + y >= 0
+sub + y >= 0
+-.sub - y + 1 >= 0
+.sub - y - 2 >= 0
+UnifiedRetVal - y - 2 >= 0
+-sub - y >= 0
+sub - y - 2 >= 0
+-y - 1 >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f6
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 2
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty octagon of dim (0,0)
+} and {'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty octagon of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 10
+
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 10
+
+entry: Variables:
+empty octagon of dim (1,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+if.else: Variables:
+octagon of dim (3,0)
+-. + cmp1 >= 0
+. - cmp1 >= 0
+y >= 0
+Linear Condition:
+-. + cmp1 >= 0
+. - cmp1 >= 0
+y >= 0
+Tree Condition:
+0 + -1 * . + 1 * cmp1 >= 0
+0 + 1 * . + -1 * cmp1 >= 0
+0 + 1 * y >= 0
+
+if.end3: Variables:
+octagon of dim (1,0)
+-y - 1 >= 0
+Linear Condition:
+-y - 1 >= 0
+Tree Condition:
+-1 + -1 * y >= 0
+
+UnifiedReturnBlock: Variables:
+octagon of dim (4,0)
+-. + cmp1 >= 0
+. - cmp1 >= 0
+y >= 0
+Linear Condition:
+-. + cmp1 >= 0
+. - cmp1 >= 0
+y >= 0
+Tree Condition:
+0 + -1 * . + 1 * cmp1 >= 0
+0 + 1 * . + -1 * cmp1 >= 0
+0 + 1 * y >= 0
+
+{'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+octagon of dim (4,0)
+-. + cmp1 >= 0
+. - cmp1 >= 0
+y >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f7
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 2
+
+entry: Variables:
+octagon of dim (2,0)
+-.y + 30 >= 0
+-.y + y >= 0
+Linear Condition:
+-.y + 30 >= 0
+-.y + y >= 0
+Tree Condition:
+30 + -1 * .y >= 0
+0 + -1 * .y + 1 * y >= 0
+
+{'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+octagon of dim (2,0)
+-.y + 30 >= 0
+-.y + y >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f8
+Updating: 0 maavs
+Updated: Abstract value: empty octagon of dim (0,0)
+environment: dim = (0,0), count = 2
+
+entry: Variables:
+empty octagon of dim (3,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+{'mpt':{},abstract1:{empty octagon of dim (0,0)
+}
+empty octagon of dim (3,0)
+

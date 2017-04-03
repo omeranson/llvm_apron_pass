@@ -82,6 +82,30 @@ __attribute__((noinline)) int f1(int y)
 	return x;
 }
 
+int f6(int y) {
+	int x = 0;
+	if (y < 0) {
+		x = -1;
+	} else if (y > 0) {
+		x = 1;
+	}
+	return x;
+}
+
+int f7 (int y) {
+	if (y > 30) {
+		return 30;
+	}
+	return y;
+}
+
+int f8 (int y, int z) {
+	if (y > 30) {
+		return z;
+	}
+	return y;
+}
+
 #if 0
 int main(int argc, char * argv[]) {
 	if (argc != 2) {

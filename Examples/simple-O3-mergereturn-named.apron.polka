@@ -1,0 +1,565 @@
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 2
+
+entry: Variables:
+polyhedron of dim (3,0)
+array of constraints of size 3
+ 0: sub + y = 0
+ 1: -sub + x.0 >= 0
+ 2: x.0 - 1 >= 0
+Linear Condition:
+sub + y = 0
+-sub + x.0 >= 0
+x.0 - 1 >= 0
+Tree Condition:
+0 + 1 * sub + 0 * x.0 + 1 * y = 0
+0 + -1 * sub + 1 * x.0 + 0 * y >= 0
+-1 + 0 * sub + 1 * x.0 + 0 * y >= 0
+
+{'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+polyhedron of dim (3,0)
+array of constraints of size 3
+ 0: sub + y = 0
+ 1: -sub + x.0 >= 0
+ 2: x.0 - 1 >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f2
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 2
+
+entry: Variables:
+polyhedron of dim (4,0)
+array of constraints of size 2
+ 0: -sub + sub1 + z = 0
+ 1: sub + y - 1 = 0
+Linear Condition:
+-sub + sub1 + z = 0
+sub + y - 1 = 0
+Tree Condition:
+0 + -1 * sub + 1 * sub1 + 0 * y + 1 * z = 0
+-1 + 1 * sub + 0 * sub1 + 1 * y + 0 * z = 0
+
+{'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+polyhedron of dim (4,0)
+array of constraints of size 2
+ 0: -sub + sub1 + z = 0
+ 1: sub + y - 1 = 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f3
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 2
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 14
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 14
+
+entry: Variables:
+empty polyhedron of dim (1,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+for.cond.preheader: Variables:
+polyhedron of dim (1,0)
+array of constraints of size 1
+ 0: -y + 100 >= 0
+Linear Condition:
+-y + 100 >= 0
+Tree Condition:
+100 + -1 * y >= 0
+
+for.body.lr.ph: Variables:
+polyhedron of dim (11,0)
+array of constraints of size 10
+ 0: -tmp - 2tmp5 + tmp9 + 3 = 0
+ 1: -tmp - 2tmp5 + tmp8 = 0
+ 2: -tmp + 2y = 0
+ 3: -tmp + 2tmp4 + 6 = 0
+ 4: -tmp + 2tmp3 + 6 = 0
+ 5: -tmp + 2tmp2 + 4 = 0
+ 6: -tmp + 2tmp1 + 4 = 0
+ 7: -2tmp5 + tmp7 = 0
+ 8: -2tmp5 + tmp6 = 0
+ 9: -tmp + 200 >= 0
+Linear Condition:
+-tmp - 2tmp5 + tmp9 + 3 = 0
+-tmp - 2tmp5 + tmp8 = 0
+-tmp + 2y = 0
+-tmp + 2tmp4 + 6 = 0
+-tmp + 2tmp3 + 6 = 0
+-tmp + 2tmp2 + 4 = 0
+-tmp + 2tmp1 + 4 = 0
+-2tmp5 + tmp7 = 0
+-2tmp5 + tmp6 = 0
+-tmp + 200 >= 0
+Tree Condition:
+3 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + -2 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 1 * tmp9 + 0 * y = 0
+0 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + -2 * tmp5 + 0 * tmp6 + 0 * tmp7 + 1 * tmp8 + 0 * tmp9 + 0 * y = 0
+0 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 2 * y = 0
+6 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 2 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+6 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 2 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+4 + -1 * tmp + 0 * tmp1 + 2 * tmp2 + 0 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+4 + -1 * tmp + 2 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+0 + 0 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + -2 * tmp5 + 0 * tmp6 + 1 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+0 + 0 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + -2 * tmp5 + 1 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+200 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y >= 0
+
+return: Variables:
+polyhedron of dim (12,0)
+array of constraints of size 11
+ 0: -tmp - 2tmp5 + tmp9 + 3 = 0
+ 1: -tmp - 2tmp5 + tmp8 = 0
+ 2: -tmp + 2y = 0
+ 3: -tmp + 2tmp4 + 6 = 0
+ 4: -tmp + 2tmp3 + 6 = 0
+ 5: -tmp + 2tmp2 + 4 = 0
+ 6: -tmp + 2tmp1 + 4 = 0
+ 7: -2tmp5 + tmp7 = 0
+ 8: -2tmp5 + tmp6 = 0
+ 9: retval.0 = 0
+10: -tmp + 200 >= 0
+Linear Condition:
+-tmp - 2tmp5 + tmp9 + 3 = 0
+-tmp - 2tmp5 + tmp8 = 0
+-tmp + 2y = 0
+-tmp + 2tmp4 + 6 = 0
+-tmp + 2tmp3 + 6 = 0
+-tmp + 2tmp2 + 4 = 0
+-tmp + 2tmp1 + 4 = 0
+-2tmp5 + tmp7 = 0
+-2tmp5 + tmp6 = 0
+retval.0 = 0
+-tmp + 200 >= 0
+Tree Condition:
+3 + 0 * retval.0 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + -2 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 1 * tmp9 + 0 * y = 0
+0 + 0 * retval.0 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + -2 * tmp5 + 0 * tmp6 + 0 * tmp7 + 1 * tmp8 + 0 * tmp9 + 0 * y = 0
+0 + 0 * retval.0 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 2 * y = 0
+6 + 0 * retval.0 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 2 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+6 + 0 * retval.0 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 2 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+4 + 0 * retval.0 + -1 * tmp + 0 * tmp1 + 2 * tmp2 + 0 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+4 + 0 * retval.0 + -1 * tmp + 2 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+0 + 0 * retval.0 + 0 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + -2 * tmp5 + 0 * tmp6 + 1 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+0 + 0 * retval.0 + 0 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + -2 * tmp5 + 1 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+0 + 1 * retval.0 + 0 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y = 0
+200 + 0 * retval.0 + -1 * tmp + 0 * tmp1 + 0 * tmp2 + 0 * tmp3 + 0 * tmp4 + 0 * tmp5 + 0 * tmp6 + 0 * tmp7 + 0 * tmp8 + 0 * tmp9 + 0 * y >= 0
+
+{'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+polyhedron of dim (12,0)
+array of constraints of size 11
+ 0: -tmp - 2tmp5 + tmp9 + 3 = 0
+ 1: -tmp - 2tmp5 + tmp8 = 0
+ 2: -tmp + 2y = 0
+ 3: -tmp + 2tmp4 + 6 = 0
+ 4: -tmp + 2tmp3 + 6 = 0
+ 5: -tmp + 2tmp2 + 4 = 0
+ 6: -tmp + 2tmp1 + 4 = 0
+ 7: -2tmp5 + tmp7 = 0
+ 8: -2tmp5 + tmp6 = 0
+ 9: retval.0 = 0
+10: -tmp + 200 >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f4
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 2
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 10
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 10
+
+entry: Variables:
+empty polyhedron of dim (1,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+if.then: Variables:
+polyhedron of dim (2,0)
+array of constraints of size 2
+ 0: add + y - 7 = 0
+ 1: add - 8 >= 0
+Linear Condition:
+add + y - 7 = 0
+add - 8 >= 0
+Tree Condition:
+-7 + 1 * add + 1 * y = 0
+-8 + 1 * add + 0 * y >= 0
+
+if.else: Variables:
+polyhedron of dim (3,0)
+array of constraints of size 3
+ 0: -sub1 + y - 3 = 0
+ 1: sub1 + sub2 + 3 = 0
+ 2: sub1 + 3 >= 0
+Linear Condition:
+-sub1 + y - 3 = 0
+sub1 + sub2 + 3 = 0
+sub1 + 3 >= 0
+Tree Condition:
+-3 + -1 * sub1 + 0 * sub2 + 1 * y = 0
+3 + 1 * sub1 + 1 * sub2 + 0 * y = 0
+3 + 1 * sub1 + 0 * sub2 + 0 * y >= 0
+
+if.end: Variables:
+polyhedron of dim (7,0)
+array of constraints of size 7
+ 0: -add3 + x.0 + z.0 = 0
+ 1: -sub1 + y - 3 = 0
+ 2: sub1 + sub2 + 3 = 0
+ 3: add = 0
+ 4: -sub1 - x.0 - 3 >= 0
+ 5: sub1 + 3 >= 0
+ 6: add3 - sub1 - x.0 >= 0
+Linear Condition:
+-add3 + x.0 + z.0 = 0
+-sub1 + y - 3 = 0
+sub1 + sub2 + 3 = 0
+add = 0
+-sub1 - x.0 - 3 >= 0
+sub1 + 3 >= 0
+add3 - sub1 - x.0 >= 0
+Tree Condition:
+0 + 0 * add + -1 * add3 + 0 * sub1 + 0 * sub2 + 1 * x.0 + 0 * y + 1 * z.0 = 0
+-3 + 0 * add + 0 * add3 + -1 * sub1 + 0 * sub2 + 0 * x.0 + 1 * y + 0 * z.0 = 0
+3 + 0 * add + 0 * add3 + 1 * sub1 + 1 * sub2 + 0 * x.0 + 0 * y + 0 * z.0 = 0
+0 + 1 * add + 0 * add3 + 0 * sub1 + 0 * sub2 + 0 * x.0 + 0 * y + 0 * z.0 = 0
+-3 + 0 * add + 0 * add3 + -1 * sub1 + 0 * sub2 + -1 * x.0 + 0 * y + 0 * z.0 >= 0
+3 + 0 * add + 0 * add3 + 1 * sub1 + 0 * sub2 + 0 * x.0 + 0 * y + 0 * z.0 >= 0
+0 + 0 * add + 1 * add3 + -1 * sub1 + 0 * sub2 + -1 * x.0 + 0 * y + 0 * z.0 >= 0
+
+{'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+polyhedron of dim (7,0)
+array of constraints of size 7
+ 0: -add3 + x.0 + z.0 = 0
+ 1: -sub1 + y - 3 = 0
+ 2: sub1 + sub2 + 3 = 0
+ 3: add = 0
+ 4: -sub1 - x.0 - 3 >= 0
+ 5: sub1 + 3 >= 0
+ 6: add3 - sub1 - x.0 >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f5
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 2
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 10
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 10
+
+entry: Variables:
+empty polyhedron of dim (1,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+if.else: Variables:
+polyhedron of dim (3,0)
+array of constraints of size 4
+ 0: sub + y = 0
+ 1: -2.sub + 3sub - 1 >= 0
+ 2: -.sub + sub + 1 >= 0
+ 3: .sub - sub >= 0
+Linear Condition:
+sub + y = 0
+-2.sub + 3sub - 1 >= 0
+-.sub + sub + 1 >= 0
+.sub - sub >= 0
+Tree Condition:
+0 + 0 * .sub + 1 * sub + 1 * y = 0
+-1 + -2 * .sub + 3 * sub + 0 * y >= 0
+1 + -1 * .sub + 1 * sub + 0 * y >= 0
+0 + 1 * .sub + -1 * sub + 0 * y >= 0
+
+return: Variables:
+polyhedron of dim (1,0)
+array of constraints of size 1
+ 0: y >= 0
+Linear Condition:
+y >= 0
+Tree Condition:
+0 + 1 * y >= 0
+
+UnifiedReturnBlock: Variables:
+polyhedron of dim (4,0)
+array of constraints of size 5
+ 0: sub + y = 0
+ 1: -2.sub + 3sub - 1 >= 0
+ 2: -.sub + sub + 1 >= 0
+ 3: UnifiedRetVal - sub >= 0
+ 4: .sub - sub >= 0
+Linear Condition:
+sub + y = 0
+-2.sub + 3sub - 1 >= 0
+-.sub + sub + 1 >= 0
+UnifiedRetVal - sub >= 0
+.sub - sub >= 0
+Tree Condition:
+0 + 0 * .sub + 0 * UnifiedRetVal + 1 * sub + 1 * y = 0
+-1 + -2 * .sub + 0 * UnifiedRetVal + 3 * sub + 0 * y >= 0
+1 + -1 * .sub + 0 * UnifiedRetVal + 1 * sub + 0 * y >= 0
+0 + 0 * .sub + 1 * UnifiedRetVal + -1 * sub + 0 * y >= 0
+0 + 1 * .sub + 0 * UnifiedRetVal + -1 * sub + 0 * y >= 0
+
+{'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+polyhedron of dim (4,0)
+array of constraints of size 5
+ 0: sub + y = 0
+ 1: -2.sub + 3sub - 1 >= 0
+ 2: -.sub + sub + 1 >= 0
+ 3: UnifiedRetVal - sub >= 0
+ 4: .sub - sub >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f6
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 2
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 6
+
+Joining: {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+} and {'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+Joined. changed: 0 Abstract value: empty polyhedron of dim (0,0)
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 10
+
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 10
+
+entry: Variables:
+empty polyhedron of dim (1,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+if.else: Variables:
+polyhedron of dim (3,0)
+array of constraints of size 2
+ 0: -. + cmp1 = 0
+ 1: y >= 0
+Linear Condition:
+-. + cmp1 = 0
+y >= 0
+Tree Condition:
+0 + -1 * . + 1 * cmp1 + 0 * y = 0
+0 + 0 * . + 0 * cmp1 + 1 * y >= 0
+
+if.end3: Variables:
+polyhedron of dim (1,0)
+array of constraints of size 1
+ 0: -y - 1 >= 0
+Linear Condition:
+-y - 1 >= 0
+Tree Condition:
+-1 + -1 * y >= 0
+
+UnifiedReturnBlock: Variables:
+polyhedron of dim (4,0)
+array of constraints of size 2
+ 0: -. + cmp1 = 0
+ 1: y >= 0
+Linear Condition:
+-. + cmp1 = 0
+y >= 0
+Tree Condition:
+0 + -1 * . + 0 * UnifiedRetVal + 1 * cmp1 + 0 * y = 0
+0 + 0 * . + 0 * UnifiedRetVal + 0 * cmp1 + 1 * y >= 0
+
+{'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+polyhedron of dim (4,0)
+array of constraints of size 2
+ 0: -. + cmp1 = 0
+ 1: y >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f7
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 2
+
+entry: Variables:
+polyhedron of dim (2,0)
+array of constraints of size 2
+ 0: -.y + 30 >= 0
+ 1: -.y + y >= 0
+Linear Condition:
+-.y + 30 >= 0
+-.y + y >= 0
+Tree Condition:
+30 + -1 * .y + 0 * y >= 0
+0 + -1 * .y + 1 * y >= 0
+
+{'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+polyhedron of dim (2,0)
+array of constraints of size 2
+ 0: -.y + 30 >= 0
+ 1: -.y + y >= 0
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Apron: Function: f8
+Updating: 0 maavs
+Updated: Abstract value: empty polyhedron of dim (0,0)
+environment: dim = (0,0), count = 2
+
+entry: Variables:
+empty polyhedron of dim (3,0)
+Linear Condition:
+-1 >= 0
+Tree Condition:
+-1 >= 0
+
+{'mpt':{},abstract1:{empty polyhedron of dim (0,0)
+}
+empty polyhedron of dim (3,0)
+
