@@ -70,6 +70,11 @@ public:
 	StoreValue(llvm::Value * value) : NopInstructionValue(value) {}
 };
 
+class GetElementPtrValue : public NopInstructionValue {
+public:
+	GetElementPtrValue(llvm::Value * value) : NopInstructionValue(value) {}
+};
+
 class VariableValue : public Value {
 public:
 	VariableValue(llvm::Value * value) : Value(value) {}
@@ -1178,8 +1183,6 @@ void BranchInstructionValue::populateTreeConstraints(
 	}
 }
 
-
-
 Value::Value(llvm::Value * value) : m_value(value),
 		m_name(llvmValueName(value))
 	{}
@@ -1340,7 +1343,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 		return new LoadValue(instruction);
 	case llvm::BinaryOperator::Store:
 		return new StoreValue(instruction);
-	//case llvm::BinaryOperator::GetElementPtr:
+	case llvm::BinaryOperator::GetElementPtr:
+		return new GetElementPtrValue(instruction);
 
 	// Convert instructions...
 	case llvm::BinaryOperator::Trunc:
@@ -1391,4 +1395,3 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 	}
 	return NULL;
 }
-
