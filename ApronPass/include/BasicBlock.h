@@ -91,6 +91,7 @@ public:
 	virtual ap_interval_t * getVariableInterval(Value * value);
 	virtual ap_interval_t * getVariableInterval(std::string & value);
 	virtual ap_texpr1_t* getVariableTExpr(std::string & value);
+	virtual ap_texpr1_t* getConstantTExpr(unsigned);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
 	virtual ap_abstract1_t abstractOfTconsList(

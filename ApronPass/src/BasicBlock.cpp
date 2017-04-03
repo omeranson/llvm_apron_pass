@@ -154,6 +154,10 @@ ap_texpr1_t* BasicBlock::getVariableTExpr(Value * value) {
 	return getVariableTExpr(value->getName());
 }
 
+ap_texpr1_t* BasicBlock::getConstantTExpr(unsigned value) {
+	return ap_texpr1_cst_scalar_int(getEnvironment(), value);
+}
+
 void BasicBlock::extendTexprEnvironment(ap_texpr1_t * texpr) {
 	// returns true on error. WTF?
 	bool failed = ap_texpr1_extend_environment_with(texpr, getEnvironment());
