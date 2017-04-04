@@ -1,67 +1,96 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int f(int y) {
-	int z = 5;
+
+__attribute__((noinline)) int f4(int y)
+{
+	if (y > 5) return 11;
+	else
+	{
+		if (y < 0)
+		{
+			return 12;
+		}
+		else
+		{
+			return y+3;
+		}
+	}
+}
+__attribute__((noinline)) int f257(int y)
+{
+	int j=23;
+	if (y < 0)
+	{
+		j += f4(-y);
+		if (j >= 26)
+		{
+			return 50;
+		}
+		else
+		{
+			// unreachable code
+			return -8;
+		}
+	}
+	else
+	{
+		return (y+6)/6;
+	}
+}
+
+__attribute__((noinline)) int f2(int y)
+{
+	if (y >= 0)
+	{
+		return y+11;
+	}
+	else
+	{
+		if (y < -5)
+		{
+			return 2;
+		}
+		else
+		{
+			if (y == -3)
+			{
+				return f257(6);
+			}
+			else
+			{
+				return -y;
+			}
+		}
+	}
+}
+
+__attribute__((noinline)) int f1(int y)
+{
+	int z=5;
 	int x;
-	if (y < 0) {
-		x = -y;
-	} else {
+	
+	if (y < 0)
+	{
+		x = -y+8;
+	}
+	else
+	{
 		x = z;
 	}
-	return x;
-	//int a = 2*x;
-	//return a;
-}
-
-int f2(int y, int z) {
-	int x = 1 - y - z;
+	
 	return x;
 }
 
-int f3(int y) {
-	if (y > 100) {
-		return -1;
-	}
-	int sum = 0;
-	for (int cnt = 1; cnt < y; cnt++) {
-		sum += cnt;
-	}
-	return sum;
-}
-
-int f4(int y) {
-	int z;
-	int x;
-	if (y < 0) {
-		z = -y+7;
-		x = y;
-	} else {
-		z = y-3;
-		x = -y;
-	}
-	return z+x;
-}
-
-int f5(int y) {
-	if (y >= 0) {
-		return y;
-	} else if (y == 0x800000) {
-		return 0;
-	} else if (y == -3) {
-		return 4;
-	} else {
-		return -y;
-	}
-}
-
+#if 0
 int main(int argc, char * argv[]) {
 	if (argc != 2) {
 		fprintf(stderr, "USAGE: %s <y>\n", argv[0]);
 		return 1;
 	}
-	printf("%d\n", f(atoi(argv[1])));
+	printf("%d\n", f1(atoi(argv[1])));
 	return 0;
 }
 
+#endif
 

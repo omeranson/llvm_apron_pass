@@ -1,3 +1,9 @@
+/****************************************************************/
+/* OREN ISH SHALOM is a big nudnik that separates INCLUDE files */
+/****************************************************************/
+/************************/
+/* INCLUDE FILES :: stl */
+/************************/
 #include <list>
 #include <set>
 #include <map>
@@ -5,6 +11,9 @@
 #include <iostream>
 #include <sstream>
 
+/*************************/
+/* INCLUDE FILES :: llvm */
+/*************************/
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
@@ -14,7 +23,11 @@
 //#include <llvm/IR/DebugLoc.h>
 #include <llvm/DebugInfo.h>
 #include <llvm/IR/Constants.h>
+#include "llvm/Analysis/CallGraphSCCPass.h"
 
+/**************************/
+/* INCLUDE FILES :: apron */
+/**************************/
 #include <ap_global0.h>
 #include <ap_global1.h>
 #include <ap_abstract1.h>
@@ -24,17 +37,44 @@
 #include <pkeq.h>
 #include <ap_ppl.h>
 
+/***********************************/
+/* INCLUDE FILES :: omer's project */
+/***********************************/
 #include <Value.h>
 #include <CallGraph.h>
 
-namespace {
-	llvm::raw_ostream & operator<<(llvm::raw_ostream & ro, ap_scalar_t & scalar) {
+/**************************/
+/* NAMESPACE :: anonymous */
+/**************************/
+namespace
+{
+	/*******************************************************/
+	/* OREN ISH SHALOM edited:                             */
+	/* Write the summary of each function into a dedicated */
+	/* text file with the same name                        */
+	/*******************************************************/
+	llvm::raw_ostream & operator<<(llvm::raw_ostream & ro, ap_scalar_t & scalar)
+	{
 		char * buffer;
 		size_t size;
-		FILE * bufferfp = open_memstream(&buffer, &size);
+		FILE * bufferfp = open_memstream(&buffer, &size);		
 		ap_scalar_fprint(bufferfp, &scalar);
 		fclose(bufferfp);
 		ro << buffer;
+
+		/********************************************************/
+		/* OREN ISH SHALOM added:                               */
+		/*                                                      */
+		/* This is an over idiotic implementation,              */
+		/* in which everything is written to a single text file */
+		/********************************************************/
+		/*******************************************/
+		/* OREN ISH SHALOM: write the Apron output */
+		/*******************************************/
+		FILE *fl = fopen("/home/oren/FunctionSummaries.txt", "a+t");
+		fprintf(fl,"%s",buffer);
+		fclose(fl);
+				
 		return ro;
 	}
 /*
@@ -120,14 +160,41 @@ namespace {
 		}
 	};
 
-
-	class Apron : public llvm::FunctionPass {
+    /****************************************************/
+    /*                                                  */
+    /* OREN ISH SHALOM:                                 */
+    /*                                                  */
+    /* Change the Apron pass to subclass from SCCPass   */
+    /* Suppose we have this simple example:             */
+    /*                                                  */
+    /* int f1(int i)                                    */
+    /* {                                                */
+    /*     int x = 80;                                  */
+    /*     int y = f2(600);                             */
+    /*                                                  */
+    /*     return x+y;                                  */
+    /* }                                                */
+    /*                                                  */
+    /* And Apron summarized f2 to return [3,40]         */
+    /*                                                  */
+    /* The once Apron starts to analyze f1, the         */
+    /*                                                  */
+    /* returned ointerval [3,40] of f2 is ready, and so */
+    /*                                                  */
+    /* the returned value of f1 should be [83, 120]     */
+    /*                                                  */
+    /****************************************************/
+    /**********************************************************************/
+	/* OREN ISH SHALOM removed: class Apron : public llvm::FunctionPass { */
+    /**********************************************************************/
+	class Apron : public llvm::CallGraphSCCPass {
 	private:
 		//map<llvm::BasicBlock *, std::string> basicBlockNames;
 		int blockCount;
 	public:
 		static char ID;
-		Apron() : blockCount(0), llvm::FunctionPass(ID) {}
+		/* OREN ISH SHALOM removed : Apron() : blockCount(0), llvm::FunctionPass(ID) {} */
+		Apron() : blockCount(0), llvm::CallGraphSCCPass(ID) {}
 
 		void runOnInstruction(llvm::Instruction & inst) {
 			//llvm::errs() << "\t\tApron: instruction: " << inst.getDebugLoc().getLine() << ": ";
@@ -186,52 +253,146 @@ namespace {
 			return NULL;
 		}
 
-		virtual bool runOnFunction(llvm::Function &F) {
-			if (F.getName().equals("main")) {
-				return false; /* Skip */
-			}
-			// llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
-			// llvm::errs() << "Apron: Function: ";
-			// llvm::errs().write_escaped(F.getName()) << '\n';
-			llvm::BasicBlock * llvmfirst =  &F.getEntryBlock();
-			BasicBlock * first = BasicBlockManager::getInstance().getBasicBlock(
-					llvmfirst);
-			ap_environment_t * ap_environment =
-					ap_environment_alloc_empty();
-			first->setEnvironment(ap_environment);
-			CallGraph funcCallGraph(F.getName().str(), first);
-			// funcCallGraph.printAsDot();
-			ChaoticExecution chaoticExecution(funcCallGraph);
-			chaoticExecution.execute();
-			// Get 'return' instruction
-			llvm::ReturnInst * returnInst = getReturnInstruction(F);
-			if (!returnInst) {
-				llvm::errs() << F.getName() << " " << "-inf" << " " << "inf" << "\n";
-				return false;
-			}
-			// get temporary
-			llvm::Value * llvmValue = returnInst->getReturnValue();
-			if (!llvmValue) {
-				llvm::errs() << F.getName() << " " << "-inf" << " " << "inf" << "\n";
-				return false;
-			}
-			ValueFactory * factory = ValueFactory::getInstance();
-			Value * val = factory->getValue(llvmValue);
-			if (!val) {
-				llvm::errs() << F.getName() << " " << "-inf" << " " << "inf" << "\n";
-				return false;
-			}
-			// get temporary's abstract value
-			llvm::BasicBlock * llvmlast = returnInst->getParent();
-			BasicBlock * last = BasicBlockManager::getInstance().getBasicBlock(
-					llvmlast);
-			ap_interval_t * interval = last->getVariableInterval(val);
-			// print it
-			llvm::errs() << F.getName() << " " << *interval->inf << " " << *interval->sup << "\n";
+        /***************************************************/
+        /* OREN ISH SHALOM removed:                        */
+        /*                                                 */
+        /* virtual bool runOnFunction(llvm::Function &F) { */
+        /*                                                 */
+        /***************************************************/
+        virtual bool runOnSCC(llvm::CallGraphSCC &SCC)
+        {
+            /********************************************************************/
+            /* OREN ISH SHALOM added: extract the current function from the SCC */
+            /********************************************************************/
+            /***************************************************/
+            /* OREN ISH SHALOM remarks: I simply l-o-v-e C++11 */
+            /***************************************************/
+            for (llvm::CallGraphNode *CGN : SCC)
+			{
+                /********************************************************************/
+                /* OREN ISH SHALOM added: extract the current function from the SCC */
+                /********************************************************************/
+				if (llvm::Function *F = CGN->getFunction())
+				{
+			        if (F->getName().equals("main"))
+			        {
+				        return false; /* Skip */
+			        }
 
-			// chaoticExecution.print();
-			// llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
-			return false;
+                    /****************************************************************/
+                    /* OREN ISH SHALOM: From here downward, lots of F. to F-> stuff */
+                    /****************************************************************/
+			        // llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
+			        // llvm::errs() << "Apron: Function: ";
+			        // llvm::errs().write_escaped(F.getName()) << '\n';
+			        llvm::BasicBlock * llvmfirst =  &(F->getEntryBlock());
+			        BasicBlock * first = BasicBlockManager::getInstance().getBasicBlock(
+					        llvmfirst);
+			        ap_environment_t * ap_environment =
+					        ap_environment_alloc_empty();
+			        first->setEnvironment(ap_environment);
+			        CallGraph funcCallGraph(F->getName().str(), first);
+			        // funcCallGraph.printAsDot();
+			        ChaoticExecution chaoticExecution(funcCallGraph);
+			        chaoticExecution.execute();
+			        // Get 'return' instruction
+			        llvm::ReturnInst * returnInst = getReturnInstruction(*F);
+			        if (!returnInst) {
+				        llvm::errs() << F->getName() << " " << "-oo" << " " << "+oo" << "\n";
+				        return false;
+			        }
+			        // get temporary
+			        llvm::Value * llvmValue = returnInst->getReturnValue();
+			        if (!llvmValue) {
+				        llvm::errs() << F->getName() << " " << "-oo" << " " << "+oo" << "\n";
+				        return false;
+			        }
+			        ValueFactory * factory = ValueFactory::getInstance();
+			        Value * val = factory->getValue(llvmValue);
+			        if (!val) {
+				        llvm::errs() << F->getName() << " " << "-oo" << " " << "+oo" << "\n";
+				        return false;
+			        }
+			        // get temporary's abstract value
+			        llvm::BasicBlock * llvmlast = returnInst->getParent();
+			        BasicBlock * last = BasicBlockManager::getInstance().getBasicBlock(
+					        llvmlast);
+			        ap_interval_t * interval = last->getVariableInterval(val);
+			        // print it
+                    /*********************************************/
+                    /* OREN ISH SHALOM: Print the way I like it! */
+                    /*********************************************/
+                    char funcname[100]={0};
+                    char basedir_name[100]={0};
+                    char abs_path_filename[200]={0};
+
+                    /*********************************************/
+                    /* OREN ISH SHALOM: Print the way I like it! */
+                    /*********************************************/
+                    strcpy(basedir_name,"/home/oren/");
+                    strcpy(funcname,F->getName().str().c_str());
+                    sprintf(abs_path_filename,"%s%s.txt",basedir_name,funcname);
+                    
+                    /****************************************************/
+                    /* OREN ISH SHALOM: Clear the output file every run */
+                    /****************************************************/
+					static int first_time = 1;
+					FILE *fl = NULL;
+					if (first_time == 1)
+					{
+		                /****************************************************/
+		                /* OREN ISH SHALOM: Clear the output file every run */
+		                /****************************************************/
+						first_time = 0;
+						fl = fopen(abs_path_filename, "w+t");
+						fclose(fl);
+					}
+	                /*********************************************************/
+	                /* OREN ISH SHALOM: Write in the human readable format:  */
+	                /*                                                       */
+	                /* MY_FUNCTION_NAME = [45, 200], or for another example: */
+	                /*                                                       */
+	                /* MY_FUNCTION_NAME = [17, +00]                          */
+	                /*                                                       */
+	                /*********************************************************/
+                    fl = fopen(abs_path_filename, "a+t");
+                    fprintf(fl,"%s = [ ",funcname);
+                    ap_scalar_fprint(fl,interval->inf);
+                    fclose(fl);
+                    
+	                /*************************************************************************/
+	                /* OREN ISH SHALOM: Keep Omer's original printing -- He's a nice guy :)) */
+	                /*************************************************************************/
+			        llvm::errs() << F->getName()   << " ";
+			        llvm::errs() << *interval->inf << " ";
+			        
+	                /*********************************************************/
+	                /* OREN ISH SHALOM: Write in the human readable format:  */
+	                /*                                                       */
+	                /* MY_FUNCTION_NAME = [45, 200], or for another example: */
+	                /*                                                       */
+	                /* MY_FUNCTION_NAME = [17, +00]                          */
+	                /*                                                       */
+	                /*********************************************************/
+                    fl = fopen(abs_path_filename, "a+t");
+                    fprintf(fl," ");
+                    fclose(fl);
+                    
+	                /*************************************************************************/
+	                /* OREN ISH SHALOM: Keep Omer's original printing -- He's a nice guy :)) */
+	                /*************************************************************************/
+			        llvm::errs() << *interval->sup << "\n";
+                    fl = fopen(abs_path_filename, "a+t");
+                    ap_scalar_fprint(fl,interval->sup);
+                    fprintf(fl," ]\n");
+                    fclose(fl);
+
+			        // chaoticExecution.print();
+			        // llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
+			        return false;
+                }
+            }
+            return false;
 		}
 	};
 }

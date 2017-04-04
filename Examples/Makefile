@@ -11,7 +11,7 @@ all: simple-O3-mergereturn-named.bc simple-O3-mergereturn-named.ll
 	@ ${CC} -flto -Wall -c -o $@ $^
 
 %: %.c
-	@ echo '[CC]	[$<]	[$@]'
+	@ echo '[CsdafmadsklfnasdlfnC]	[$<]	[$@]'
 	${CC} -o $@ $^
 
 %-mergereturn.bc: %.bc
@@ -19,7 +19,8 @@ all: simple-O3-mergereturn-named.bc simple-O3-mergereturn-named.ll
 	${OPT} -mergereturn $^ > $@
 
 %-O3.bc: %.bc
-	@ echo '[OPT -instnamer]	[$^]	[$@]'
+	@ echo '[OPT -O3]	[$^]	[$@]'
+	# cp $^ $@
 	${OPT} -O3 $^ > $@
 
 %-named.bc: %.bc
