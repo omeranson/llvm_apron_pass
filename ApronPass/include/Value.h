@@ -64,8 +64,6 @@ protected:
 	virtual llvm::Instruction * asInstruction();
 	virtual BasicBlock * getBasicBlock();
 public:
-	int MoishFrenkel;
-public:
 	InstructionValue(llvm::Value * value) : Value(value) {}
 	virtual void populateTreeConstraints(
 			std::list<ap_tcons1_t> & constraints);

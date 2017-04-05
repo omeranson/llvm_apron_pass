@@ -57,24 +57,10 @@ namespace
 	{
 		char * buffer;
 		size_t size;
-		FILE * bufferfp = open_memstream(&buffer, &size);		
+		FILE * bufferfp = open_memstream(&buffer, &size);
 		ap_scalar_fprint(bufferfp, &scalar);
 		fclose(bufferfp);
 		ro << buffer;
-
-		/********************************************************/
-		/* OREN ISH SHALOM added:                               */
-		/*                                                      */
-		/* This is an over idiotic implementation,              */
-		/* in which everything is written to a single text file */
-		/********************************************************/
-		/*******************************************/
-		/* OREN ISH SHALOM: write the Apron output */
-		/*******************************************/
-		FILE *fl = fopen("/home/oren/FunctionSummaries.txt", "a+t");
-		fprintf(fl,"%s",buffer);
-		fclose(fl);
-				
 		return ro;
 	}
 /*
@@ -322,31 +308,10 @@ namespace
                     /*********************************************/
                     /* OREN ISH SHALOM: Print the way I like it! */
                     /*********************************************/
-                    char funcname[100]={0};
-                    char basedir_name[100]={0};
-                    char abs_path_filename[200]={0};
-
-                    /*********************************************/
-                    /* OREN ISH SHALOM: Print the way I like it! */
-                    /*********************************************/
-                    strcpy(basedir_name,"/home/oren/");
-                    strcpy(funcname,F->getName().str().c_str());
-                    sprintf(abs_path_filename,"%s%s.txt",basedir_name,funcname);
+                    std::string abs_path_filename;
+                    llvm::raw_string_ostream abs_path_filename_builder(abs_path_filename);
+                    abs_path_filename_builder << "/tmp/llvm_apron_pass/" << F->getName() << ".txt";
                     
-                    /****************************************************/
-                    /* OREN ISH SHALOM: Clear the output file every run */
-                    /****************************************************/
-					static int first_time = 1;
-					FILE *fl = NULL;
-					if (first_time == 1)
-					{
-		                /****************************************************/
-		                /* OREN ISH SHALOM: Clear the output file every run */
-		                /****************************************************/
-						first_time = 0;
-						fl = fopen(abs_path_filename, "w+t");
-						fclose(fl);
-					}
 	                /*********************************************************/
 	                /* OREN ISH SHALOM: Write in the human readable format:  */
 	                /*                                                       */
@@ -355,37 +320,17 @@ namespace
 	                /* MY_FUNCTION_NAME = [17, +00]                          */
 	                /*                                                       */
 	                /*********************************************************/
-                    fl = fopen(abs_path_filename, "a+t");
-                    fprintf(fl,"%s = [ ",funcname);
-                    ap_scalar_fprint(fl,interval->inf);
-                    fclose(fl);
+		    std::string EC;
+		    llvm::raw_fd_ostream fl(abs_path_filename_builder.str().c_str(), EC);
+		    fl << F->getName() << " = [ " << *interval->inf << " " << *interval->sup << " ]\n";
+		    fl.close();
                     
 	                /*************************************************************************/
 	                /* OREN ISH SHALOM: Keep Omer's original printing -- He's a nice guy :)) */
 	                /*************************************************************************/
 			        llvm::errs() << F->getName()   << " ";
 			        llvm::errs() << *interval->inf << " ";
-			        
-	                /*********************************************************/
-	                /* OREN ISH SHALOM: Write in the human readable format:  */
-	                /*                                                       */
-	                /* MY_FUNCTION_NAME = [45, 200], or for another example: */
-	                /*                                                       */
-	                /* MY_FUNCTION_NAME = [17, +00]                          */
-	                /*                                                       */
-	                /*********************************************************/
-                    fl = fopen(abs_path_filename, "a+t");
-                    fprintf(fl," ");
-                    fclose(fl);
-                    
-	                /*************************************************************************/
-	                /* OREN ISH SHALOM: Keep Omer's original printing -- He's a nice guy :)) */
-	                /*************************************************************************/
 			        llvm::errs() << *interval->sup << "\n";
-                    fl = fopen(abs_path_filename, "a+t");
-                    ap_scalar_fprint(fl,interval->sup);
-                    fprintf(fl," ]\n");
-                    fclose(fl);
 
 			        // chaoticExecution.print();
 			        // llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";

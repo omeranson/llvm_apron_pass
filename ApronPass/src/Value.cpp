@@ -56,8 +56,7 @@ void appendValue(std::ostringstream & oss,
 
 class NopInstructionValue : public InstructionValue {
 public:
-	NopInstructionValue(llvm::Value * value)
-	    : InstructionValue(value) {MoishFrenkel = 222;}
+	NopInstructionValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual bool isSkip() { return true; }
 };
 
@@ -132,8 +131,7 @@ friend class ValueFactory;
 protected:
 	llvm::ReturnInst * asReturnInst() ;
 public:
-	ReturnInstValue(llvm::Value * value)
-	    : InstructionValue(value) {MoishFrenkel = 111;}
+	ReturnInstValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string toString() ;
 };
 
@@ -170,8 +168,7 @@ protected:
 	virtual std::string getValueString() ;
 	virtual ap_texpr1_t * createRHSTreeExpression();
 public:
-	BinaryOperationValue(llvm::Value * value)
-	    : InstructionValue(value) {MoishFrenkel = 888;}
+	BinaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual ap_texpr1_t * createOperandTreeExpression(int idx);
 	virtual bool isSkip();
 };
@@ -389,18 +386,9 @@ protected:
 	virtual std::string getCalledFunctionName();
 	bool isDebugFunction(const std::string & funcName) const;
 public:
-	CallValue(llvm::Value * value)
-	    : InstructionValue(value) {MoishFrenkel = 1234;}
+	CallValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip();
-
-#   define MAX_FILENAME_LENGTH 100
-	char FunctionName[MAX_FILENAME_LENGTH];
-	
-    /**************************/
-    /* OREN ISH SHALOM added: */
-    /**************************/
-    virtual void populateTreeConstraints(std::list<ap_tcons1_t> & constraints); 
 
     /**************************/
     /* OREN ISH SHALOM added: */
@@ -412,13 +400,14 @@ ap_texpr1_t *CallValue::createRHSTreeExpression()
 {
     int inf_value = 0;
     int sup_value = 0;
-#   define MAX_ABSOLUTE_FILENAME 100
-    char abs_path_filename[MAX_ABSOLUTE_FILENAME]={0};
-    sprintf(abs_path_filename,"/home/oren/%s.txt",FunctionName);
+    
+    std::string abs_path_filename;
+    llvm::raw_string_ostream abs_path_filename_builder(abs_path_filename);
+    abs_path_filename_builder << "/tmp/llvm_apron_pass/" << getCalledFunctionName() << ".txt";
 
 #   define MAX_SUMMARY_LENGTH 100
     char summary[MAX_SUMMARY_LENGTH]={0};
-    FILE *fl = fopen(abs_path_filename,"rt");
+    FILE *fl = fopen(abs_path_filename_builder.str().c_str(),"rt");
     assert(fl && "Missing Procedure Summary");
     fscanf(fl,"%s",summary);
     llvm::errs() << "FROM " << summary << " SUMMARY: " << "[";
@@ -437,40 +426,6 @@ ap_texpr1_t *CallValue::createRHSTreeExpression()
 	        inf_value);
 
 	return inf;
-}
-
-/******************************/
-/* OREN ISH SHALOM added:     */
-/******************************/
-void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints)
-{
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	
-	BasicBlock *basicBlock = getBasicBlock();
-	ap_texpr1_t *var_texpr = createTreeExpression(basicBlock);
-	assert(var_texpr && "Tree expression is NULL");
-	ap_texpr1_t *value_texpr = createRHSTreeExpression();
-	assert(value_texpr && "RHS Tree expression is NULL");
-
-	basicBlock->extendTexprEnvironment(var_texpr);
-	basicBlock->extendTexprEnvironment(value_texpr);
-
-	ap_texpr1_t *texpr =
-	    ap_texpr1_binop(
-    	    AP_TEXPR_SUB,
-    		value_texpr,
-    		var_texpr,
-    		AP_RTYPE_INT,
-    		AP_RDIR_ZERO);
-    		
-	ap_tcons1_t result =
-	    ap_tcons1_make(
-	        AP_CONS_EQ,
-	        texpr,
-	        zero);
-	        
-	constraints.push_back(result);
 }
 
 llvm::CallInst * CallValue::asCallInst() {
@@ -698,7 +653,7 @@ protected:
 	virtual llvm::PHINode * asPHINode();
 	virtual ap_abstract1_t getAbstractValueWithSet(int idx);
 public:
-	PhiValue(llvm::Value * value) : InstructionValue(value) {MoishFrenkel = 666;}
+	PhiValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip();
 	virtual void populateTreeConstraints(
@@ -807,8 +762,7 @@ protected:
 	virtual ap_tcons1_t getSetFalseValueTcons();
 
 public:
-	SelectValueInstruction(llvm::Value * value)
-	    : InstructionValue(value) {MoishFrenkel = 555;}
+	SelectValueInstruction(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual void populateTreeConstraints(
 			std::list<ap_tcons1_t> & constraints);
@@ -999,7 +953,7 @@ class UnaryOperationValue : public InstructionValue {
 protected:
 	llvm::UnaryInstruction * asUnaryInstruction();
 public:
-	UnaryOperationValue(llvm::Value * value) : InstructionValue(value) {MoishFrenkel = 444;}
+	UnaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
 };
 
 llvm::UnaryInstruction * UnaryOperationValue::asUnaryInstruction() {
@@ -1056,8 +1010,7 @@ protected:
 	virtual bool isConstraintConditionToAPNeedsReverse(
 			constraint_condition_t consCond);
 public:
-	BranchInstructionValue(llvm::Value * value)
-	    : InstructionValue(value) {MoishFrenkel = 333;}
+	BranchInstructionValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual bool isSkip();
 	virtual void populateTreeConstraints(
 			std::list<ap_tcons1_t> & constraints);
@@ -1323,24 +1276,18 @@ Value * ValueFactory::getValue(llvm::Value * value) {
 	return result;
 }
 
-Value * ValueFactory::createValue(llvm::Value * value)
-{
-    // llvm::errs() << "BAZOOKA" << value->getName() << '\n';
-    
-	if (llvm::isa<llvm::Instruction>(value))
-	{
+Value * ValueFactory::createValue(llvm::Value * value) {
+	if (llvm::isa<llvm::Instruction>(value)) {
 		llvm::Instruction & instruction =
 				llvm::cast<llvm::Instruction>(*value);
 		return createInstructionValue(&instruction);
 	}
-	if (llvm::isa<llvm::Constant>(value))
-	{
+	if (llvm::isa<llvm::Constant>(value)) {
 		llvm::Constant & constant =
 				llvm::cast<llvm::Constant>(*value);
 		return createConstantValue(&constant);
 	}
-	if (llvm::isa<llvm::Argument>(value))
-	{
+	if (llvm::isa<llvm::Argument>(value)) {
 		return new VariableValue(value);
 	}
 	return NULL;
@@ -1415,50 +1362,7 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	case llvm::BinaryOperator::Select:
 		return new SelectValueInstruction(instruction);
 	case llvm::BinaryOperator::Call:
-	{
-	    /**************************************************/
-	    /* OREN ISH SHALOM added:                         */
-	    /* Cast instruction into a CallInst               */
-	    /* There's probably a better OOP way to do it ... */
-	    /**************************************************/
-	    llvm::CallInst *call = (llvm::CallInst *) instruction;
-	    
-	    /************************************/
-	    /* OREN ISH SHALOM added:           */
-	    /* extract the called function name */
-	    /************************************/
-		llvm::Function *fun = call->getCalledFunction();
-		if (fun)
-		{
-	        /*****************************************************/
-	        /* OREN ISH SHALOM added:                            */
-	        /* instead of calling the function, use its summary! */
-	        /*****************************************************/
-	        // llvm::errs() << "OREN ISH SHALOM IS CALLING: ";
-
-		    /***************************************************/
-		    /* OREN ISH SHALOM remarks:                        */
-		    /* stackoverflow remarks that indirect calls       */
-		    /* should also be considered. In that case,        */
-		    /* fun should be NULL ... hopefully this doesn't   */
-		    /* heppen in our lovely Linnux kernel              */
-		    /***************************************************/
-            // llvm::errs() << fun->getName();
-
-	        /*****************************************************/
-	        /* OREN ISH SHALOM added:                            */
-	        /* instead of calling the function, use its summary! */
-	        /*****************************************************/
-	        // llvm::errs() << " AND THAT'S IT!" << '\n';
-		}
-		else
-		{
-		    llvm::errs() << "OOPS! indirect function call!" << '\n';
-		}
-        CallValue *tempCallValue = new CallValue(instruction);
-        strcpy(tempCallValue->FunctionName,fun->getName().str().c_str());
-        return tempCallValue;
-	}	
+		return new CallValue(instruction);
 	case llvm::BinaryOperator::Shl:
 	case llvm::BinaryOperator::LShr:
 		return new SHLOperationValue(instruction);

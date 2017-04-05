@@ -472,11 +472,12 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 		/*llvm::errs() << "Skipping set-skipped instruction: " << value->toString() << "\n";*/
 		return;
 	}
-	// llvm::errs() << "INSTRUCTION: " << value->toString() << "\n";
-			
-	InstructionValue *instructionValue = (InstructionValue *) (value);
-	// InstructionValue * instructionValue = static_cast<InstructionValue*>(value);
-	// llvm::errs() << "MoishFrenkel = " << instructionValue->MoishFrenkel << '\n';
+	//llvm::errs() << "Apron: Instruction: "
+			//// << scope->getFilename() << ": "
+			//<< debugLoc.getLine() << ": "
+			//<< value->toString() << "\n";
+	InstructionValue * instructionValue =
+			static_cast<InstructionValue*>(value);
 	instructionValue->populateTreeConstraints(constraints);
 }
 
