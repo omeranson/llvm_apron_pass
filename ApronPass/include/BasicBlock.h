@@ -57,6 +57,9 @@ protected:
 			stream & s, ap_abstract1_t & abst1);
 	template <class stream> void streamTCons1(
 			stream & s, ap_tcons1_t & tcons);
+	virtual bool joinInAbstract1(ap_abstract1_t & abst_value);
+	virtual ap_abstract1_t getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock);
+	virtual ap_tcons1_t getSetValueTcons(Value * left, Value * right);
 public:
 	virtual std::string getName();
 	virtual ap_abstract1_t & getAbstractValue();
@@ -65,12 +68,10 @@ public:
 	virtual void setChanged();
 	virtual void populateConstraintsFromAbstractValue(
 			std::list<ap_tcons1_t> & constraints);
+	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
 	virtual bool update();
 
 	virtual bool join(BasicBlock & basicBlock);
-	virtual bool join(ap_abstract1_t & abst_value);
-	virtual bool join(std::list<ap_abstract1_t> & abst_values);
-	virtual bool join(ap_tcons1_t & constraint);
 	virtual bool meet(BasicBlock & basicBlock);
 	virtual bool meet(ap_abstract1_t & abst_value);
 	virtual bool meet(std::list<ap_abstract1_t> & abst_values);

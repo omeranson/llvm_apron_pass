@@ -21,6 +21,11 @@ extern "C" {
 #include <pkeq.h>
 #include <ap_ppl.h>
 
+// TODO This should go in apron lib
+void ap_tcons1_array_resize(ap_tcons1_array_t * array, size_t size) {
+	ap_tcons0_array_resize(&(array->tcons0_array), size);
+}
+
 /*			       BasicBlockManager			     */
 BasicBlockManager BasicBlockManager::instance;
 BasicBlockManager & BasicBlockManager::getInstance() {
@@ -111,6 +116,9 @@ void BasicBlock::setEnvironment(ap_environment_t * nenv) {
 void BasicBlock::extendEnvironment(std::string & varname) {
 	ap_environment_t* env = getEnvironment();
 	ap_var_t var = (ap_var_t)varname.c_str();
+	if (ap_environment_mem_var(env, var)) {
+		return;
+	}
 	// TODO Handle reals
 	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
 	setEnvironment(nenv);
@@ -170,7 +178,7 @@ void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
 	assert(!failed);
 }
 
-bool BasicBlock::join(ap_abstract1_t & abst_value) {
+bool BasicBlock::joinInAbstract1(ap_abstract1_t & abst_value) {
 	ap_abstract1_t prev = m_abst_value;
 	ap_manager_t * manager = getManager();
 	ap_dimchange_t * dimchange1 = NULL;
@@ -188,30 +196,78 @@ bool BasicBlock::join(ap_abstract1_t & abst_value) {
 	return is_eq(prev);
 }
 
-bool BasicBlock::join(std::list<ap_abstract1_t> & abst_values) {
-	std::list<ap_abstract1_t>::iterator it;
-	bool result = false;
-	for (it = abst_values.begin(); it != abst_values.end(); it++) {
-		ap_abstract1_t & value = *it;
-		result |= join(value);
+ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock) {
+	ap_tcons1_array_t tconstraints_array = basicBlock.getBasicBlockConstraints(this);
+	llvm::BasicBlock * llvmBB = getLLVMBasicBlock();
+	ValueFactory * factory = ValueFactory::getInstance();
+	std::vector<ap_tcons1_t> tconstraints;
+	std::vector<ap_environment_t*> envs;
+	for (auto iit = llvmBB->begin(), iie = llvmBB->end(); iit != iie; iit++) {
+		llvm::PHINode * phi = llvm::dyn_cast<llvm::PHINode>(iit);
+		if (!phi) {
+			continue;
+		}
+		Value * phiValue = factory->getValue(phi);
+		llvm::Value * incoming = phi->getIncomingValueForBlock(
+				basicBlock.getLLVMBasicBlock());
+		Value * incomingValue = factory->getValue(incoming);
+		ap_tcons1_t tcons = getSetValueTcons(phiValue, incomingValue);
+		tconstraints.push_back(tcons);
+		envs.push_back(ap_tcons1_envref(&tcons));
 	}
-	return result;
-}
+	unsigned oldsize = ap_tcons1_array_size(&tconstraints_array);
+	unsigned size = tconstraints.size();
+	unsigned newsize = oldsize + size;
+	ap_abstract1_t other = basicBlock.m_abst_value;
+	if (newsize > 0) {
+		ap_manager_t* manager = getManager();
+		ap_environment_t * environment = getEnvironment();
+		envs.push_back(environment);
+		envs.push_back(ap_tcons1_array_envref(&tconstraints_array));
+		envs.push_back(ap_abstract1_environment(manager, &other));
+		ap_dimchange_t ** ptdimchange = 0;
+		environment = ap_environment_lce_array(envs.data(), envs.size(), &ptdimchange);
+		ap_tcons1_array_extend_environment_with(&tconstraints_array, environment);
+		other = ap_abstract1_change_environment(manager, false, &other, environment, false);
+		if (size > 0) {
+			ap_tcons1_array_resize(&tconstraints_array, newsize);
+			for (unsigned idx = 0; idx < size; idx++) {
+				ap_tcons1_t & tcons = tconstraints[idx];
+				ap_tcons1_extend_environment_with(&tcons, environment);
+				bool failed = ap_tcons1_array_set(&tconstraints_array,
+						oldsize+idx, &tcons);
+				assert(!failed);
+			}
+		}
 
-bool BasicBlock::join(ap_tcons1_t & constraint) {
-	ap_tcons1_array_t array = ap_tcons1_array_make(getEnvironment(), 1);
-	extendTconsEnvironment(&constraint);
-	bool failed = ap_tcons1_array_set(&array, 0, &constraint);
-	assert(!failed);
-	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
-			getManager(), getEnvironment(), &array);
-	return join(abs);
+		if (ap_abstract1_is_bottom(manager, &other)) {
+			other = ap_abstract1_of_tcons_array(manager, environment, &tconstraints_array);
+		} else {
+			other = ap_abstract1_meet_tcons_array(manager, false, &other, &tconstraints_array); 
+		}
+	}
+	return other;
 }
 
 bool BasicBlock::join(BasicBlock & basicBlock) {
-	bool isChanged = join(basicBlock.m_abst_value);
+	ap_abstract1_t other = getAbstract1MetWithIncomingPhis(basicBlock);
+	bool isChanged = joinInAbstract1(other);
 	bool isASChanged = m_abstractState.join(basicBlock.m_abstractState);
 	return isChanged || isASChanged;
+}
+
+ap_tcons1_t BasicBlock::getSetValueTcons(Value * left, Value * right) {
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	ap_texpr1_t * var_texpr = left->createTreeExpression(this);
+	ap_texpr1_t * value_texpr = right->createTreeExpression(this);
+	extendTexprEnvironment(var_texpr);
+	extendTexprEnvironment(value_texpr);
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_SUB, value_texpr, var_texpr,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
+	return result;
 }
 
 bool BasicBlock::meet(ap_abstract1_t & abst_value) {
@@ -445,6 +501,16 @@ void BasicBlock::populateConstraintsFromAbstractValue(
 		ap_tcons1_t constraint = ap_tcons1_array_get(&array, cnt);
 		constraints.push_back(constraint);
 	}
+}
+
+
+ap_tcons1_array_t BasicBlock::getBasicBlockConstraints(BasicBlock * basicBlock) {
+	llvm::BasicBlock * llvmThis = getLLVMBasicBlock();
+	llvm::Instruction * terminator = llvmThis->getTerminator();
+	ValueFactory * factory = ValueFactory::getInstance();
+	TerminatorInstructionValue * terminatorValue = static_cast<TerminatorInstructionValue*>(
+			factory->getValue(terminator));
+	return terminatorValue->getBasicBlockConstraints(basicBlock);
 }
 
 ap_abstract1_t BasicBlock::abstractOfTconsList(

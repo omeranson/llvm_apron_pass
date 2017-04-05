@@ -76,4 +76,11 @@ public:
 	virtual bool isSkip();
 };
 
+class TerminatorInstructionValue : public InstructionValue {
+public:
+	TerminatorInstructionValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual bool isSkip();
+	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
+};
+
 #endif

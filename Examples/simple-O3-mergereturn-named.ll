@@ -115,13 +115,25 @@ UnifiedReturnBlock:                               ; preds = %if.end3, %if.else
   ret i32 %UnifiedRetVal
 }
 
-; Function Attrs: nounwind readnone uwtable
-define i32 @f7(i32 %y) #0 {
+; Function Attrs: nounwind uwtable
+define i32 @f7(i32 %y) #1 {
 entry:
   %cmp = icmp sgt i32 %y, 30
-  %.y = select i1 %cmp, i32 30, i32 %y
-  ret i32 %.y
+  br i1 %cmp, label %if.then, label %if.end
+
+if.then:                                          ; preds = %entry
+  %call = tail call i32 (i32, ...)* bitcast (i32 (...)* @h to i32 (i32, ...)*)(i32 %y) #5
+  br label %if.end
+
+if.end:                                           ; preds = %if.then, %entry
+  %y.addr.0 = phi i32 [ 30, %if.then ], [ %y, %entry ]
+  %call1 = tail call i32 (i32, ...)* bitcast (i32 (...)* @g to i32 (i32, ...)*)(i32 %y.addr.0) #5
+  ret i32 %y.addr.0
 }
+
+declare i32 @h(...) #2
+
+declare i32 @g(...) #2
 
 ; Function Attrs: nounwind readnone uwtable
 define i32 @f8(i32 %y, i32 %z) #0 {
@@ -140,17 +152,17 @@ entry:
 if.then:                                          ; preds = %entry
   %tmp = load %struct._IO_FILE** @stderr, align 8
   %tmp1 = load i8** %argv, align 8
-  %call = tail call i32 (%struct._IO_FILE*, i8*, ...)* @fprintf(%struct._IO_FILE* %tmp, i8* getelementptr inbounds ([15 x i8]* @.str, i64 0, i64 0), i8* %tmp1) #4
+  %call = tail call i32 (%struct._IO_FILE*, i8*, ...)* @fprintf(%struct._IO_FILE* %tmp, i8* getelementptr inbounds ([15 x i8]* @.str, i64 0, i64 0), i8* %tmp1) #6
   br label %return
 
 if.end:                                           ; preds = %entry
   %arrayidx1 = getelementptr inbounds i8** %argv, i64 1
   %tmp2 = load i8** %arrayidx1, align 8
-  %call2 = tail call i32 @atoi(i8* %tmp2) #5
+  %call2 = tail call i32 @atoi(i8* %tmp2) #7
   %cmp.i = icmp slt i32 %call2, 0
   %sub.i = sub nsw i32 0, %call2
   %x.0.i = select i1 %cmp.i, i32 %sub.i, i32 5
-  %call4 = tail call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([4 x i8]* @.str1, i64 0, i64 0), i32 %x.0.i) #6
+  %call4 = tail call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([4 x i8]* @.str1, i64 0, i64 0), i32 %x.0.i) #5
   br label %return
 
 return:                                           ; preds = %if.end, %if.then
@@ -159,21 +171,22 @@ return:                                           ; preds = %if.end, %if.then
 }
 
 ; Function Attrs: nounwind
-declare i32 @fprintf(%struct._IO_FILE* nocapture, i8* nocapture readonly, ...) #2
+declare i32 @fprintf(%struct._IO_FILE* nocapture, i8* nocapture readonly, ...) #3
 
 ; Function Attrs: nounwind
-declare i32 @printf(i8* nocapture readonly, ...) #2
+declare i32 @printf(i8* nocapture readonly, ...) #3
 
 ; Function Attrs: nounwind readonly
-declare i32 @atoi(i8* nocapture) #3
+declare i32 @atoi(i8* nocapture) #4
 
 attributes #0 = { nounwind readnone uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #3 = { nounwind readonly "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #4 = { cold nounwind }
-attributes #5 = { nounwind readonly }
-attributes #6 = { nounwind }
+attributes #2 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #3 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #4 = { nounwind readonly "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #5 = { nounwind }
+attributes #6 = { cold nounwind }
+attributes #7 = { nounwind readonly }
 
 !llvm.ident = !{!0}
 

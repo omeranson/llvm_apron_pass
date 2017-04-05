@@ -138,16 +138,24 @@ BasicBlock * InstructionValue::getBasicBlock() {
 	return result;
 }
 
-class ReturnInstValue : public InstructionValue {
+bool TerminatorInstructionValue::isSkip() {
+	return true;
+}
+
+ap_tcons1_array_t TerminatorInstructionValue::getBasicBlockConstraints(BasicBlock * basicBlock) {
+	return ap_tcons1_array_make(getBasicBlock()->getEnvironment(), 0);
+}
+
+class ReturnInstValue : public TerminatorInstructionValue {
 friend class ValueFactory;
 protected:
 	llvm::ReturnInst * asReturnInst() ;
 public:
-	ReturnInstValue(llvm::Value * value) : InstructionValue(value) {}
+	ReturnInstValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
 	virtual std::string toString() ;
 };
 
- llvm::ReturnInst * ReturnInstValue::asReturnInst()  {
+llvm::ReturnInst * ReturnInstValue::asReturnInst()  {
 	return &llvm::cast<llvm::ReturnInst>(*m_value);
 }
 
@@ -927,13 +935,10 @@ bool IntegerCompareValue::isSkip() {
 class PhiValue : public InstructionValue {
 protected:
 	virtual llvm::PHINode * asPHINode();
-	virtual ap_abstract1_t getAbstractValueWithSet(int idx);
 public:
 	PhiValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip();
-	virtual void populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints);
 };
 
 llvm::PHINode * PhiValue::asPHINode() {
@@ -958,65 +963,7 @@ std::string PhiValue::getValueString() {
 }
 
 bool PhiValue::isSkip() {
-	return false;
-}
-
-ap_abstract1_t PhiValue::getAbstractValueWithSet(int idx) {
-	BasicBlockManager & manager = BasicBlockManager::getInstance();
-	ValueFactory * factory = ValueFactory::getInstance();
-
-	llvm::PHINode * phi = &llvm::cast<llvm::PHINode>(*m_value);
-	llvm::BasicBlock * llvmBasicBlock = phi->getIncomingBlock(idx);
-	BasicBlock * basicBlock = manager.getBasicBlock(llvmBasicBlock);
-	llvm::Value * llvmValue = phi->getIncomingValue(idx);
-	Value * value = factory->getValue(llvmValue);
-
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
-			basicBlock->getManager(),
-			&basicBlock->getAbstractValue());
-	std::list<ap_tcons1_t> constraints;
-	size_t arraySize = ap_tcons1_array_size(&array);
-	for (int idx = 0; idx < arraySize; idx++) {
-		ap_tcons1_t constraint = ap_tcons1_array_get(&array, idx);
-		constraints.push_back(constraint);
-	}
-	ap_tcons1_t setValueTCons = getSetValueTcons(
-			getBasicBlock(), value);
-	constraints.push_back(setValueTCons);
-	return getBasicBlock()->abstractOfTconsList(constraints);
-}
-
-void PhiValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
-	/* The plan:
-	 * for each pair basicBlock, value in phi operands:
-	 * 	myValue <- abstract(me == value, constraints from basicBlock)
-	 * new value <- join over all myValue
-	 */
-	llvm::PHINode * phi = &llvm::cast<llvm::PHINode>(*m_value);
-	int count = phi->getNumIncomingValues();
-	// NOTE Change to alloca if you don't like variable sized arrays
-	ap_abstract1_t abstractValues[count];
-	for (int idx = 0; idx < count; idx++) {
-		abstractValues[idx] = getAbstractValueWithSet(idx);
-	}
-	for (int idx = 0; idx < count; idx++) {
-		abstractValues[idx] = ap_abstract1_change_environment(
-				getBasicBlock()->getManager(),
-				false,
-				&abstractValues[idx],
-				getBasicBlock()->getEnvironment(),
-				false);
-	}
-	ap_abstract1_t joinedValue = ap_abstract1_join_array(
-			getBasicBlock()->getManager(), abstractValues, count);
-
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
-			getBasicBlock()->getManager(), &joinedValue);
-	size_t arraySize = ap_tcons1_array_size(&array);
-	for (int idx = 0; idx < arraySize; idx++) {
-		ap_tcons1_t constraint = ap_tcons1_array_get(&array, idx);
-		constraints.push_back(constraint);
-	}
+	return true;
 }
 
 class SelectValueInstruction : public InstructionValue {
@@ -1266,14 +1213,8 @@ ap_texpr1_t * CastOperationValue::createRHSTreeExpression() {
 	return value->createTreeExpression(getBasicBlock());
 }
 
-class BranchInstructionValue : public InstructionValue {
+class BranchInstructionValue : public TerminatorInstructionValue {
 protected:
-	virtual void populateTreeConstraintsConditional(
-		std::list<ap_tcons1_t> & constraints,
-		llvm::BranchInst * branchInst);
-	virtual void populateTreeConstraintsUnconditional(
-		std::list<ap_tcons1_t> & constraints,
-		llvm::BranchInst * branchInst);
 	virtual Value * getCondition();
 	virtual ap_tcons1_t getConditionTcons(constraint_condition_t consCond);
 	virtual ap_tcons1_t getConditionTrueTcons();
@@ -1282,15 +1223,63 @@ protected:
 			constraint_condition_t consCond);
 	virtual bool isConstraintConditionToAPNeedsReverse(
 			constraint_condition_t consCond);
+	virtual ap_tcons1_array_t getBBConstraintsConditional(
+			BasicBlock * basicBlock, llvm::BranchInst * branchInst);
+	virtual ap_tcons1_array_t getBBConstraintsUnconditional(
+			BasicBlock * basicBlock, llvm::BranchInst * branchInst);
 public:
-	BranchInstructionValue(llvm::Value * value) : InstructionValue(value) {}
-	virtual bool isSkip();
-	virtual void populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints);
+	BranchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
+	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
 };
 
-bool BranchInstructionValue::isSkip() {
-	return false;
+ap_tcons1_array_t BranchInstructionValue::getBasicBlockConstraints(
+		BasicBlock * basicBlock) {
+	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
+	if (branchInst->isConditional()) {
+		return getBBConstraintsConditional(basicBlock, branchInst);
+	} else {
+		return getBBConstraintsUnconditional(basicBlock, branchInst);
+	}
+}
+
+ap_tcons1_array_t BranchInstructionValue::getBBConstraintsConditional(
+		BasicBlock* basicBlock, llvm::BranchInst * branchInst) {
+	BasicBlockManager & manager = BasicBlockManager::getInstance();
+	ap_environment_t * environment = 0;
+
+	llvm::BasicBlock * llvmTrueSuccessor = branchInst->getSuccessor(0);
+	BasicBlock * trueSuccessor = manager.getBasicBlock(llvmTrueSuccessor);
+	if (basicBlock == trueSuccessor) {
+		ap_tcons1_t conditionTrue = getConditionTrueTcons();
+		environment = getBasicBlock()->getEnvironment();
+		ap_tcons1_array_t trueConstraints = ap_tcons1_array_make(environment, 1);
+		ap_tcons1_array_set(&trueConstraints, 0, &conditionTrue);
+		return trueConstraints;
+	}
+
+	// TODO(oanson) Repeated code?
+	llvm::BasicBlock * llvmFalseSuccessor = branchInst->getSuccessor(1);
+	BasicBlock * falseSuccessor = manager.getBasicBlock(llvmFalseSuccessor);
+	if (basicBlock == falseSuccessor) {
+		ap_tcons1_t conditionFalse = getConditionFalseTcons();
+		environment = getBasicBlock()->getEnvironment();
+		ap_tcons1_array_t falseConstraints = ap_tcons1_array_make(environment, 1);
+		ap_tcons1_array_set(&falseConstraints, 0, &conditionFalse);
+		return falseConstraints;
+	}
+	llvm::errs() << "Warning: Given basic block is not a successor\n";
+	return TerminatorInstructionValue::getBasicBlockConstraints(basicBlock);
+}
+
+ap_tcons1_array_t BranchInstructionValue::getBBConstraintsUnconditional(
+		BasicBlock* basicBlock, llvm::BranchInst * branchInst) {
+	llvm::BasicBlock * singleSuccessor = branchInst->getSuccessor(0);
+	BasicBlockManager & manager = BasicBlockManager::getInstance();
+	BasicBlock * succBasicBlock = manager.getBasicBlock(singleSuccessor);
+	if (basicBlock != succBasicBlock) {
+		llvm::errs() << "Warning: Given basic block is not a successor\n";
+	}
+	return TerminatorInstructionValue::getBasicBlockConstraints(basicBlock);
 }
 
 // TODO(oanson) Code copied from SelectValueInstruction
@@ -1299,11 +1288,6 @@ Value * BranchInstructionValue::getCondition() {
 	ValueFactory * factory = ValueFactory::getInstance();
 	llvm::Value * condition = branchInst->getCondition();
 	Value * result = factory->getValue(condition);
-	if (!result) {
-		//condition->print(llvm::errs());
-	} else {
-		//llvm::errs() << "Condition: " << result->toString() << "\n";
-	}
 	return result;
 }
 
@@ -1325,10 +1309,13 @@ ap_constyp_t BranchInstructionValue::constraintConditionToAPConsType(
 	case cons_cond_le:
 		return AP_CONS_SUPEQ;
 	case cons_cond_true:
+		llvm::errs() << "BranchInstructionValue::constraintConditionToAPConsType: Constant condition true\n";
 		abort();
 	case cons_cond_false:
+		llvm::errs() << "BranchInstructionValue::constraintConditionToAPConsType: Constant condition false\n";
 		abort();
 	default:
+		llvm::errs() << "BranchInstructionValue::constraintConditionToAPConsType: Constant condition unknown: " << consCond << "\n";
 		abort();
 	}
 }
@@ -1382,69 +1369,6 @@ ap_tcons1_t BranchInstructionValue::getConditionFalseTcons() {
 	Value * condition = getCondition();
 	CompareValue * compareValue = static_cast<CompareValue*>(condition);
 	return getConditionTcons(compareValue->getNegatedConditionType());
-}
-
-void BranchInstructionValue::populateTreeConstraintsConditional(
-		std::list<ap_tcons1_t> & constraints,
-		llvm::BranchInst * branchInst) {
-	llvm::BasicBlock * trueSuccessor = branchInst->getSuccessor(0);
-	llvm::BasicBlock * falseSuccessor = branchInst->getSuccessor(1);
-
-	std::list<ap_tcons1_t> constraintsTrue = constraints;
-	std::list<ap_tcons1_t> constraintsFalse = constraints;
-	ap_tcons1_t conditionTrue = getConditionTrueTcons();
-	ap_tcons1_t conditionFalse = getConditionFalseTcons();
-	constraintsTrue.push_back(conditionTrue);
-	constraintsFalse.push_back(conditionFalse);
-
-	BasicBlock * basicBlock = getBasicBlock();
-	ap_abstract1_t abstValueTrue =
-			basicBlock->abstractOfTconsList(constraintsTrue);
-	ap_abstract1_t abstValueFalse =
-			basicBlock->abstractOfTconsList(constraintsFalse);
-
-	BasicBlockManager & manager = BasicBlockManager::getInstance();
-	BasicBlock * trueSuccBB = manager.getBasicBlock(trueSuccessor);
-	BasicBlock * falseSuccBB = manager.getBasicBlock(falseSuccessor);
-	if (trueSuccBB->join(abstValueTrue)) {
-		trueSuccBB->setChanged();
-	}
-	if (falseSuccBB->join(abstValueFalse)) {
-		falseSuccBB->setChanged();
-	}
-}
-
-void BranchInstructionValue::populateTreeConstraintsUnconditional(
-		std::list<ap_tcons1_t> & constraints,
-		llvm::BranchInst * branchInst) {
-	llvm::BasicBlock * singleSuccessor = branchInst->getSuccessor(0);
-	BasicBlockManager & manager = BasicBlockManager::getInstance();
-	BasicBlock * succBasicBlock = manager.getBasicBlock(singleSuccessor);
-	BasicBlock * basicBlock = getBasicBlock();
-	ap_abstract1_t abst_value = basicBlock->abstractOfTconsList(
-			constraints);
-	if (succBasicBlock->unify(abst_value)) {
-		succBasicBlock->setChanged();
-	}
-}
-
-void BranchInstructionValue::populateTreeConstraints(
-		std::list<ap_tcons1_t> & constraints) {
-	// In this case, we have a condition, and two basic blocks we jump two
-	// constraint <- getConstraint
-	// notConstraint <- getNotConstraint
-	// abst1 <- getAbst(constraint)
-	// abst2 <- getAbst(notConstraint)
-	// basicBlock1.join(abst1)
-	// basicBlock2.join(abst2)
-	// IF not conditional, just join into basicBlock1, add it to the list,
-	// 	and return
-	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
-	if (branchInst->isConditional()) {
-		return populateTreeConstraintsConditional(constraints, branchInst);
-	} else {
-		return populateTreeConstraintsUnconditional(constraints, branchInst);
-	}
 }
 
 Value::Value(llvm::Value * value) : m_value(value),

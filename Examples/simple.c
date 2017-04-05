@@ -94,8 +94,10 @@ int f6(int y) {
 
 int f7 (int y) {
 	if (y > 30) {
-		return 30;
+		h(y);
+		y = 30;
 	}
+	g(y);
 	return y;
 }
 
