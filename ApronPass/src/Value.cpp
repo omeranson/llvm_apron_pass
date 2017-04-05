@@ -393,33 +393,37 @@ public:
     /**************************/
     /* OREN ISH SHALOM added: */
     /**************************/
-    virtual ap_texpr1_t *createRHSTreeExpression(); 
+    virtual ap_texpr1_t *createRHSTreeExpression();
 };
 
 ap_texpr1_t *CallValue::createRHSTreeExpression()
 {
     int inf_value = 0;
     int sup_value = 0;
-    
+
     std::string abs_path_filename;
     llvm::raw_string_ostream abs_path_filename_builder(abs_path_filename);
-    abs_path_filename_builder << "/tmp/llvm_apron_pass/" << getCalledFunctionName() << ".txt";
+    std::string funcname = getCalledFunctionName();
+    abs_path_filename_builder << "/tmp/llvm_apron_pass/" << funcname << ".txt";
 
 #   define MAX_SUMMARY_LENGTH 100
     char summary[MAX_SUMMARY_LENGTH]={0};
     FILE *fl = fopen(abs_path_filename_builder.str().c_str(),"rt");
-    assert(fl && "Missing Procedure Summary");
-    fscanf(fl,"%s",summary);
-    llvm::errs() << "FROM " << summary << " SUMMARY: " << "[";
-    fscanf(fl,"%s",summary);
-    // llvm::errs() << "THIS SHOULD BE = AND IT IS " << summary << '\n';
-    fscanf(fl,"%s",summary);
-    // llvm::errs() << "THIS SHOULD BE [ AND IT IS " << summary << '\n';
-    fscanf(fl,"%d",&inf_value);
-    fscanf(fl,"%d",&sup_value);
-	llvm::errs() << inf_value << "," << sup_value << "]" << '\n'; 
-    fclose(fl);
-
+    if (fl) {
+        assert(fl && "Missing Procedure Summary");
+        fscanf(fl,"%s",summary);
+        llvm::errs() << "FROM " << summary << " SUMMARY: " << "[";
+        fscanf(fl,"%s",summary);
+        // llvm::errs() << "THIS SHOULD BE = AND IT IS " << summary << '\n';
+        fscanf(fl,"%s",summary);
+        // llvm::errs() << "THIS SHOULD BE [ AND IT IS " << summary << '\n';
+        fscanf(fl,"%d",&inf_value);
+        fscanf(fl,"%d",&sup_value);
+            llvm::errs() << inf_value << "," << sup_value << "]" << '\n';
+        fclose(fl);
+    } else {
+        llvm::errs() << "Couldn't open summary for " << funcname << "\n";
+    }
 	ap_texpr1_t *inf =
 	    ap_texpr1_cst_scalar_int(
 	        getBasicBlock()->getEnvironment(),

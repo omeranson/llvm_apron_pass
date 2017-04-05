@@ -133,7 +133,7 @@ namespace
 				}
 			}
 		}
-		
+
 		void print() {
 			//llvm::errs() << "Apron: Library " <<
 					//BasicBlockManager::getInstance().m_manager->library <<
@@ -262,8 +262,11 @@ namespace
 				{
 			        if (F->getName().equals("main"))
 			        {
-				        return false; /* Skip */
+				        continue;
 			        }
+				if (F->isDeclaration()) {
+					continue;
+				}
 
                     /****************************************************************/
                     /* OREN ISH SHALOM: From here downward, lots of F. to F-> stuff */
@@ -311,7 +314,7 @@ namespace
                     std::string abs_path_filename;
                     llvm::raw_string_ostream abs_path_filename_builder(abs_path_filename);
                     abs_path_filename_builder << "/tmp/llvm_apron_pass/" << F->getName() << ".txt";
-                    
+
 	                /*********************************************************/
 	                /* OREN ISH SHALOM: Write in the human readable format:  */
 	                /*                                                       */
@@ -324,7 +327,7 @@ namespace
 		    llvm::raw_fd_ostream fl(abs_path_filename_builder.str().c_str(), EC);
 		    fl << F->getName() << " = [ " << *interval->inf << " " << *interval->sup << " ]\n";
 		    fl.close();
-                    
+
 	                /*************************************************************************/
 	                /* OREN ISH SHALOM: Keep Omer's original printing -- He's a nice guy :)) */
 	                /*************************************************************************/
