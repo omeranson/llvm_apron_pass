@@ -113,19 +113,19 @@ void AbstractState::updateUserOperationAbstract1() {
 bool AbstractState::joinMayPointsTo(std::map<std::string, may_points_to_t > mpts){
 	bool isChanged = false;
 	for (auto & mpt : mpts) {
-		std::string alias = mpt.first;
-		may_points_to_t & other_pointers = mpt.second;
-		may_points_to_t & my_pointers = may_points_to[alias];
-		if (my_pointers == other_pointers) {
-			continue;
-		}
+		//std::string alias = mpt.first;
+		//may_points_to_t & other_pointers = mpt.second;
+		//may_points_to_t & my_pointers = may_points_to[alias];
+		//if (my_pointers == other_pointers) {
+		//	continue;
+		//}
 		isChanged = true;
-		for (auto & pointer : other_pointers) {
-			std::string ptrName = pointer.first;
-			std::set<llvm::Value *> & offsets = pointer.second;
-			my_pointers[ptrName].insert(
-					offsets.begin(), offsets.end());
-		}
+		//for (auto & pointer : other_pointers) {
+		//	std::string ptrName = pointer.first;
+		//	std::set<llvm::Value *> & offsets = pointer.second;
+		//	my_pointers[ptrName].insert(
+		//			offsets.begin(), offsets.end());
+		//}
 	}
 	return isChanged;
 }
@@ -146,7 +146,7 @@ bool AbstractState::join(AbstractState & as) {
 	// Join 'May' reference
 	//typedef std::map<std::string, std::set<llvm::Value *> > may_points_to_t;
 	//std::map<std::string, may_points_to_t > may_points_to;
-	joinMayPointsTo(as.may_points_to);
+	//joinMayPointsTo(as.may_points_to);
 	// Join (Apron) analysis of integers
 	// TODO(oanson) TBD
 	// Join (Apron) analysis of (user) read/write/last0 pointers
@@ -207,9 +207,9 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, AbstractState & as) {
 		ro << "'" << mpt.first << "':{";
 		for (auto & userPtrs : mpt.second) {
 			ro << "'" << userPtrs.first << "':{";
-			for (auto & offset : userPtrs.second) {
-				ro << *offset << ",";
-			}
+			//for (auto & offset : userPtrs.second) {
+			//	ro << *offset << ",";
+			//}
 			ro << "},";
 		}
 		ro << "},";

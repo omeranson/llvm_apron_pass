@@ -77,10 +77,86 @@ public:
 	StoreValue(llvm::Value * value) : NopInstructionValue(value) {}
 };
 
-class GetElementPtrValue : public NopInstructionValue {
+class GepValue : public InstructionValue {
 public:
-	GetElementPtrValue(llvm::Value * value) : NopInstructionValue(value) {}
+	// serial number
+	static int serial_number;
+
+	// dest = src + length, or dest = src + 5;
+	std::string dest_var_name;
+	std::string src_var_name;
+
+	// offset
+	std::string offset_kind;
+	std::string offset_var;
+	int offset_const;
+	
+public:
+	GepValue (llvm::Value * value)
+		:InstructionValue(value)
+	{
+		uint64_t Idx;
+		serial_number++;
+		llvm::GetElementPtrInst *gepInstruction = (llvm::GetElementPtrInst *) value;
+
+		llvm::errs() << "******************************" << '\n';
+		llvm::errs() << "* PROCESSING GEP INSTRUCTION *" << '\n';
+		llvm::errs() << "******************************" << '\n';
+		llvm::errs() << "NAME    = " << gepInstruction->getName() << '\n';
+		llvm::errs() << "POINTER = " << gepInstruction->getPointerOperand()->getName() << '\n';
+		if (llvm::ConstantInt *CI = llvm::dyn_cast<llvm::ConstantInt>(gepInstruction->getOperand(1)))
+		{
+    		Idx = CI->getZExtValue();
+			llvm::errs() << "OFFSET  = " << Idx << '\n';
+			offset_const = Idx;
+			offset_kind = "CONST";
+		}
+		else
+		{
+			llvm::errs() << "OFFSET  = " << gepInstruction->getOperand(1)->getName() << '\n';
+			offset_var = gepInstruction->getOperand(1)->getName();
+			offset_kind = "VAR";
+		}
+	}
+	virtual std::string getValueString(){return "p";}
+	virtual bool isSkip(){return false;}
+	
+    /**************************/
+    /* OREN ISH SHALOM added: */
+    /**************************/
+    virtual void populateTreeConstraints(std::list<ap_tcons1_t> & constraints)
+    {
+    	if (offset_kind == "CONST")
+    	{
+    		getBasicBlock()->getAbstractState().may_points_to[dest_var_name] = 
+    		getBasicBlock()->getAbstractState().may_points_to[src_var_name];
+    		
+    		auto begin = getBasicBlock()->getAbstractState().may_points_to[dest_var_name].begin();
+    		auto end = getBasicBlock()->getAbstractState().may_points_to[dest_var_name].end();
+    		auto it = begin;
+    		
+    		for (auto it = begin; it != end;it++)
+    		{
+    			char *temp;
+    			temp = (char *) malloc(100);
+    			memset(temp,0,100);
+    			int buf_serial_number = atoi((it->first).c_str() + strlen("buf"));
+    			sprintf(temp, "GEP_OFFSET_%d_BUF_%d",serial_number,buf_serial_number);
+    			// it->second = temp;
+    			
+    			// add apron constraint:
+    			// temp == offset_const;
+    		}
+    	}
+    }
+
+    /**************************/
+    /* OREN ISH SHALOM added: */
+    /**************************/
+    virtual ap_texpr1_t *createRHSTreeExpression(){return 0;}
 };
+
+int GepValue::serial_number = 0;
 
 class VariableValue : public Value {
 public:
@@ -643,7 +719,7 @@ void CallValue::populateMPT() {
 	llvm::Value * llvmsrc = callinst->getArgOperand(0);
 	llvm::Value * llvmdest = callinst->getArgOperand(1);
 	llvm::Value * llvmoffset = callinst->getArgOperand(2);
-	abstractState.may_points_to[llvmsrc->getName().str()][llvmdest->getName().str()].insert(llvmoffset);
+	// abstractState.may_points_to[llvmsrc->getName().str()][llvmdest->getName().str()].insert(llvmoffset);
 }
 
 void CallValue::populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints) {
@@ -652,7 +728,9 @@ void CallValue::populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & cons
 
 void CallValue::populateTreeConstraintsForUserMemoryOperation(
 		std::string & ptr, ap_texpr1_t * size,
-		user_pointer_operation_e op) {
+		user_pointer_operation_e op)
+{
+#if 0
 	BasicBlock * bb = getBasicBlock();
 	ValueFactory * valueFactory = ValueFactory::getInstance();
 	AbstractState & abstractState = bb->getAbstractState();
@@ -671,6 +749,7 @@ void CallValue::populateTreeConstraintsForUserMemoryOperation(
 			abstractState.memoryAccessAbstractValues.push_back(maav);
 		}
 	}
+#endif	
 }
 
 void CallValue::populateTreeConstraintsForUserMemoryOperation(
@@ -1576,7 +1655,7 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	case llvm::BinaryOperator::Store:
 		return new StoreValue(instruction);
 	case llvm::BinaryOperator::GetElementPtr:
-		return new GetElementPtrValue(instruction);
+		return new GepValue(instruction);
 
 	// Convert instructions...
 	case llvm::BinaryOperator::Trunc:

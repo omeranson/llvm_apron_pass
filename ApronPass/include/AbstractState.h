@@ -43,15 +43,56 @@ public:
  */
 class AbstractState {
 public:
-	typedef std::map<std::string, std::set<llvm::Value *> > may_points_to_t;
+	/*******************************************************************/
+	/* OREN ISH SHALOM edited: let us use this code for reference      */
+	/*                                                                 */
+	/* int f9(__user char *buf1, __user char *buf2, int size)          */
+	/* {                                                               */
+	/*     char *p = NULL;                                             */
+	/*     if (size > 32)                                              */
+	/*     {                                                           */
+	/*         p = buf1 + 3; // this is (*)                            */
+	/*     }                                                           */
+	/*     else                                                        */
+	/*     {                                                           */
+	/*         p = buf2; // and this is (**)                           */
+	/*     }                                                           */
+	/* }                                                               */
+	/*******************************************************************/
+	/*******************************************************************/
+	/* OREN ISH SHALOM edited:                                         */
+	/* --------------------------------------------------------------- */
+	/* the pointer p in line (*) is updated with                       */
+	/*                                                                 */
+	/* map[p] = {pair(buf1,OFFSET_LINE(*)_BUF1)}                       */
+	/*                                                                 */
+	/* --------------------------------------------------------------- */
+	/*                                                                 */
+	/* the pointer p in line (**) is updated with                      */
+	/*                                                                 */
+	/* map[p] = {pair(buf2,OFFSET_LINE(**)_BUF2)}                      */
+	/*                                                                 */
+	/* --------------------------------------------------------------- */
+	/*                                                                 */
+	/* the join between (*) and (**) should then be:                   */
+	/*                                                                 */
+	/* map[p] = {pair(buf1,OFFSET_LINE(*)_BUF1),                       */
+	/*           pair(buf2,OFFSET_LINE(**)_BUF2)}                      */
+	/*                                                                 */
+	/*******************************************************************/
+	typedef std::string var_name_type;
+	typedef char * offset_name_type;
+	typedef std::map<var_name_type, std::set<std::pair<var_name_type,offset_name_type> > > may_points_to_t;
 protected:
 	static std::map<std::string, std::string> g_userPointerNames[user_pointer_operation_count];
 	bool joinMayPointsTo(std::map<std::string, may_points_to_t > mpts);
 	bool joinAbstract1(ap_abstract1_t * abstract1);
 public:
 	AbstractState();
+
 	// May alias information
-	std::map<std::string, may_points_to_t > may_points_to;
+	may_points_to_t may_points_to;
+	
 	// (Apron) analysis of integers
 	// TODO(oanson) TBD
 	// (Apron) analysis of (user) read/write/last0 pointers
