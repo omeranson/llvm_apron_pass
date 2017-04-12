@@ -11,6 +11,11 @@ int f9(char *buf1, char *buf2, int size, int length)
 	{
 		p = buf2 + length;
 	}
+
+	if (length <= 60)
+	{
+		p = buf1 + size;
+	}
 	
 	while (size > 0)
 	{

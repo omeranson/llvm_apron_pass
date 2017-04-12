@@ -110,27 +110,93 @@ void AbstractState::updateUserOperationAbstract1() {
 	}
 }
 
-bool AbstractState::joinMayPointsTo(std::map<std::string, may_points_to_t > mpts){
+bool AbstractState::joinMayPointsTo(may_points_to_t &otherMayPointsTo)
+{
 	bool isChanged = false;
-	for (auto & mpt : mpts) {
-		//std::string alias = mpt.first;
-		//may_points_to_t & other_pointers = mpt.second;
-		//may_points_to_t & my_pointers = may_points_to[alias];
-		//if (my_pointers == other_pointers) {
-		//	continue;
-		//}
-		isChanged = true;
-		//for (auto & pointer : other_pointers) {
-		//	std::string ptrName = pointer.first;
-		//	std::set<llvm::Value *> & offsets = pointer.second;
-		//	my_pointers[ptrName].insert(
-		//			offsets.begin(), offsets.end());
-		//}
+	
+	/***************************************************/
+	/* OREN ISH SHALOM: just numbered what we're doing */
+	/***************************************************/
+	/***************************************/
+	/* OREN ISH SHALOM:                    */
+	/* Iterate over otherMayPointsTo       */
+	/*                                     */
+	/* REMINDER:                           */
+	/*                                     */
+	/* map[p] =                            */
+	/* {                                   */
+	/*     pair(buf1,OFFSET_LINE(*)_BUF1), */
+	/*     pair(buf2,OFFSET_LINE(**)_BUF2) */
+	/* }                                   */
+	/*                                     */
+	/***************************************/
+	for (auto &allPointersIterator:otherMayPointsTo)
+	{
+		/************************/
+		/* [1] pointer name ... */ 
+		/************************/
+		std::string name = allPointersIterator.first;
+		
+		/***************************************************/
+		/* [2] name does not appear in this->m_MayPointsTo */ 
+		/***************************************************/
+		/***************************************************/
+		/* This could happen for example in the join of    */ 
+		/* line 6                                          */ 
+		/*                                                 */ 
+		/* LINE 0: int f9(char *buf1) {                    */ 
+		/* LINE 1: char *p;                                */
+		/* LINE 2: if (?)                                  */
+		/* LINE 3: {                                       */ 
+		/* LINE 4:     p = buf1 + 3;                       */ 
+		/* LINE 5: }                                       */ 
+		/* LINE 6: ...                                     */ 
+		/*                                                 */ 
+		/***************************************************/
+		if (m_mayPointsTo[name].size() == 0)
+		{
+			isChanged = true;
+			m_mayPointsTo[name] = allPointersIterator.second;
+		}
+		else
+		{
+			for (auto &allUserBufferPointersIterator:allPointersIterator.second)
+			{
+				/************************************************************/
+				/* [2] extract the set of pairs <bufi, OFFSET_LINE(*)_BUFi> */ 
+				/************************************************************/
+				std::string userBuffer = allUserBufferPointersIterator.first;
+				
+				/********************************************/
+				/* [3] extract all pairs <BUFi,OFFSET_BUFi> */ 
+				/********************************************/
+				int found_user_buffer = 0;
+				for (auto it:m_mayPointsTo[name])
+				{
+					if (it.first == userBuffer)
+					{
+						found_user_buffer=1;
+						it.second = "TOP";
+					}
+				}
+				
+				if (found_user_buffer == 0)
+				{
+					isChanged = true;
+					// m_mayPointsTo[name].push_back(pair(userBuffer,allUserBufferPointersIterator.second));
+				}
+				else
+				{
+					// ???
+				}
+			}
+		}
 	}
 	return isChanged;
 }
 
-bool AbstractState::joinAbstract1(ap_abstract1_t * abstract1) {
+bool AbstractState::joinAbstract1(ap_abstract1_t * abstract1)
+{
 	ap_manager_t * manager = getManager();
 	ap_abstract1_t prev = m_abstract1;
 	m_abstract1 = join(&m_abstract1, abstract1);
@@ -141,16 +207,33 @@ bool AbstractState::joinAbstract1(ap_abstract1_t * abstract1) {
 	return isChanged;
 }
 
-bool AbstractState::join(AbstractState & as) {
+bool AbstractState::join(AbstractState &other)
+{
 	bool isChanged = false;
 	// Join 'May' reference
+	/********************************************************/
+	/* OREN ISH SHALOM remarks: I'm removing this duplicate */
+	/* typedef and force everyone to use the type already   */
+	/* defined in AbstractState.h                           */
+	/********************************************************/
 	//typedef std::map<std::string, std::set<llvm::Value *> > may_points_to_t;
+
+	/********************************************************/
+	/* OREN ISH SHALOM remarks: I'm removing this temporary */
+	/* local variable and join in place with this           */
+	/********************************************************/
 	//std::map<std::string, may_points_to_t > may_points_to;
+
+	/********************************************************/
+	/* OREN ISH SHALOM remarks: I'm removing this duplicate */
+	/* typedef and force everyone to use the type already   */
+	/* defined in AbstractState.h                           */
+	/********************************************************/
 	//joinMayPointsTo(as.may_points_to);
 	// Join (Apron) analysis of integers
 	// TODO(oanson) TBD
 	// Join (Apron) analysis of (user) read/write/last0 pointers
-	isChanged = joinAbstract1(&as.m_abstract1) | isChanged;
+	isChanged = joinAbstract1(&other.m_abstract1) | isChanged;
 	char * buffer;
 	size_t size;
 	FILE * bufferfp = open_memstream(&buffer, &size);
@@ -203,7 +286,7 @@ ap_abstract1_t AbstractState::join(std::vector<ap_abstract1_t> & a_values) {
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, AbstractState & as) {
 	ro << "{'mpt':{";
-	for (auto & mpt : as.may_points_to) {
+	for (auto & mpt : as.m_mayPointsTo) {
 		ro << "'" << mpt.first << "':{";
 		for (auto & userPtrs : mpt.second) {
 			ro << "'" << userPtrs.first << "':{";

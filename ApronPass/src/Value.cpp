@@ -128,11 +128,11 @@ public:
     {
     	if (offset_kind == "CONST")
     	{
-    		getBasicBlock()->getAbstractState().may_points_to[dest_var_name] = 
-    		getBasicBlock()->getAbstractState().may_points_to[src_var_name];
+    		getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name] = 
+    		getBasicBlock()->getAbstractState().m_mayPointsTo[src_var_name];
     		
-    		auto begin = getBasicBlock()->getAbstractState().may_points_to[dest_var_name].begin();
-    		auto end = getBasicBlock()->getAbstractState().may_points_to[dest_var_name].end();
+    		auto begin = getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name].begin();
+    		auto end = getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name].end();
     		auto it = begin;
     		
     		for (auto it = begin; it != end;it++)
@@ -147,6 +147,28 @@ public:
     			// add apron constraint:
     			// temp == offset_const;
     		}
+    	}
+    	if (offset_kind == "VAR")
+    	{
+    		getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name] = 
+    		getBasicBlock()->getAbstractState().m_mayPointsTo[src_var_name];
+    		
+    		auto begin = getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name].begin();
+    		auto end = getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name].end();
+    		auto it = begin;
+    		
+    		for (auto it = begin; it != end;it++)
+    		{
+    			char *temp;
+    			temp = (char *) malloc(100);
+    			memset(temp,0,100);
+    			int buf_serial_number = atoi((it->first).c_str() + strlen("buf"));
+    			sprintf(temp, "GEP_OFFSET_%d_BUF_%d",serial_number,buf_serial_number);
+    			// it->second = temp;
+    			
+    			// add apron constraint:
+    			// temp == offset_const;
+    		}    		
     	}
     }
 

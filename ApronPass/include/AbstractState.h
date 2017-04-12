@@ -81,23 +81,56 @@ public:
 	/*                                                                 */
 	/*******************************************************************/
 	typedef std::string var_name_type;
-	typedef char * offset_name_type;
+	typedef char *offset_name_type;
 	typedef std::map<var_name_type, std::set<std::pair<var_name_type,offset_name_type> > > may_points_to_t;
+	
 protected:
+
 	static std::map<std::string, std::string> g_userPointerNames[user_pointer_operation_count];
-	bool joinMayPointsTo(std::map<std::string, may_points_to_t > mpts);
+
+	/*************************************************/
+	/* OREN ISH SHALOM remarks:                      */
+	/* our abstract state is made of a cartesian     */
+	/* product of 2 abstract states:                 */
+	/*                                               */
+	/* [1] A May-Points-To entity                    */
+	/* [2] An Apron entity                           */
+	/*                                               */
+	/* The join is done by simply applying the two   */
+	/* relevant joins:                               */
+	/*                                               */
+	/* this->join(AbstractState *that)               */
+	/* {                                             */
+	/*     this->joinMayPointsTo(that->mayPointsTo); */
+	/*     this->joinApron(      that->apronStuff);  */
+	/* }                                             */
+	/*                                               */
+	/*************************************************/
+	bool joinMayPointsTo(may_points_to_t &otherMayPointsTo);
 	bool joinAbstract1(ap_abstract1_t * abstract1);
+
 public:
+
 	AbstractState();
 
-	// May alias information
-	may_points_to_t may_points_to;
+	/************************************************/
+	/* OREN ISH SHALOM remarks:                     */
+	/* I've changed this name to be more consistent */
+	/* with its Apron counterpart                   */
+	/************************************************/
+	may_points_to_t m_mayPointsTo;
 	
+	/************************************************/
+	/* OREN ISH SHALOM remarks:                     */
+	/* I've changed this name to be more consistent */
+	/* with its Apron counterpart                   */
+	/************************************************/
+	ap_abstract1_t m_abstract1;
+
 	// (Apron) analysis of integers
 	// TODO(oanson) TBD
 	// (Apron) analysis of (user) read/write/last0 pointers
 	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
-	ap_abstract1_t m_abstract1;
 
 	std::string & getUserPointerName(std::string & userPtr, user_pointer_operation_e op);
 	ap_manager_t * getManager() const;
