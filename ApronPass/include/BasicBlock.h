@@ -93,10 +93,13 @@ public:
 	virtual void setEnvironment(ap_environment_t * nenv);
 	virtual void extendEnvironment(Value * value);
 	virtual void extendEnvironment(const std::string & varname);
-	virtual ap_texpr1_t * getVariableTExpr(Value * value);
+	virtual void extendEnvironment(const char * varname);
 	virtual ap_interval_t * getVariableInterval(Value * value);
 	virtual ap_interval_t * getVariableInterval(const std::string & value);
-	virtual ap_texpr1_t* getVariableTExpr(const std::string & value);
+	virtual ap_interval_t * getVariableInterval(const char * value);
+	virtual ap_texpr1_t * getVariableTExpr(Value * value);
+	virtual ap_texpr1_t * getVariableTExpr(const std::string & value);
+	virtual ap_texpr1_t * getVariableTExpr(const char * value);
 	virtual ap_texpr1_t* getConstantTExpr(unsigned);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
