@@ -209,6 +209,26 @@ bool BasicBlock::joinInAbstract1(ap_abstract1_t & abst_value) {
 	return is_eq(prev);
 }
 
+void BasicBlock::addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
+		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName) {
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+
+	ap_texpr1_t * var_texpr = createUserPointerOffsetTreeExpression(
+			dest, pointerName);
+	ap_environment_t * environment = getEnvironment();
+	ap_texpr1_extend_environment_with(value_texpr, environment);
+	ap_texpr1_extend_environment_with(var_texpr, environment);
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_SUB, value_texpr, var_texpr,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t result = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
+	constraints.push_back(result);
+	llvm::errs() << "BasicBlock::addOffsetConstraint: Adding: ";
+	streamTCons1(llvm::errs(), result);
+	llvm::errs() << "\n";
+}
+
 ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock) {
 	ap_tcons1_array_t tconstraints_array = basicBlock.getBasicBlockConstraints(this);
 	llvm::BasicBlock * llvmBB = getLLVMBasicBlock();
@@ -216,6 +236,8 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 	std::vector<ap_tcons1_t> tconstraints;
 	std::vector<ap_environment_t*> envs;
 	for (auto iit = llvmBB->begin(), iie = llvmBB->end(); iit != iie; iit++) {
+		// XXX(oanson) There is a mish-mash of GepValue code and BasicBlock code here.
+		// Including but not limited to a lot of repeated code
 		llvm::PHINode * phi = llvm::dyn_cast<llvm::PHINode>(iit);
 		if (!phi) {
 			continue;
@@ -224,9 +246,34 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 		llvm::Value * incoming = phi->getIncomingValueForBlock(
 				basicBlock.getLLVMBasicBlock());
 		Value * incomingValue = factory->getValue(incoming);
-		ap_tcons1_t tcons = getSetValueTcons(phiValue, incomingValue);
-		tconstraints.push_back(tcons);
-		envs.push_back(ap_tcons1_envref(&tcons));
+		if (!phi->getType()->isPointerTy()) {
+			ap_tcons1_t tcons = getSetValueTcons(phiValue, incomingValue);
+			tconstraints.push_back(tcons);
+			envs.push_back(ap_tcons1_envref(&tcons));
+		} else {
+			// XXX(oanson) So basically this is the same as in GepValue
+			std::string & incomingValueName = incomingValue->getName();
+			if (llvm::isa<llvm::Argument>(incoming)) {
+				if (getFunction()->isUserPointer(incomingValueName)) {
+					const std::string & generatedName = generateOffsetName(phiValue, incomingValueName);
+					ap_texpr1_t * value_texpr = ap_texpr1_cst_scalar_int(
+							getEnvironment(), 0);
+					addOffsetConstraint(tconstraints, value_texpr,
+							phiValue, incomingValueName);
+				}
+			} else {
+				AbstractState & otherAS = basicBlock.getAbstractState();
+				AbstractState::user_pointer_offsets_type & userPtrOffsets = otherAS.m_mayPointsTo[incomingValueName];
+				for (auto & offsets : userPtrOffsets) {
+					const AbstractState::var_name_type & srcPtrName = offsets.first;
+					for (auto & offset : offsets.second) {
+						ap_texpr1_t * value_texpr = getVariableTExpr(offset);
+						addOffsetConstraint(tconstraints, value_texpr,
+								phiValue, srcPtrName);
+					}
+				}
+			}
+		}
 	}
 	unsigned oldsize = ap_tcons1_array_size(&tconstraints_array);
 	unsigned size = tconstraints.size();
@@ -262,10 +309,63 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 	return other;
 }
 
+const std::string & BasicBlock::generateOffsetName(Value * value, const std::string & bufname) {
+	static std::set<std::string> names;
+	std::string s;
+	llvm::raw_string_ostream rso(s);
+	rso << "offset(" << value->getName() << "," << bufname << ")";
+	rso.str();
+	// To make sure we always get the same c_str
+	std::pair<std::set<std::string>::iterator,bool> inserted = names.insert(s);
+	return *inserted.first;
+}
+
+ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
+		Value * value, const std::string & bufname) {
+	const std::string & generatedName = generateOffsetName(value, bufname);
+	return getVariableTExpr(generatedName);
+}
+
+AbstractState BasicBlock::getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock) {
+	AbstractState otherAS = basicBlock.getAbstractState();
+	llvm::BasicBlock * llvmBB = getLLVMBasicBlock();
+	ValueFactory * factory = ValueFactory::getInstance();
+	for (auto iit = llvmBB->begin(), iie = llvmBB->end(); iit != iie; iit++) {
+		// XXX(oanson) There is a mish-mash of GepValue code and BasicBlock code here.
+		llvm::PHINode * phi = llvm::dyn_cast<llvm::PHINode>(iit);
+		if (!phi) {
+			continue;
+		}
+		if (!phi->getType()->isPointerTy()) {
+			continue;
+		}
+		Value * phiValue = factory->getValue(phi);
+		llvm::Value * incoming = phi->getIncomingValueForBlock(
+				basicBlock.getLLVMBasicBlock());
+		Value * incomingValue = factory->getValue(incoming);
+		std::string & incomingValueName = incomingValue->getName();
+		if (llvm::isa<llvm::Argument>(incoming)) {
+			if (getFunction()->isUserPointer(incomingValueName)) {
+				otherAS.m_mayPointsTo[phiValue->getName()].clear();
+				const std::string & generatedName = generateOffsetName(phiValue, incomingValueName);
+				otherAS.m_mayPointsTo[phiValue->getName()][incomingValueName].insert(
+					generatedName.c_str());
+			}
+		} else {
+			otherAS.m_mayPointsTo[phiValue->getName()] =
+					otherAS.m_mayPointsTo[incomingValueName];
+			llvm::errs() << "Meeting incoming phi: " << phiValue <<
+					": value name: " << incomingValueName << "\n";
+		}
+	}
+	return otherAS;
+}
+
 bool BasicBlock::join(BasicBlock & basicBlock) {
 	ap_abstract1_t other = getAbstract1MetWithIncomingPhis(basicBlock);
+	AbstractState otherAS = getAbstractStateMetWithIncomingPhis(basicBlock);
 	bool isChanged = joinInAbstract1(other);
-	bool isASChanged = m_abstractState.join(basicBlock.m_abstractState);
+	bool isASChanged = m_abstractState.join(otherAS);
 	return isChanged || isASChanged;
 }
 
@@ -429,12 +529,12 @@ void BasicBlock::streamAbstract1(
 	FILE * bufferfp = open_memstream(&buffer, &size);
 	fprintf(bufferfp, "Abstract value:\n");
 	ap_abstract1_fprint(bufferfp, getManager(), &abst1);
-	fprintf(bufferfp, "Linear Condition:\n");
-	ap_lincons1_array_t lcons = ap_abstract1_to_lincons_array(manager, &abst1);
-	ap_lincons1_array_fprint(bufferfp, &lcons);
-	fprintf(bufferfp, "Tree Condition:\n");
-	ap_tcons1_array_t tcons = ap_abstract1_to_tcons_array(manager, &abst1);
-	ap_tcons1_array_fprint(bufferfp, &tcons);
+	//fprintf(bufferfp, "Linear Condition:\n");
+	//ap_lincons1_array_t lcons = ap_abstract1_to_lincons_array(manager, &abst1);
+	//ap_lincons1_array_fprint(bufferfp, &lcons);
+	//fprintf(bufferfp, "Tree Condition:\n");
+	//ap_tcons1_array_t tcons = ap_abstract1_to_tcons_array(manager, &abst1);
+	//ap_tcons1_array_fprint(bufferfp, &tcons);
 	fclose(bufferfp);
 	s << buffer;
 }

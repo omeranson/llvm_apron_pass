@@ -9,8 +9,9 @@
 /*************************/
 /* PROJECT INCLUDE FILES */
 /*************************/
-#include <Value.h>
 #include <AbstractState.h>
+#include <Function.h>
+#include <Value.h>
 
 /*************************/
 /* INCLUDE FILES :: llvm */
@@ -79,106 +80,93 @@ public:
 
 class GepValue : public InstructionValue {
 public:
-	// serial number
-	static int serial_number;
-
-	// dest = src + length, or dest = src + 5;
-	std::string dest_var_name;
-	std::string src_var_name;
-
-	// offset
-	std::string offset_kind;
-	std::string offset_var;
-	int offset_const;
-	
+	virtual llvm::GetElementPtrInst * asGetElementPtrInst();
+	virtual void addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
+		ap_texpr1_t * value_texpr, const std::string & pointerName);
 public:
-	GepValue (llvm::Value * value)
-		:InstructionValue(value)
-	{
-		uint64_t Idx;
-		serial_number++;
-		llvm::GetElementPtrInst *gepInstruction = (llvm::GetElementPtrInst *) value;
-
-		llvm::errs() << "******************************" << '\n';
-		llvm::errs() << "* PROCESSING GEP INSTRUCTION *" << '\n';
-		llvm::errs() << "******************************" << '\n';
-		llvm::errs() << "NAME    = " << gepInstruction->getName() << '\n';
-		llvm::errs() << "POINTER = " << gepInstruction->getPointerOperand()->getName() << '\n';
-		if (llvm::ConstantInt *CI = llvm::dyn_cast<llvm::ConstantInt>(gepInstruction->getOperand(1)))
-		{
-    		Idx = CI->getZExtValue();
-			llvm::errs() << "OFFSET  = " << Idx << '\n';
-			offset_const = Idx;
-			offset_kind = "CONST";
-		}
-		else
-		{
-			llvm::errs() << "OFFSET  = " << gepInstruction->getOperand(1)->getName() << '\n';
-			offset_var = gepInstruction->getOperand(1)->getName();
-			offset_kind = "VAR";
-		}
-	}
-	virtual std::string getValueString(){return "p";}
-	virtual bool isSkip(){return false;}
-	
-    /**************************/
-    /* OREN ISH SHALOM added: */
-    /**************************/
-    virtual void populateTreeConstraints(std::list<ap_tcons1_t> & constraints)
-    {
-    	if (offset_kind == "CONST")
-    	{
-    		getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name] = 
-    		getBasicBlock()->getAbstractState().m_mayPointsTo[src_var_name];
-    		
-    		auto begin = getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name].begin();
-    		auto end = getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name].end();
-    		auto it = begin;
-    		
-    		for (auto it = begin; it != end;it++)
-    		{
-    			char *temp;
-    			temp = (char *) malloc(100);
-    			memset(temp,0,100);
-    			int buf_serial_number = atoi((it->first).c_str() + strlen("buf"));
-    			sprintf(temp, "GEP_OFFSET_%d_BUF_%d",serial_number,buf_serial_number);
-    			// it->second = temp;
-    			
-    			// add apron constraint:
-    			// temp == offset_const;
-    		}
-    	}
-    	if (offset_kind == "VAR")
-    	{
-    		getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name] = 
-    		getBasicBlock()->getAbstractState().m_mayPointsTo[src_var_name];
-    		
-    		auto begin = getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name].begin();
-    		auto end = getBasicBlock()->getAbstractState().m_mayPointsTo[dest_var_name].end();
-    		auto it = begin;
-    		
-    		for (auto it = begin; it != end;it++)
-    		{
-    			char *temp;
-    			temp = (char *) malloc(100);
-    			memset(temp,0,100);
-    			int buf_serial_number = atoi((it->first).c_str() + strlen("buf"));
-    			sprintf(temp, "GEP_OFFSET_%d_BUF_%d",serial_number,buf_serial_number);
-    			// it->second = temp;
-    			
-    			// add apron constraint:
-    			// temp == offset_const;
-    		}    		
-    	}
-    }
-
-    /**************************/
-    /* OREN ISH SHALOM added: */
-    /**************************/
-    virtual ap_texpr1_t *createRHSTreeExpression(){return 0;}
+	GepValue (llvm::Value * value) : InstructionValue(value) {}
+	virtual std::string getValueString();
+	virtual bool isSkip() { return false; }
+	virtual void populateTreeConstraints(std::list<ap_tcons1_t> & constraints);
 };
 
-int GepValue::serial_number = 0;
+llvm::GetElementPtrInst * GepValue::asGetElementPtrInst() {
+	return &llvm::cast<llvm::GetElementPtrInst>(*m_value);
+}
+
+std::string GepValue::getValueString() {
+	std::string s;
+	llvm::raw_string_ostream rso(s);
+	ValueFactory * factory = ValueFactory::getInstance();
+	llvm::GetElementPtrInst * gepi = asGetElementPtrInst();
+	Value * pointer = factory->getValue(gepi->getOperand(0));
+	Value * offset = factory->getValue(gepi->getOperand(1));
+	rso << "&" << *pointer << "[" << *offset << "]";
+	return rso.str();
+}
+
+void GepValue::addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
+		ap_texpr1_t * value_texpr, const std::string & pointerName) {
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+
+	BasicBlock * basicBlock = getBasicBlock();
+	ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
+			this, pointerName);
+	ap_environment_t * environment = basicBlock->getEnvironment();
+	ap_texpr1_extend_environment_with(value_texpr, environment);
+	ap_texpr1_extend_environment_with(var_texpr, environment);
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_SUB, value_texpr, var_texpr,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t result = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
+	constraints.push_back(result);
+}
+
+void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
+	BasicBlock * basicBlock = getBasicBlock();
+	Function * function = basicBlock->getFunction();
+	AbstractState & abstractState = basicBlock->getAbstractState();
+	ValueFactory * factory = ValueFactory::getInstance();
+	llvm::GetElementPtrInst * gepi = asGetElementPtrInst();
+
+	Value * src = factory->getValue(gepi->getOperand(0));
+	assert(src != this && "SSA assumption broken");
+
+	Value * offset = factory->getValue(gepi->getOperand(1));
+
+	std::string pointerName = src->getName();
+	AbstractState::user_pointer_offsets_type &dest =
+			abstractState.m_mayPointsTo[getName()];
+	dest.clear();
+	if (function->isUserPointer(pointerName)) {
+		const std::string & ptrVarName = basicBlock->generateOffsetName(
+				this, pointerName);
+		dest[pointerName].insert(ptrVarName.c_str());
+
+		ap_texpr1_t * value_texpr = offset->createTreeExpression(basicBlock);
+		addOffsetConstraint(constraints, value_texpr, pointerName);
+	} else {
+		AbstractState::user_pointer_offsets_type &src =
+				abstractState.m_mayPointsTo[pointerName];
+		for (auto & offsets : src) {
+			const AbstractState::var_name_type & srcPtrName = offsets.first;
+			AbstractState::offsets_type & offsetVars = offsets.second;
+			const std::string & ptrVarName = basicBlock->generateOffsetName(
+					this, srcPtrName);
+			dest[offsets.first].insert(ptrVarName.c_str());
+
+			for (auto & offsetVar : offsets.second) {
+				ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
+				ap_texpr1_t * value_texpr = basicBlock->getVariableTExpr(offsetVar);
+				value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
+						offset_texpr, value_texpr,
+						AP_RTYPE_INT, AP_RDIR_ZERO);
+				addOffsetConstraint(constraints, value_texpr, srcPtrName);
+			}
+		}
+	}
+}
 
 class VariableValue : public Value {
 public:

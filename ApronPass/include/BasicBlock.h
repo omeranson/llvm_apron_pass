@@ -61,6 +61,9 @@ protected:
 			stream & s, ap_tcons1_t & tcons);
 	virtual bool joinInAbstract1(ap_abstract1_t & abst_value);
 	virtual ap_abstract1_t getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock);
+	virtual AbstractState getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock);
+	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
+		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
 	virtual ap_tcons1_t getSetValueTcons(Value * left, Value * right);
 public:
 	virtual std::string getName();
@@ -72,6 +75,11 @@ public:
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
 	virtual bool update();
+
+	virtual const std::string & generateOffsetName(
+			Value * value, const std::string & bufname);
+	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
+		Value * value, const std::string & bufname);
 
 	virtual bool join(BasicBlock & basicBlock);
 	virtual bool meet(BasicBlock & basicBlock);
