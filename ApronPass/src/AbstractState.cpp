@@ -21,7 +21,6 @@ MemoryAccessAbstractValue::MemoryAccessAbstractValue(ap_environment_t * env,
 	ap_scalar_t* zero = ap_scalar_alloc ();
 	ap_scalar_set_int(zero, 0);
 
-	
 	ap_texpr1_t * apUserPtr = createMemoryPointerTExpr(userPtr);
 	offset = ap_texpr1_extend_environment(offset, m_environment);
 	size = ap_texpr1_extend_environment(size, m_environment);
@@ -95,10 +94,45 @@ void AbstractState::updateUserOperationAbstract1() {
 	joinAbstract1(&abstract);
 }
 
+template <class T>
+bool AbstractState::joinGeneral(T & dest, T & src) {
+	if (dest == src) {
+		return false;
+	}
+	dest = src;
+	return true;
+}
+
+bool AbstractState::joinUserPointerOffsetsType(
+		user_pointer_offsets_type & dest,
+		user_pointer_offsets_type & src) {
+	bool isChanged = false;
+	for (auto &srcUserPtrOffsets : src)
+	{
+		/************************************************************/
+		/* [2] extract the set of pairs <bufi, OFFSET_LINE(*)_BUFi> */
+		/************************************************************/
+		std::string srcUserBufferName = srcUserPtrOffsets.first;
+
+		/********************************************/
+		/* [3] extract all pairs <BUFi,OFFSET_BUFi> */
+		/********************************************/
+		auto userBufferNameIt = dest.find(srcUserBufferName);
+		if (userBufferNameIt == dest.end()) {
+			isChanged = true;
+			dest[srcUserBufferName] = srcUserPtrOffsets.second;
+		} else {
+			isChanged = joinGeneral(userBufferNameIt->second,
+					srcUserPtrOffsets.second) || isChanged;
+		}
+	}
+	return isChanged;
+}
+
 bool AbstractState::joinMayPointsTo(may_points_to_t &otherMayPointsTo)
 {
 	bool isChanged = false;
-	
+
 	/***************************************************/
 	/* OREN ISH SHALOM: just numbered what we're doing */
 	/***************************************************/
@@ -118,63 +152,39 @@ bool AbstractState::joinMayPointsTo(may_points_to_t &otherMayPointsTo)
 	for (auto &allPointersIterator:otherMayPointsTo)
 	{
 		/************************/
-		/* [1] pointer name ... */ 
+		/* [1] pointer name ... */
 		/************************/
 		std::string name = allPointersIterator.first;
-		
+
 		/***************************************************/
-		/* [2] name does not appear in this->m_MayPointsTo */ 
+		/* [2] name does not appear in this->m_MayPointsTo */
 		/***************************************************/
 		/***************************************************/
-		/* This could happen for example in the join of    */ 
-		/* line 6                                          */ 
-		/*                                                 */ 
-		/* LINE 0: int f9(char *buf1) {                    */ 
+		/* This could happen for example in the join of    */
+		/* line 6                                          */
+		/*                                                 */
+		/* LINE 0: int f9(char *buf1) {                    */
 		/* LINE 1: char *p;                                */
 		/* LINE 2: if (?)                                  */
-		/* LINE 3: {                                       */ 
-		/* LINE 4:     p = buf1 + 3;                       */ 
-		/* LINE 5: }                                       */ 
-		/* LINE 6: ...                                     */ 
-		/*                                                 */ 
+		/* LINE 3: {                                       */
+		/* LINE 4:     p = buf1 + 3;                       */
+		/* LINE 5: }                                       */
+		/* LINE 6: ...                                     */
+		/* LINE 7: }                                       */
+		/*                                                 */
 		/***************************************************/
-		if (m_mayPointsTo[name].size() == 0)
+		auto userPointerOffsetsIt = m_mayPointsTo.find(name);
+		if (userPointerOffsetsIt == m_mayPointsTo.end())
 		{
 			isChanged = true;
 			m_mayPointsTo[name] = allPointersIterator.second;
 		}
 		else
 		{
-			for (auto &allUserBufferPointersIterator:allPointersIterator.second)
-			{
-				/************************************************************/
-				/* [2] extract the set of pairs <bufi, OFFSET_LINE(*)_BUFi> */ 
-				/************************************************************/
-				std::string userBuffer = allUserBufferPointersIterator.first;
-				
-				/********************************************/
-				/* [3] extract all pairs <BUFi,OFFSET_BUFi> */ 
-				/********************************************/
-				int found_user_buffer = 0;
-				for (auto it:m_mayPointsTo[name])
-				{
-					if (it.first == userBuffer)
-					{
-						found_user_buffer=1;
-						it.second = "TOP";
-					}
-				}
-				
-				if (found_user_buffer == 0)
-				{
-					isChanged = true;
-					// m_mayPointsTo[name].push_back(pair(userBuffer,allUserBufferPointersIterator.second));
-				}
-				else
-				{
-					// ???
-				}
-			}
+			isChanged = joinUserPointerOffsetsType(
+					userPointerOffsetsIt->second,
+					allPointersIterator.second) || isChanged;
+
 		}
 	}
 	return isChanged;
@@ -214,7 +224,7 @@ bool AbstractState::join(AbstractState &other)
 	/* typedef and force everyone to use the type already   */
 	/* defined in AbstractState.h                           */
 	/********************************************************/
-	//joinMayPointsTo(as.may_points_to);
+	joinMayPointsTo(other.m_mayPointsTo);
 	// Join (Apron) analysis of integers
 	// TODO(oanson) TBD
 	// Join (Apron) analysis of (user) read/write/last0 pointers
