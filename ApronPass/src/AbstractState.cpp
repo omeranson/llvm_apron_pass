@@ -281,9 +281,9 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, AbstractState & as) {
 		ro << "'" << mpt.first << "':{";
 		for (auto & userPtrs : mpt.second) {
 			ro << "'" << userPtrs.first << "':{";
-			//for (auto & offset : userPtrs.second) {
-			//	ro << *offset << ",";
-			//}
+			for (auto & offset : userPtrs.second) {
+				ro << *offset << ",";
+			}
 			ro << "},";
 		}
 		ro << "},";
