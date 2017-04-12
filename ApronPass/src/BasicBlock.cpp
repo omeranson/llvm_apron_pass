@@ -114,7 +114,7 @@ void BasicBlock::setEnvironment(ap_environment_t * nenv) {
 			&m_abst_value, nenv, true);
 }
 
-void BasicBlock::extendEnvironment(std::string & varname) {
+void BasicBlock::extendEnvironment(const std::string & varname) {
 	ap_environment_t* env = getEnvironment();
 	ap_var_t var = (ap_var_t)varname.c_str();
 	if (ap_environment_mem_var(env, var)) {
@@ -130,7 +130,7 @@ void BasicBlock::extendEnvironment(Value * value) {
 	extendEnvironment(value->getName());
 }
 
-ap_interval_t * BasicBlock::getVariableInterval(std::string & value) {
+ap_interval_t * BasicBlock::getVariableInterval(const std::string & value) {
 	extendEnvironment(value);
 	ap_var_t var = (ap_var_t)value.c_str();
 	ap_interval_t* result = ap_abstract1_bound_variable(
@@ -142,7 +142,7 @@ ap_interval_t * BasicBlock::getVariableInterval(Value * value) {
 	return getVariableInterval(value->getName());
 }
 
-ap_texpr1_t* BasicBlock::getVariableTExpr(std::string & value) {
+ap_texpr1_t* BasicBlock::getVariableTExpr(const std::string & value) {
 	ap_var_t var = (ap_var_t)value.c_str();
 	ap_texpr1_t* result = ap_texpr1_var(getEnvironment(), var);
 	if (!result) {
