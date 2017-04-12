@@ -16,6 +16,8 @@ class Value;
 
 class BasicBlock;
 
+class Function;
+
 class BasicBlockManager {
 protected:
 	static BasicBlockManager instance;
@@ -104,6 +106,7 @@ public:
 			std::list<ap_tcons1_t> & constraints);
 
 	virtual AbstractState & getAbstractState();
+	virtual Function * getFunction();
 };
 
 std::ostream& operator<<(std::ostream& os,  BasicBlock& basicBlock);

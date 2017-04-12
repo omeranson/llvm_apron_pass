@@ -1,5 +1,6 @@
 #include <BasicBlock.h>
 #include <Value.h>
+#include <Function.h>
 extern "C" {
 #include <Adaptor.h>
 }
@@ -575,6 +576,12 @@ std::string BasicBlock::toString() {
 
 AbstractState & BasicBlock::getAbstractState() {
 	return m_abstractState;
+}
+
+Function * BasicBlock::getFunction() {
+	FunctionManager & manager = FunctionManager::getInstance();
+	llvm::Function * function = m_basicBlock->getParent();
+	return manager.getFunction(function);
 }
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& ro,  BasicBlock& basicBlock) {
