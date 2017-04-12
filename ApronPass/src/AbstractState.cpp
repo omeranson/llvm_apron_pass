@@ -1,8 +1,6 @@
 #include <AbstractState.h>
 #include <BasicBlock.h>
 
-extern bool Debug;
-
 ap_texpr1_t* MemoryAccessAbstractValue::createMemoryPointerTExpr(
 		std::string & name) {
 	ap_var_t var = (ap_var_t)name.c_str();
@@ -87,9 +85,6 @@ void AbstractState::updateUserOperationAbstract1() {
 	ap_manager_t * manager = getManager();
 	// Construct the environment
 	unsigned size = memoryAccessAbstractValues.size();
-	if (Debug) {
-		llvm::errs() << "Updating: " << size << " maavs\n";
-	}
 	std::vector<ap_abstract1_t> values;
 	for (unsigned idx = 0; idx < size; idx++) {
 		values.push_back(ap_abstract1_of_tcons_array(manager,
@@ -98,16 +93,6 @@ void AbstractState::updateUserOperationAbstract1() {
 	}
 	ap_abstract1_t abstract = join(values);
 	joinAbstract1(&abstract);
-	if (Debug) {
-		char * buffer;
-		size_t size;
-		FILE * bufferfp = open_memstream(&buffer, &size);
-		ap_abstract1_fprint(bufferfp, manager, &m_abstract1);
-		ap_environment_fdump(bufferfp,
-				ap_abstract1_environment(manager, &m_abstract1));
-		fclose(bufferfp);
-		llvm::errs() << "Updated: Abstract value: " << buffer << "\n";
-	}
 }
 
 bool AbstractState::joinMayPointsTo(may_points_to_t &otherMayPointsTo)
@@ -239,10 +224,6 @@ bool AbstractState::join(AbstractState &other)
 	FILE * bufferfp = open_memstream(&buffer, &size);
 	ap_abstract1_fprint(bufferfp, getManager(), &m_abstract1);
 	fclose(bufferfp);
-	if (Debug) {
-		llvm::errs() << "Joined. changed: " << isChanged << " Abstract value: " <<
-				buffer << "\n";
-	}
 	return isChanged;
 }
 
