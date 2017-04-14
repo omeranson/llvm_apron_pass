@@ -105,6 +105,9 @@ public:
 	virtual void extendEnvironment(Value * value);
 	virtual void extendEnvironment(const std::string & varname);
 	virtual void extendEnvironment(const char * varname);
+	virtual void forget(Value * value);
+	virtual void forget(const std::string & varname);
+	virtual void forget(const char * varname);
 	virtual ap_interval_t * getVariableInterval(Value * value);
 	virtual ap_interval_t * getVariableInterval(const std::string & value);
 	virtual ap_interval_t * getVariableInterval(const char * value);

@@ -135,6 +135,19 @@ void BasicBlock::extendEnvironment(Value * value) {
 	extendEnvironment(value->getName());
 }
 
+void BasicBlock::forget(Value * value) {
+	forget(value->getName());
+}
+
+void BasicBlock::forget(const std::string & varname) {
+	forget(varname.c_str());
+}
+void BasicBlock::forget(const char * varname) {
+	ap_var_t var = (ap_var_t)varname;
+	m_abst_value = ap_abstract1_forget_array(getManager(), false,
+			&m_abst_value, &var, 1, false);
+}
+
 ap_interval_t * BasicBlock::getVariableInterval(const char * value) {
 	extendEnvironment(value);
 	ap_var_t var = (ap_var_t)value;
@@ -236,6 +249,7 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 	ValueFactory * factory = ValueFactory::getInstance();
 	std::vector<ap_tcons1_t> tconstraints;
 	std::vector<ap_environment_t*> envs;
+	std::vector<ap_var_t> phiVars;
 	for (auto iit = llvmBB->begin(), iie = llvmBB->end(); iit != iie; iit++) {
 		// XXX(oanson) There is a mish-mash of GepValue code and BasicBlock code here.
 		// Including but not limited to a lot of repeated code
@@ -251,6 +265,7 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 			ap_tcons1_t tcons = getSetValueTcons(phiValue, incomingValue);
 			tconstraints.push_back(tcons);
 			envs.push_back(ap_tcons1_envref(&tcons));
+			phiVars.push_back((ap_var_t)phiValue->getName().c_str());
 		} else {
 			// XXX(oanson) So basically this is the same as in GepValue
 			std::string & incomingValueName = incomingValue->getName();
@@ -280,6 +295,7 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 	unsigned size = tconstraints.size();
 	unsigned newsize = oldsize + size;
 	ap_abstract1_t other = basicBlock.m_abst_value;
+	other = ap_abstract1_forget_array(getManager(), false, &other, phiVars.data(), phiVars.size(), false);
 	if (newsize > 0) {
 		ap_manager_t* manager = getManager();
 		ap_environment_t * environment = getEnvironment();
@@ -690,6 +706,7 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 			//// << scope->getFilename() << ": "
 			//<< debugLoc.getLine() << ": "
 			//<< value->toString() << "\n";
+	forget(value);
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->populateTreeConstraints(constraints);
