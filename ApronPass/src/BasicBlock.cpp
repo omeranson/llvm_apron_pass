@@ -63,7 +63,8 @@ BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
 		m_manager(manager),
 		m_markedForChanged(false),
-		m_abst_value(ap_abstract1_bottom(manager, ap_environment_alloc_empty())) {
+		m_abst_value(ap_abstract1_bottom(manager, ap_environment_alloc_empty())),
+		updateCount(0) {
 	if (!basicBlock->hasName()) {
 		initialiseBlockName();
 	}
@@ -111,7 +112,7 @@ ap_environment_t * BasicBlock::getEnvironment() {
 
 void BasicBlock::setEnvironment(ap_environment_t * nenv) {
 	m_abst_value = ap_abstract1_change_environment(getManager(), false,
-			&m_abst_value, nenv, true);
+			&m_abst_value, nenv, false);
 }
 
 void BasicBlock::extendEnvironment(const char * varname) {
@@ -552,6 +553,7 @@ void BasicBlock::streamTCons1(
 }
 
 bool BasicBlock::update() {
+	++updateCount;
 	/* Process the block. Return true if the block's context is modified.*/
 	//llvm::errs() << "Processing block '" << getName() << "'\n";
 	std::list<ap_tcons1_t> constraints;
@@ -599,7 +601,7 @@ bool BasicBlock::update() {
 	m_markedForChanged = false;
 	bool isChanged = !is_eq(abs);
 	m_abst_value = abs;
-	return markedForChanged && isChanged;
+	return markedForChanged || isChanged;
 }
 
 void BasicBlock::populateConstraintsFromAbstractValue(

@@ -66,6 +66,7 @@ protected:
 		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
 	virtual ap_tcons1_t getSetValueTcons(Value * left, Value * right);
 public:
+	unsigned updateCount;
 	virtual std::string getName();
 	virtual ap_abstract1_t & getAbstractValue();
 	virtual std::string toString();

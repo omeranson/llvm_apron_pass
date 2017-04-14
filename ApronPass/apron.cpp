@@ -47,6 +47,10 @@
 bool Debug;
 llvm::cl::opt<bool, true> DebugOpt ("d", llvm::cl::desc("Enable additional debug output"), llvm::cl::location(Debug));
 
+llvm::cl::opt<unsigned> UpdateCountMax ("update-count-max",
+		llvm::cl::init(10),
+		llvm::cl::desc("Maximum number of times to update a basic block. 0 to disable. (10)"));
+
 /**************************/
 /* NAMESPACE :: anonymous */
 /**************************/
@@ -127,6 +131,14 @@ namespace
 				worklist.pop_front();
 				bool wasSeen = isSeen(block);
 				see(block);
+				if (UpdateCountMax != 0) {
+					llvm::errs() << "Skip block " << block->getName() << "? " << block->updateCount << " ? " << UpdateCountMax << " and " << wasSeen << "\n";
+					if (wasSeen && (block->updateCount >= UpdateCountMax)) {
+						llvm::errs() << "Skipping " << block->getName()
+								<< ": Updated more than " << block->updateCount << "\n";
+						continue;
+					}
+				}
 				bool isModified = block->update();
 				//llvm::errs() << block->toString() <<
 						//": isModified: " <<
