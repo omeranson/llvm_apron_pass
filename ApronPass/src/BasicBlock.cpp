@@ -144,6 +144,9 @@ void BasicBlock::forget(const std::string & varname) {
 }
 void BasicBlock::forget(const char * varname) {
 	ap_var_t var = (ap_var_t)varname;
+	if (!ap_environment_mem_var(getEnvironment(), var)) {
+		return;
+	}
 	m_abst_value = ap_abstract1_forget_array(getManager(), false,
 			&m_abst_value, &var, 1, false);
 }
