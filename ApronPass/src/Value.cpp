@@ -158,10 +158,13 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 
 			for (auto & offsetVar : offsets.second) {
 				ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
-				ap_texpr1_t * value_texpr = basicBlock->getVariableTExpr(offsetVar);
-				value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
-						offset_texpr, value_texpr,
+				ap_texpr1_t * offset_var_texpr = basicBlock->getVariableTExpr(offsetVar);
+				ap_texpr1_extend_environment_with(offset_texpr, basicBlock->getEnvironment());
+				ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
+				ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
+						offset_texpr, offset_var_texpr,
 						AP_RTYPE_INT, AP_RDIR_ZERO);
+				assert(value_texpr);
 				addOffsetConstraint(constraints, value_texpr, srcPtrName);
 			}
 		}
