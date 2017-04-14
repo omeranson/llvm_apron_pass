@@ -588,7 +588,6 @@ bool BasicBlock::update() {
 	/* Process the block. Return true if the block's context is modified.*/
 	//llvm::errs() << "Processing block '" << getName() << "'\n";
 	std::list<ap_tcons1_t> constraints;
-	populateConstraintsFromAbstractValue(constraints);
 
 	ap_abstract1_t prev = m_abst_value;
 	llvm::BasicBlock::iterator it;
@@ -599,7 +598,7 @@ bool BasicBlock::update() {
 
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
-	ap_abstract1_t abs = abstractOfTconsList(constraints);
+	ap_abstract1_t abs = abstractMeetWithTconsList(constraints);
 	m_abstractState.updateUserOperationAbstract1();
 
 	// Some debug output
@@ -657,6 +656,17 @@ ap_tcons1_array_t BasicBlock::getBasicBlockConstraints(BasicBlock * basicBlock) 
 	TerminatorInstructionValue * terminatorValue = static_cast<TerminatorInstructionValue*>(
 			factory->getValue(terminator));
 	return terminatorValue->getBasicBlockConstraints(basicBlock);
+}
+
+ap_abstract1_t BasicBlock::abstractMeetWithTconsList(
+		std::list<ap_tcons1_t> & constraints) {
+	if (constraints.empty()) {
+		return m_abst_value;
+	}
+	ap_tcons1_array_t array = createTcons1Array(constraints);
+	ap_abstract1_t abs = ap_abstract1_meet_tcons_array(
+			getManager(), false, &m_abst_value, &array);
+	return abs;
 }
 
 ap_abstract1_t BasicBlock::abstractOfTconsList(
