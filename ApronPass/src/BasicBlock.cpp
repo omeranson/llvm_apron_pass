@@ -4,6 +4,8 @@
 extern "C" {
 #include <Adaptor.h>
 }
+#include <APStream.h>
+
 #include <cstdio>
 #include <iostream>
 #include <sstream>
@@ -515,11 +517,15 @@ void BasicBlock::setChanged() {
 
 template <class stream>
 void BasicBlock::streamEnvironmentVariables(
-			stream & s, ap_environment_t * environment) {
+			stream & s, ap_environment_t * environment, ap_abstract1_t * abst) {
 	int env_size = environment->intdim;
 	for (int cnt = 0; cnt < env_size; cnt++) {
 		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
-		s << (char*)var << ", ";
+		s << (char*)var;
+		if (abst) {
+			s << " = " << *ap_abstract1_bound_variable(getManager(), abst, var);
+		}
+		s << ", ";
 	}
 }
 
@@ -571,6 +577,9 @@ void BasicBlock::streamAbstract1(
 		ap_abstract1_fprint(bufferfp, getManager(), &abst1);
 		fclose(bufferfp);
 		s << buffer;
+		s << "Variables: ";
+		streamEnvironmentVariables(s, env, &abst1);
+		s << "\n";
 	}
 }
 
