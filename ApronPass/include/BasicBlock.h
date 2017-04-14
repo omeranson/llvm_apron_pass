@@ -59,6 +59,8 @@ protected:
 			stream & s, ap_abstract1_t & abst1);
 	template <class stream> void streamTCons1(
 			stream & s, ap_tcons1_t & tcons);
+	template <class stream>	void streamEnvironmentVariables(
+			stream & s, ap_environment_t * environment);
 	virtual bool joinInAbstract1(ap_abstract1_t & abst_value);
 	virtual ap_abstract1_t getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock);
 	virtual AbstractState getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock);
