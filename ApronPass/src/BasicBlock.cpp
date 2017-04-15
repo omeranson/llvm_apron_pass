@@ -245,6 +245,9 @@ void BasicBlock::addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
 	ap_environment_t * environment = getEnvironment();
 	ap_texpr1_extend_environment_with(value_texpr, environment);
 	ap_texpr1_extend_environment_with(var_texpr, environment);
+	ap_tcons1_t greaterThan0 = ap_tcons1_make(
+			AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
+	constraints.push_back(greaterThan0);
 	ap_texpr1_t * texpr = ap_texpr1_binop(
 			AP_TEXPR_SUB, value_texpr, var_texpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);

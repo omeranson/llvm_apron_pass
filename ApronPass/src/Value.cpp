@@ -124,6 +124,8 @@ void GepValue::addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
 }
 
 void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
 	BasicBlock * basicBlock = getBasicBlock();
 	Function * function = basicBlock->getFunction();
 	AbstractState & abstractState = basicBlock->getAbstractState();
@@ -147,6 +149,11 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 
 		ap_texpr1_t * value_texpr = offset->createTreeExpression(basicBlock);
 		addOffsetConstraint(constraints, value_texpr, pointerName);
+		ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
+				this, pointerName);
+		ap_tcons1_t greaterThan0 = ap_tcons1_make(
+				AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
+		constraints.push_back(greaterThan0);
 	} else {
 		AbstractState::user_pointer_offsets_type &src =
 				abstractState.m_mayPointsTo[pointerName];
@@ -156,6 +163,11 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			const std::string & ptrVarName = basicBlock->generateOffsetName(
 					this, srcPtrName);
 			dest[srcPtrName].insert(ptrVarName.c_str());
+			ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
+					this, srcPtrName);
+			ap_tcons1_t greaterThan0 = ap_tcons1_make(
+					AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
+			constraints.push_back(greaterThan0);
 
 			for (auto & offsetVar : offsets.second) {
 				ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
