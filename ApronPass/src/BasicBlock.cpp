@@ -25,6 +25,7 @@ extern "C" {
 #include <ap_ppl.h>
 
 unsigned WideningThreshold = 11;
+extern bool Debug;
 // TODO This should go in apron lib
 void ap_tcons1_array_resize(ap_tcons1_array_t * array, size_t size) {
 	ap_tcons0_array_resize(&(array->tcons0_array), size);
@@ -231,6 +232,13 @@ bool BasicBlock::joinInAbstract1(ap_abstract1_t & abst_value) {
 	} else {
 		m_abst_value = ap_abstract1_join(manager, false,
 				&m_abst_value, &abst_value);
+	}
+	if (Debug) {
+		llvm::errs() << getName() << ": Join";
+		if ((joinCount % WideningThreshold) == 0) {
+			llvm::errs() << " (Widening)";
+		}
+		llvm::errs() << ": " << std::make_pair(manager, &m_abst_value);
 	}
 	return is_eq(prev);
 }
@@ -549,8 +557,12 @@ bool BasicBlock::update() {
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
 	ap_abstract1_t abs = abstractMeetWithTconsList(constraints);
+	// ap_abstract1_t abs = abstractOfTconsList(constraints);
 	m_abstractState.updateUserOperationAbstract1();
 
+	if (Debug) {
+		llvm::errs() << getName() << ": Update: " <<std::make_pair(manager, &abs);
+	}
 	// Some debug output
 	/*
 	llvm::errs() << "Block prev abstract value:\n";
