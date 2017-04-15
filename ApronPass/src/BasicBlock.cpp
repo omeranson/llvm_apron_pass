@@ -285,7 +285,7 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 				basicBlock.getLLVMBasicBlock());
 		Value * incomingValue = factory->getValue(incoming);
 		if (!phi->getType()->isPointerTy()) {
-			ap_tcons1_t tcons = getSetValueTcons(phiValue, incomingValue);
+			ap_tcons1_t tcons = phiValue->getSetValueTcons(this, incomingValue);
 			tconstraints.push_back(tcons);
 			envs.push_back(ap_tcons1_envref(&tcons));
 			phiVars.push_back((ap_var_t)phiValue->getName().c_str());
@@ -409,20 +409,6 @@ bool BasicBlock::join(BasicBlock & basicBlock) {
 	bool isChanged = joinInAbstract1(other);
 	bool isASChanged = m_abstractState.join(otherAS);
 	return isChanged || isASChanged;
-}
-
-ap_tcons1_t BasicBlock::getSetValueTcons(Value * left, Value * right) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	ap_texpr1_t * var_texpr = left->createTreeExpression(this);
-	ap_texpr1_t * value_texpr = right->createTreeExpression(this);
-	extendTexprEnvironment(var_texpr);
-	extendTexprEnvironment(value_texpr);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
-	return result;
 }
 
 bool BasicBlock::meet(ap_abstract1_t & abst_value) {

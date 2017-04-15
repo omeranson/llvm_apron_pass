@@ -58,7 +58,6 @@ protected:
 	virtual AbstractState getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock);
 	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
 		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
-	virtual ap_tcons1_t getSetValueTcons(Value * left, Value * right);
 public:
 	unsigned updateCount;
 	unsigned joinCount;
