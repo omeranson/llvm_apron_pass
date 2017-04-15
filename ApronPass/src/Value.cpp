@@ -139,6 +139,7 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	AbstractState::user_pointer_offsets_type &dest =
 			abstractState.m_mayPointsTo[getName()];
 	dest.clear();
+	basicBlock->forget(basicBlock->generateOffsetName(this, pointerName).c_str());
 	if (function->isUserPointer(pointerName)) {
 		const std::string & ptrVarName = basicBlock->generateOffsetName(
 				this, pointerName);
@@ -154,7 +155,7 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			AbstractState::offsets_type & offsetVars = offsets.second;
 			const std::string & ptrVarName = basicBlock->generateOffsetName(
 					this, srcPtrName);
-			dest[offsets.first].insert(ptrVarName.c_str());
+			dest[srcPtrName].insert(ptrVarName.c_str());
 
 			for (auto & offsetVar : offsets.second) {
 				ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
@@ -217,6 +218,10 @@ ap_texpr1_t * InstructionValue::createRHSTreeExpression() {
 
 bool InstructionValue::isSkip() {
 	return true;
+}
+
+void InstructionValue::forget() {
+	getBasicBlock()->forget(this);
 }
 
 BasicBlock * InstructionValue::getBasicBlock() {

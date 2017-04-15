@@ -284,6 +284,7 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 			if (llvm::isa<llvm::Argument>(incoming)) {
 				if (getFunction()->isUserPointer(incomingValueName)) {
 					const std::string & generatedName = generateOffsetName(phiValue, incomingValueName);
+					phiVars.push_back((ap_var_t)generatedName.c_str());
 					ap_texpr1_t * value_texpr = ap_texpr1_cst_scalar_int(
 							getEnvironment(), 0);
 					addOffsetConstraint(tconstraints, value_texpr,
@@ -295,6 +296,8 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 				for (auto & offsets : userPtrOffsets) {
 					const AbstractState::var_name_type & srcPtrName = offsets.first;
 					for (auto & offset : offsets.second) {
+						const std::string & generatedName = generateOffsetName(phiValue, srcPtrName);
+						phiVars.push_back((ap_var_t)generatedName.c_str());
 						ap_texpr1_t * value_texpr = getVariableTExpr(offset);
 						addOffsetConstraint(tconstraints, value_texpr,
 								phiValue, srcPtrName);
@@ -317,7 +320,8 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 		ap_dimchange_t ** ptdimchange = 0;
 		environment = ap_environment_lce_array(envs.data(), envs.size(), &ptdimchange);
 		ap_tcons1_array_extend_environment_with(&tconstraints_array, environment);
-		other = ap_abstract1_change_environment(manager, false, &other, environment, false);
+		other = ap_abstract1_change_environment(manager, false,
+				&other, environment, false);
 		if (size > 0) {
 			ap_tcons1_array_resize(&tconstraints_array, newsize);
 			for (unsigned idx = 0; idx < size; idx++) {
@@ -381,10 +385,14 @@ AbstractState BasicBlock::getAbstractStateMetWithIncomingPhis(BasicBlock & basic
 					generatedName.c_str());
 			}
 		} else {
-			otherAS.m_mayPointsTo[phiValue->getName()] =
-					otherAS.m_mayPointsTo[incomingValueName];
-			llvm::errs() << "Meeting incoming phi: " << phiValue <<
-					": value name: " << incomingValueName << "\n";
+			AbstractState::user_pointer_offsets_type &dest =
+					otherAS.m_mayPointsTo[phiValue->getName()];
+			dest.clear();
+			for (auto & offsets : otherAS.m_mayPointsTo[incomingValueName]) {
+				const std::string & srcPtrName = offsets.first;
+				const std::string & generatedName = generateOffsetName(phiValue, srcPtrName);
+				dest[srcPtrName].insert(generatedName.c_str());
+			}
 		}
 	}
 	return otherAS;

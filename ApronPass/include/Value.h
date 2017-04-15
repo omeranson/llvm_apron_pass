@@ -74,6 +74,7 @@ public:
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_texpr1_t * createRHSTreeExpression();
 	virtual bool isSkip();
+	virtual void forget();
 };
 
 class TerminatorInstructionValue : public InstructionValue {
