@@ -69,6 +69,7 @@ protected:
 	virtual ap_tcons1_t getSetValueTcons(Value * left, Value * right);
 public:
 	unsigned updateCount;
+	unsigned joinCount;
 	virtual std::string getName();
 	virtual ap_abstract1_t & getAbstractValue();
 	virtual std::string toString();

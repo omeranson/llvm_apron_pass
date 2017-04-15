@@ -24,6 +24,7 @@ extern "C" {
 #include <pkeq.h>
 #include <ap_ppl.h>
 
+unsigned WideningThreshold = 11;
 // TODO This should go in apron lib
 void ap_tcons1_array_resize(ap_tcons1_array_t * array, size_t size) {
 	ap_tcons0_array_resize(&(array->tcons0_array), size);
@@ -211,6 +212,7 @@ void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
 }
 
 bool BasicBlock::joinInAbstract1(ap_abstract1_t & abst_value) {
+	joinCount++;
 	ap_abstract1_t prev = m_abst_value;
 	ap_manager_t * manager = getManager();
 	ap_dimchange_t * dimchange1 = NULL;
@@ -223,8 +225,13 @@ bool BasicBlock::joinInAbstract1(ap_abstract1_t & abst_value) {
 			&m_abst_value, environment, true);
 	ap_abstract1_t lcl_abst_val = ap_abstract1_change_environment(manager, false,
 			&abst_value, environment, true);
-	m_abst_value = ap_abstract1_join(manager, false,
-			&m_abst_value, &lcl_abst_val);
+	if ((joinCount % WideningThreshold) == 0) {
+		m_abst_value = ap_abstract1_widening(manager,
+				&m_abst_value, &abst_value);
+	} else {
+		m_abst_value = ap_abstract1_join(manager, false,
+				&m_abst_value, &abst_value);
+	}
 	return is_eq(prev);
 }
 
