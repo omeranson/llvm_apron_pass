@@ -254,7 +254,7 @@ void BasicBlock::addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
 	constraints.push_back(result);
 	llvm::errs() << "BasicBlock::addOffsetConstraint: Adding: ";
-	streamTCons1(llvm::errs(), result);
+	llvm::errs() << result;
 	llvm::errs() << "\n";
 }
 
@@ -533,86 +533,6 @@ void BasicBlock::setChanged() {
 	m_markedForChanged = true;
 }
 
-template <class stream>
-void BasicBlock::streamEnvironmentVariables(
-			stream & s, ap_environment_t * environment, ap_abstract1_t * abst) {
-	int env_size = environment->intdim;
-	for (int cnt = 0; cnt < env_size; cnt++) {
-		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
-		s << (char*)var;
-		if (abst) {
-			s << " = " << *ap_abstract1_bound_variable(getManager(), abst, var);
-		}
-		s << ", ";
-	}
-}
-
-template <class stream>
-void BasicBlock::streamAbstract1Manually(
-			stream & s, ap_abstract1_t & abst1) {
-	char * buffer;
-	size_t size;
-	FILE * bufferfp = open_memstream(&buffer, &size);
-	// Despite the docs, this method doesn't exist
-	//ap_manager_t* manager = ap_abstract1_manager (&abst1)
-	ap_manager_t* manager = getManager();
-	ap_environment_t * environment = ap_abstract1_environment(manager, &abst1);
-	fprintf(bufferfp, "Variables:\n");
-	int env_size = environment->intdim;
-	for (int cnt = 0; cnt < env_size; cnt++) {
-		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
-		ap_interval_t* interval = ap_abstract1_bound_variable(
-			manager, &abst1, var);
-		fprintf(bufferfp, "\t%s: ", (char*)var);
-		ap_interval_fprint(bufferfp, interval);
-		fputc('\n', bufferfp);
-	}
-	// TODO Manually iterate vars in env, and print intervals from abst val
-	fputc('\0', bufferfp);
-	fclose(bufferfp);
-	s << buffer;
-}
-
-template <class stream>
-void BasicBlock::streamAbstract1(
-			stream & s, ap_abstract1_t & abst1) {
-	ap_manager_t* manager = getManager();
-	ap_abstract1_canonicalize(manager, &abst1);
-	ap_environment_t * env = ap_abstract1_environment(manager, &abst1);
-	s << "Abstract value: ";
-	if (isTop(abst1)) {
-		s << "Top. Variables: ";
-		streamEnvironmentVariables(s, env);
-		s << "\n";
-	} else if (isBottom(abst1)) {
-		s << "Bottom. Variables: ";
-		streamEnvironmentVariables(s, env);
-		s << "\n";
-	} else {
-		char * buffer;
-		size_t size;
-		FILE * bufferfp = open_memstream(&buffer, &size);
-		ap_abstract1_fprint(bufferfp, getManager(), &abst1);
-		fclose(bufferfp);
-		s << buffer;
-		s << "Variables: ";
-		streamEnvironmentVariables(s, env, &abst1);
-		s << "\n";
-	}
-}
-
-template <class stream>
-void BasicBlock::streamTCons1(
-			stream & s, ap_tcons1_t & tcons) {
-	char * buffer;
-	size_t size;
-	FILE * bufferfp = open_memstream(&buffer, &size);
-	ap_tcons1_fprint(bufferfp, &tcons);
-	fputc('\0', bufferfp);
-	fclose(bufferfp);
-	s << buffer;
-}
-
 bool BasicBlock::update() {
 	++updateCount;
 	/* Process the block. Return true if the block's context is modified.*/
@@ -634,28 +554,25 @@ bool BasicBlock::update() {
 	// Some debug output
 	/*
 	llvm::errs() << "Block prev abstract value:\n";
-	streamAbstract1(llvm::errs(), prev);
+	llvm::errs() << prev;
 	llvm::errs() << "isTop: " << isTop(prev) <<
 			". isBottom: " << isBottom(prev) << "\n";
 
 	std::list<ap_tcons1_t>::iterator cons_it;
 	llvm::errs() << "List of " << constraints.size() << " constraints:\n";
 	for (cons_it = constraints.begin(); cons_it != constraints.end(); cons_it++) {
-		streamTCons1(llvm::errs(), *cons_it);
+		llvm::errs() << *cons_it;
 		llvm::errs() << "\n";
 	}
 	llvm::errs() << "Calculated abstract value:\n";
-	streamAbstract1(llvm::errs(), abs);
+	llvm::errs() << abs;
 	llvm::errs() << "isTop: " << isTop(abs) <<
 			". isBottom: " << isBottom(abs) << "\n";
 
 	llvm::errs() << "Block new abstract value:\n";
-	streamAbstract1(llvm::errs(), m_abst_value);
+	llvm::errs() << m_abst_value;
 	llvm::errs() << "isTop: " << isTop() <<
 			". isBottom: " << isBottom() << "\n";
-	llvm::errs() << "Block values ranges:\n";
-	streamAbstract1Manually(llvm::errs(), m_abst_value);
-	llvm::errs() << "\n";
 	*/
 	bool markedForChanged = m_markedForChanged;
 	m_markedForChanged = false;
@@ -754,8 +671,7 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 
 std::string BasicBlock::toString() {
 	std::ostringstream oss;
-	oss << getName() << ": ";
-	streamAbstract1(oss, m_abst_value);
+	oss << getName() << ": " << std::make_pair(getManager(), &m_abst_value);
 	return oss.str();
 }
 

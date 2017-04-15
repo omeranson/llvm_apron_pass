@@ -53,14 +53,6 @@ protected:
 			llvm::Instruction & inst);
 	virtual void addBogusInitialConstarints(
 		std::list<ap_tcons1_t>  & constraints);
-	template <class stream> void streamAbstract1Manually(
-			stream & s, ap_abstract1_t & abst1);
-	template <class stream> void streamAbstract1(
-			stream & s, ap_abstract1_t & abst1);
-	template <class stream> void streamTCons1(
-			stream & s, ap_tcons1_t & tcons);
-	template <class stream>	void streamEnvironmentVariables(
-			stream & s, ap_environment_t * environment, ap_abstract1_t * abst=0);
 	virtual bool joinInAbstract1(ap_abstract1_t & abst_value);
 	virtual ap_abstract1_t getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock);
 	virtual AbstractState getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock);

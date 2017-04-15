@@ -41,6 +41,7 @@
 /***********************************/
 /* INCLUDE FILES :: omer's project */
 /***********************************/
+#include <APStream.h>
 #include <Value.h>
 #include <CallGraph.h>
 
@@ -61,16 +62,6 @@ namespace
 	/* Write the summary of each function into a dedicated */
 	/* text file with the same name                        */
 	/*******************************************************/
-	llvm::raw_ostream & operator<<(llvm::raw_ostream & ro, ap_scalar_t & scalar)
-	{
-		char * buffer;
-		size_t size;
-		FILE * bufferfp = open_memstream(&buffer, &size);
-		ap_scalar_fprint(bufferfp, &scalar);
-		fclose(bufferfp);
-		ro << buffer;
-		return ro;
-	}
 /*
 	class Function {
 	private:
