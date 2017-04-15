@@ -138,14 +138,11 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	Value * offset = factory->getValue(gepi->getOperand(1));
 
 	std::string pointerName = src->getName();
-	AbstractState::user_pointer_offsets_type &dest =
-			abstractState.m_mayPointsTo[getName()];
+	std::set<std::string> &dest = abstractState.m_mayPointsTo[getName()];
 	dest.clear();
 	basicBlock->forget(basicBlock->generateOffsetName(this, pointerName).c_str());
 	if (function->isUserPointer(pointerName)) {
-		const std::string & ptrVarName = basicBlock->generateOffsetName(
-				this, pointerName);
-		dest[pointerName].insert(ptrVarName.c_str());
+		dest.insert(pointerName);
 
 		ap_texpr1_t * value_texpr = offset->createTreeExpression(basicBlock);
 		addOffsetConstraint(constraints, value_texpr, pointerName);
@@ -155,31 +152,25 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 				AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
 		constraints.push_back(greaterThan0);
 	} else {
-		AbstractState::user_pointer_offsets_type &src =
-				abstractState.m_mayPointsTo[pointerName];
-		for (auto & offsets : src) {
-			const AbstractState::var_name_type & srcPtrName = offsets.first;
-			AbstractState::offsets_type & offsetVars = offsets.second;
-			const std::string & ptrVarName = basicBlock->generateOffsetName(
-					this, srcPtrName);
-			dest[srcPtrName].insert(ptrVarName.c_str());
+		std::set<std::string> &srcUserPointers = abstractState.m_mayPointsTo[pointerName];
+		for (auto & srcPtrName : srcUserPointers) {
+			dest.insert(srcPtrName);
 			ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
 					this, srcPtrName);
 			ap_tcons1_t greaterThan0 = ap_tcons1_make(
 					AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
 			constraints.push_back(greaterThan0);
 
-			for (auto & offsetVar : offsets.second) {
-				ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
-				ap_texpr1_t * offset_var_texpr = basicBlock->getVariableTExpr(offsetVar);
-				ap_texpr1_extend_environment_with(offset_texpr, basicBlock->getEnvironment());
-				ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
-				ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
-						offset_texpr, offset_var_texpr,
-						AP_RTYPE_INT, AP_RDIR_ZERO);
-				assert(value_texpr);
-				addOffsetConstraint(constraints, value_texpr, srcPtrName);
-			}
+			ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
+			ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
+					src, srcPtrName);
+			ap_texpr1_extend_environment_with(offset_texpr, basicBlock->getEnvironment());
+			ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
+			ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
+					offset_texpr, offset_var_texpr,
+					AP_RTYPE_INT, AP_RDIR_ZERO);
+			assert(value_texpr);
+			addOffsetConstraint(constraints, value_texpr, srcPtrName);
 		}
 	}
 }

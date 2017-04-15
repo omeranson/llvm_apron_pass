@@ -1,3 +1,4 @@
+#include <APStream.h>
 #include <AbstractState.h>
 #include <BasicBlock.h>
 
@@ -94,37 +95,14 @@ void AbstractState::updateUserOperationAbstract1() {
 	joinAbstract1(&abstract);
 }
 
-template <class T>
-bool AbstractState::joinGeneral(T & dest, T & src) {
-	if (dest == src) {
-		return false;
-	}
-	dest = src;
-	return true;
-}
-
-bool AbstractState::joinUserPointerOffsetsType(
-		user_pointer_offsets_type & dest,
-		user_pointer_offsets_type & src) {
+bool AbstractState::joinUserPointers(
+		std::set<std::string> & dest,
+		std::set<std::string>& src) {
 	bool isChanged = false;
-	for (auto &srcUserPtrOffsets : src)
+	for (const std::string & userPtr : src)
 	{
-		/************************************************************/
-		/* [2] extract the set of pairs <bufi, OFFSET_LINE(*)_BUFi> */
-		/************************************************************/
-		std::string srcUserBufferName = srcUserPtrOffsets.first;
-
-		/********************************************/
-		/* [3] extract all pairs <BUFi,OFFSET_BUFi> */
-		/********************************************/
-		auto userBufferNameIt = dest.find(srcUserBufferName);
-		if (userBufferNameIt == dest.end()) {
-			isChanged = true;
-			dest[srcUserBufferName] = srcUserPtrOffsets.second;
-		} else {
-			isChanged = joinGeneral(userBufferNameIt->second,
-					srcUserPtrOffsets.second) || isChanged;
-		}
+		auto inserted = dest.insert(userPtr);
+		isChanged = isChanged || inserted.second;
 	}
 	return isChanged;
 }
@@ -181,7 +159,7 @@ bool AbstractState::joinMayPointsTo(may_points_to_t &otherMayPointsTo)
 		}
 		else
 		{
-			isChanged = joinUserPointerOffsetsType(
+			isChanged = joinUserPointers(
 					userPointerOffsetsIt->second,
 					allPointersIterator.second) || isChanged;
 
@@ -278,23 +256,12 @@ ap_abstract1_t AbstractState::join(std::vector<ap_abstract1_t> & a_values) {
 llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, AbstractState & as) {
 	ro << "{'mpt':{";
 	for (auto & mpt : as.m_mayPointsTo) {
-		ro << "'" << mpt.first << "':{";
-		for (auto & userPtrs : mpt.second) {
-			ro << "'" << userPtrs.first << "':{";
-			for (auto & offset : userPtrs.second) {
-				ro << *offset << ",";
-			}
-			ro << "},";
+		ro << "'" << mpt.first << "':[";
+		for (auto & userPtr : mpt.second) {
+			ro << "'" << userPtr << "',";
 		}
-		ro << "},";
+		ro << "],";
 	}
-	ro << "},abstract1:{";
-	char * buffer;
-	size_t size;
-	FILE * bufferfp = open_memstream(&buffer, &size);
-	ap_abstract1_canonicalize(as.getManager(), &as.m_abstract1);
-	ap_abstract1_fprint(bufferfp, as.getManager(), &as.m_abstract1);
-	fclose(bufferfp);
-	ro << buffer << "}";
+	ro << "},abstract1:{" << std::make_pair(as.getManager(), &as.m_abstract1) << "}";
 	return ro;
 }

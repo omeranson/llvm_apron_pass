@@ -303,16 +303,14 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 				}
 			} else {
 				AbstractState & otherAS = basicBlock.getAbstractState();
-				AbstractState::user_pointer_offsets_type & userPtrOffsets = otherAS.m_mayPointsTo[incomingValueName];
-				for (auto & offsets : userPtrOffsets) {
-					const AbstractState::var_name_type & srcPtrName = offsets.first;
-					for (auto & offset : offsets.second) {
-						const std::string & generatedName = generateOffsetName(phiValue, srcPtrName);
-						phiVars.push_back((ap_var_t)generatedName.c_str());
-						ap_texpr1_t * value_texpr = getVariableTExpr(offset);
-						addOffsetConstraint(tconstraints, value_texpr,
-								phiValue, srcPtrName);
-					}
+				std::set<std::string> & userPtrs = otherAS.m_mayPointsTo[incomingValueName];
+				for (auto & srcPtrName : userPtrs) {
+					const std::string & generatedName = generateOffsetName(phiValue, srcPtrName);
+					phiVars.push_back((ap_var_t)generatedName.c_str());
+					const std::string & generatedNameIncoming = generateOffsetName(incomingValue, srcPtrName);
+					ap_texpr1_t * value_texpr = getVariableTExpr(generatedNameIncoming);
+					addOffsetConstraint(tconstraints, value_texpr,
+							phiValue, srcPtrName);
 				}
 			}
 		}
@@ -391,18 +389,14 @@ AbstractState BasicBlock::getAbstractStateMetWithIncomingPhis(BasicBlock & basic
 		if (llvm::isa<llvm::Argument>(incoming)) {
 			if (getFunction()->isUserPointer(incomingValueName)) {
 				otherAS.m_mayPointsTo[phiValue->getName()].clear();
-				const std::string & generatedName = generateOffsetName(phiValue, incomingValueName);
-				otherAS.m_mayPointsTo[phiValue->getName()][incomingValueName].insert(
-					generatedName.c_str());
+				otherAS.m_mayPointsTo[phiValue->getName()].insert(incomingValueName);
 			}
 		} else {
-			AbstractState::user_pointer_offsets_type &dest =
+			std::set<std::string> &dest =
 					otherAS.m_mayPointsTo[phiValue->getName()];
 			dest.clear();
-			for (auto & offsets : otherAS.m_mayPointsTo[incomingValueName]) {
-				const std::string & srcPtrName = offsets.first;
-				const std::string & generatedName = generateOffsetName(phiValue, srcPtrName);
-				dest[srcPtrName].insert(generatedName.c_str());
+			for (auto & srcPtrName : otherAS.m_mayPointsTo[incomingValueName]) {
+				dest.insert(srcPtrName);
 			}
 		}
 	}

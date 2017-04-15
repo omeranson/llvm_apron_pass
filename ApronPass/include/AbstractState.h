@@ -80,11 +80,7 @@ public:
 	/*           pair(buf2,OFFSET_LINE(**)_BUF2)}                      */
 	/*                                                                 */
 	/*******************************************************************/
-	typedef std::string var_name_type;
-	typedef const char *offset_name_type;
-	typedef std::set<offset_name_type> offsets_type;
-	typedef std::map<var_name_type, offsets_type > user_pointer_offsets_type;
-	typedef std::map<var_name_type, user_pointer_offsets_type > may_points_to_t;
+	typedef std::map<std::string, std::set<std::string> > may_points_to_t;
 	
 protected:
 
@@ -109,10 +105,9 @@ protected:
 	/*                                               */
 	/*************************************************/
 	bool joinMayPointsTo(may_points_to_t &otherMayPointsTo);
-	bool joinUserPointerOffsetsType(
-		user_pointer_offsets_type & dest,
-		user_pointer_offsets_type & src);
-	template <class T> bool joinGeneral(T & dest, T & src);
+	bool joinUserPointers(
+		std::set<std::string> & dest,
+		std::set<std::string> & src);
 	bool joinAbstract1(ap_abstract1_t * abstract1);
 
 public:
