@@ -247,8 +247,16 @@ namespace
 			FunctionManager & functionManager = FunctionManager::getInstance();
 			Function * function = functionManager.getFunction(F);
 			if (Debug) {
-				ap_abstract1_t trimmedAbstract1 = function->trimmedLastAbstractValue();
-				llvm::errs() << "Trimmed abstract value: " <<
+				ap_abstract1_t trimmedAbstract1 = function->trimmedLastASAbstractValue();
+				llvm::errs() << "Trimmed AS abstract value: " <<
+						std::make_pair(BasicBlockManager::getInstance().m_manager,
+								&trimmedAbstract1);
+				trimmedAbstract1 = function->trimmedLastBBAbstractValue();
+				llvm::errs() << "Trimmed BB abstract value: " <<
+						std::make_pair(BasicBlockManager::getInstance().m_manager,
+								&trimmedAbstract1);
+				trimmedAbstract1 = function->trimmedLastJoinedAbstractValue();
+				llvm::errs() << "Trimmed joined abstract value: " <<
 						std::make_pair(BasicBlockManager::getInstance().m_manager,
 								&trimmedAbstract1);
 			}

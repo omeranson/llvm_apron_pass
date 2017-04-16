@@ -19,7 +19,9 @@ protected:
 public:
 	Function(llvm::Function * function) : m_function(function) {};
 	bool isUserPointer(std::string & ptrname);
-	virtual ap_abstract1_t trimmedLastAbstractValue();
+	virtual ap_abstract1_t trimmedLastASAbstractValue();
+	virtual ap_abstract1_t trimmedLastBBAbstractValue();
+	virtual ap_abstract1_t trimmedLastJoinedAbstractValue();
 	virtual llvm::ReturnInst * getReturnInstruction();
 	virtual BasicBlock * getReturnBasicBlock();
 	virtual bool isVarInOut(const char * varname);
