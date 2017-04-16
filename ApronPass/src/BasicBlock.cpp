@@ -261,9 +261,6 @@ void BasicBlock::addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
 	constraints.push_back(result);
-	llvm::errs() << "BasicBlock::addOffsetConstraint: Adding: ";
-	llvm::errs() << result;
-	llvm::errs() << "\n";
 }
 
 ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock) {
@@ -369,11 +366,10 @@ ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
 }
 
 AbstractState BasicBlock::getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock) {
-	AbstractState otherAS = basicBlock.getAbstractState();
+	AbstractState & otherAS = basicBlock.getAbstractState();
 	llvm::BasicBlock * llvmBB = getLLVMBasicBlock();
 	ValueFactory * factory = ValueFactory::getInstance();
 	for (auto iit = llvmBB->begin(), iie = llvmBB->end(); iit != iie; iit++) {
-		// XXX(oanson) There is a mish-mash of GepValue code and BasicBlock code here.
 		llvm::PHINode * phi = llvm::dyn_cast<llvm::PHINode>(iit);
 		if (!phi) {
 			continue;
@@ -385,20 +381,10 @@ AbstractState BasicBlock::getAbstractStateMetWithIncomingPhis(BasicBlock & basic
 		llvm::Value * incoming = phi->getIncomingValueForBlock(
 				basicBlock.getLLVMBasicBlock());
 		Value * incomingValue = factory->getValue(incoming);
-		std::string & incomingValueName = incomingValue->getName();
-		if (llvm::isa<llvm::Argument>(incoming)) {
-			if (getFunction()->isUserPointer(incomingValueName)) {
-				otherAS.m_mayPointsTo[phiValue->getName()].clear();
-				otherAS.m_mayPointsTo[phiValue->getName()].insert(incomingValueName);
-			}
-		} else {
-			std::set<std::string> &dest =
-					otherAS.m_mayPointsTo[phiValue->getName()];
-			dest.clear();
-			for (auto & srcPtrName : otherAS.m_mayPointsTo[incomingValueName]) {
-				dest.insert(srcPtrName);
-			}
-		}
+		std::set<std::string> &dest =
+				otherAS.m_mayPointsTo[phiValue->getName()];
+		dest.clear();
+		incomingValue->populateMayPointsToUserBuffers(dest);
 	}
 	return otherAS;
 }

@@ -107,20 +107,9 @@ std::string GepValue::getValueString() {
 
 void GepValue::addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
 		ap_texpr1_t * value_texpr, const std::string & pointerName) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-
-	BasicBlock * basicBlock = getBasicBlock();
-	ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
-			this, pointerName);
-	ap_environment_t * environment = basicBlock->getEnvironment();
-	ap_texpr1_extend_environment_with(value_texpr, environment);
-	ap_texpr1_extend_environment_with(var_texpr, environment);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
-	constraints.push_back(result);
+	std::vector<ap_tcons1_t> tconss;
+	getBasicBlock()->addOffsetConstraint(tconss, value_texpr, this, pointerName);
+	constraints.insert(constraints.end(), tconss.begin(), tconss.end());
 }
 
 void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
@@ -141,45 +130,38 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	std::set<std::string> &dest = abstractState.m_mayPointsTo[getName()];
 	dest.clear();
 	basicBlock->forget(basicBlock->generateOffsetName(this, pointerName).c_str());
+	ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
 	if (function->isUserPointer(pointerName)) {
 		dest.insert(pointerName);
-
-		ap_texpr1_t * value_texpr = offset->createTreeExpression(basicBlock);
-		addOffsetConstraint(constraints, value_texpr, pointerName);
-		ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
-				this, pointerName);
-		ap_tcons1_t greaterThan0 = ap_tcons1_make(
-				AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
-		constraints.push_back(greaterThan0);
+		addOffsetConstraint(constraints, offset_texpr, pointerName);
 	} else {
 		std::set<std::string> &srcUserPointers = abstractState.m_mayPointsTo[pointerName];
 		for (auto & srcPtrName : srcUserPointers) {
 			dest.insert(srcPtrName);
-			ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
-					this, srcPtrName);
-			ap_tcons1_t greaterThan0 = ap_tcons1_make(
-					AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
-			constraints.push_back(greaterThan0);
-
-			ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
 			ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
 					src, srcPtrName);
-			ap_texpr1_extend_environment_with(offset_texpr, basicBlock->getEnvironment());
+			ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
+			ap_texpr1_extend_environment_with(offset_texpr_copy, basicBlock->getEnvironment());
 			ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
 			ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
-					offset_texpr, offset_var_texpr,
+					offset_texpr_copy, offset_var_texpr,
 					AP_RTYPE_INT, AP_RDIR_ZERO);
 			assert(value_texpr);
 			addOffsetConstraint(constraints, value_texpr, srcPtrName);
 		}
+		ap_texpr1_free(offset_texpr);
 	}
 }
 
 class VariableValue : public Value {
+protected:
+	virtual llvm::Argument * asArgument();
+	virtual Function * getFunction();
 public:
 	VariableValue(llvm::Value * value) : Value(value) {}
 	virtual std::string getValueString();
 	virtual std::string toString() ;
+	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 };
 std::string VariableValue::getValueString() {
 	return getName();
@@ -187,6 +169,23 @@ std::string VariableValue::getValueString() {
 
 std::string VariableValue::toString() {
 	return getName();
+}
+
+llvm::Argument * VariableValue::asArgument() {
+	return &llvm::cast<llvm::Argument>(*m_value);
+}
+
+Function * VariableValue::getFunction() {
+	FunctionManager & manager = FunctionManager::getInstance();
+	llvm::Function * function = asArgument()->getParent();
+	return manager.getFunction(function);
+}
+
+void VariableValue::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+	std::string & name = getName();
+	if (getFunction()->isUserPointer(name)) {
+		buffers.insert(name);
+	}
 }
 
 llvm::Instruction * InstructionValue::asInstruction() {
@@ -217,6 +216,14 @@ void InstructionValue::populateTreeConstraints(
 
 ap_texpr1_t * InstructionValue::createRHSTreeExpression() {
 	abort();
+}
+
+void InstructionValue::populateMayPointsToUserBuffers(
+		std::set<std::string> & buffers) {
+	BasicBlock * basicBlock = getBasicBlock();
+	AbstractState & as = basicBlock->getAbstractState();
+	std::set<std::string> & asbuffers = as.m_mayPointsTo[getName()];
+	buffers.insert(asbuffers.begin(), asbuffers.end());
 }
 
 bool InstructionValue::isSkip() {
@@ -1560,6 +1567,10 @@ ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
 			AP_RTYPE_INT, AP_RDIR_ZERO);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
 	return result;
+}
+
+void Value::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+	return;
 }
 
 std::ostream& operator<<(std::ostream& os, Value& value)

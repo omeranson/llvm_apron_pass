@@ -56,8 +56,6 @@ protected:
 	virtual bool joinInAbstract1(ap_abstract1_t & abst_value);
 	virtual ap_abstract1_t getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock);
 	virtual AbstractState getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock);
-	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
-		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
 public:
 	unsigned updateCount;
 	unsigned joinCount;
@@ -115,6 +113,8 @@ public:
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_tcons1_array_t createTcons1Array(
 			std::list<ap_tcons1_t> & constraints);
+	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
+		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
 
 	virtual AbstractState & getAbstractState();
 	virtual Function * getFunction();
