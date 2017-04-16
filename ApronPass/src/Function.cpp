@@ -94,6 +94,7 @@ ap_abstract1_t Function::trimmedLastASAbstractValue() {
 	}
 	ap_abstract1_t result = ap_abstract1_forget_array(manager, false, &asAbstract1,
 			forgetVars.data(), forgetVars.size(), false);
+	result = ap_abstract1_minimize_environment(manager, false, &result);
 	return result;
 }
 
@@ -115,6 +116,7 @@ ap_abstract1_t Function::trimmedLastBBAbstractValue() {
 	}
 	ap_abstract1_t result = ap_abstract1_forget_array(manager, false, &abstract1,
 			forgetVars.data(), forgetVars.size(), false);
+	result = ap_abstract1_minimize_environment(manager, false, &result);
 	return result;
 }
 
@@ -146,6 +148,7 @@ ap_abstract1_t Function::trimmedLastJoinedAbstractValue() {
 	}
 	ap_abstract1_t result = ap_abstract1_forget_array(manager, false, &abstract1,
 			forgetVars.data(), forgetVars.size(), false);
+	result = ap_abstract1_minimize_environment(manager, false, &result);
 	return result;
 }
 
@@ -232,7 +235,21 @@ std::map<std::string, ap_abstract1_t> Function::generateErrorStates() {
 		ap_abstract1_t abstract1_with_size_trimmed = ap_abstract1_forget_array(
 				manager, false, &abstract1_with_size,
 				forgetVars.data(), forgetVars.size(), false);
-		result[userBuffer] = abstract1_with_size_trimmed;
+		ap_abstract1_t abstract1_minimized = ap_abstract1_minimize_environment(
+				manager, false, &abstract1_with_size_trimmed);
+		result[userBuffer] = abstract1_minimized;
 	}
 	return result;
+}
+
+std::string Function::getName() {
+	return m_function->getName();
+}
+
+std::string Function::getSignature() {
+	// XXX(oanson) VERY INCOMPLETE
+	std::string result;
+	llvm::raw_string_ostream rso(result);
+	rso << "int " << getName() << "(...)";
+	return rso.str();
 }

@@ -80,4 +80,20 @@ inline stream & operator<<(stream & s, ap_tcons1_t & tcons) {
 	return (s << &tcons);
 }
 
+template <class stream>
+inline stream & operator<<(stream & s, ap_tcons1_array_t * tcons) {
+	char * buffer;
+	size_t size;
+	FILE * bufferfp = open_memstream(&buffer, &size);
+	ap_tcons1_array_fprint(bufferfp, tcons);
+	fclose(bufferfp);
+	s << buffer;
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, ap_tcons1_array_t & tcons) {
+	return (s << &tcons);
+}
+
 #endif // AP_STREAM_H

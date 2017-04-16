@@ -305,6 +305,13 @@ namespace
 		    llvm::raw_fd_ostream fl(abs_path_filename_builder.str().c_str(), EC);
 		    fl << F->getName() << " = [ " << *interval->inf << " " << *interval->sup << " ]\n";
 		    fl.close();
+
+                    std::string contract_path_filename;
+                    llvm::raw_string_ostream contract_path_filename_builder(contract_path_filename);
+                    contract_path_filename_builder << "/tmp/llvm_apron_pass/" << F->getName() << ".contract.c";
+		    llvm::raw_fd_ostream fl2(contract_path_filename_builder.str().c_str(), EC);
+		    fl2 << Contract(function);
+		    fl2.close();
 			        return false;
                 }
             }
