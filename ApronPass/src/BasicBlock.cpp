@@ -270,6 +270,9 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 	std::vector<ap_tcons1_t> tconstraints;
 	std::vector<ap_environment_t*> envs;
 	std::vector<ap_var_t> phiVars;
+	ap_abstract1_t other = basicBlock.m_abst_value;
+	ap_manager_t* manager = getManager();
+	ap_environment_t * other_env = ap_abstract1_environment(manager, &other);
 	for (auto iit = llvmBB->begin(), iie = llvmBB->end(); iit != iie; iit++) {
 		// XXX(oanson) There is a mish-mash of GepValue code and BasicBlock code here.
 		// Including but not limited to a lot of repeated code
@@ -285,14 +288,20 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 			ap_tcons1_t tcons = phiValue->getSetValueTcons(this, incomingValue);
 			tconstraints.push_back(tcons);
 			envs.push_back(ap_tcons1_envref(&tcons));
-			phiVars.push_back((ap_var_t)phiValue->getName().c_str());
+			ap_var_t phiVar = (ap_var_t)phiValue->getName().c_str();
+			if (ap_environment_mem_var(other_env, phiVar)) {
+				phiVars.push_back(phiVar);
+			}
 		} else {
 			// XXX(oanson) So basically this is the same as in GepValue
 			std::string & incomingValueName = incomingValue->getName();
 			if (llvm::isa<llvm::Argument>(incoming)) {
 				if (getFunction()->isUserPointer(incomingValueName)) {
 					const std::string & generatedName = generateOffsetName(phiValue, incomingValueName);
-					phiVars.push_back((ap_var_t)generatedName.c_str());
+					ap_var_t phiVar = (ap_var_t)generatedName.c_str();
+					if (ap_environment_mem_var(other_env, phiVar)) {
+						phiVars.push_back(phiVar);
+					}
 					ap_texpr1_t * value_texpr = ap_texpr1_cst_scalar_int(
 							getEnvironment(), 0);
 					addOffsetConstraint(tconstraints, value_texpr,
@@ -303,7 +312,10 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 				std::set<std::string> & userPtrs = otherAS.m_mayPointsTo[incomingValueName];
 				for (auto & srcPtrName : userPtrs) {
 					const std::string & generatedName = generateOffsetName(phiValue, srcPtrName);
-					phiVars.push_back((ap_var_t)generatedName.c_str());
+					ap_var_t phiVar = (ap_var_t)generatedName.c_str();
+					if (ap_environment_mem_var(other_env, phiVar)) {
+						phiVars.push_back(phiVar);
+					}
 					const std::string & generatedNameIncoming = generateOffsetName(incomingValue, srcPtrName);
 					ap_texpr1_t * value_texpr = getVariableTExpr(generatedNameIncoming);
 					addOffsetConstraint(tconstraints, value_texpr,
@@ -315,10 +327,9 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 	unsigned oldsize = ap_tcons1_array_size(&tconstraints_array);
 	unsigned size = tconstraints.size();
 	unsigned newsize = oldsize + size;
-	ap_abstract1_t other = basicBlock.m_abst_value;
-	other = ap_abstract1_forget_array(getManager(), false, &other, phiVars.data(), phiVars.size(), false);
+	other = ap_abstract1_forget_array(manager, false, &other,
+			phiVars.data(), phiVars.size(), false);
 	if (newsize > 0) {
-		ap_manager_t* manager = getManager();
 		ap_environment_t * environment = getEnvironment();
 		envs.push_back(environment);
 		envs.push_back(ap_tcons1_array_envref(&tconstraints_array));
