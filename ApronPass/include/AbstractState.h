@@ -83,9 +83,6 @@ public:
 	typedef std::map<std::string, std::set<std::string> > may_points_to_t;
 	
 protected:
-
-	static std::map<std::string, std::string> g_userPointerNames[user_pointer_operation_count];
-
 	/*************************************************/
 	/* OREN ISH SHALOM remarks:                      */
 	/* our abstract state is made of a cartesian     */
@@ -133,7 +130,6 @@ public:
 	// (Apron) analysis of (user) read/write/last0 pointers
 	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
 
-	std::string & getUserPointerName(std::string & userPtr, user_pointer_operation_e op);
 	ap_manager_t * getManager() const;
 	void updateUserOperationAbstract1();
 	// General commands
@@ -149,6 +145,37 @@ public:
 	ap_abstract1_t join(std::vector<ap_abstract1_t> & values);
 };
 
-llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, AbstractState & as);
+template <class stream>
+inline stream & operator<<(stream & s, AbstractState & as) {
+	s << "{'mpt':{";
+	for (auto & mpt : as.m_mayPointsTo) {
+		s << "'" << mpt.first << "':[";
+		for (auto & userPtr : mpt.second) {
+			s << "'" << userPtr << "',";
+		}
+		s << "],";
+	}
+	s << "},abstract1:{" << std::make_pair(as.getManager(), &as.m_abstract1) << "}";
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, user_pointer_operation_e op) {
+	switch (op) {
+	case user_pointer_operation_read:
+		s << "read";
+		break;
+	case user_pointer_operation_write:
+		s << "write";
+		break;
+	case user_pointer_operation_first0:
+		s << "first0";
+		break;
+	default:
+		s << "<invalid user_pointer_operation_e>";
+		break;
+	}
+	return s;
+}
 
 #endif // ABSTRACT_STATE_H

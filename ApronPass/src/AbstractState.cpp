@@ -207,11 +207,6 @@ bool AbstractState::join(AbstractState &other)
 	// TODO(oanson) TBD
 	// Join (Apron) analysis of (user) read/write/last0 pointers
 	isChanged = joinAbstract1(&other.m_abstract1) | isChanged;
-	char * buffer;
-	size_t size;
-	FILE * bufferfp = open_memstream(&buffer, &size);
-	ap_abstract1_fprint(bufferfp, getManager(), &m_abstract1);
-	fclose(bufferfp);
 	return isChanged;
 }
 
@@ -237,31 +232,21 @@ ap_abstract1_t AbstractState::join(std::vector<ap_abstract1_t> & a_values) {
 		ap_environment_t * env = ap_environment_alloc_empty();
 		return ap_abstract1_bottom(manager, env);
 	}
-	ap_abstract1_t values[size];
+	std::vector<ap_environment_t*> envs;
+	std::vector<ap_abstract1_t> values;
+	envs.reserve(size);
 	typedef ap_environment_t* ap_environment_t_p;
-	ap_environment_t_p envs[size];
-	for (unsigned idx = 0; idx < size; idx++) {
-		envs[idx] = ap_abstract1_environment(manager, &a_values[idx]);
+	for (ap_abstract1_t & abs : a_values) {
+		envs.push_back(ap_abstract1_environment(manager, &abs));
 	}
 	ap_dimchange_t** ptdimchange;
-	ap_environment_t * environment = ap_environment_lce_array(envs, size,
-			&ptdimchange);
-	for (unsigned idx = 0; idx < size; idx++) {
-		values[idx] = ap_abstract1_change_environment(manager, false,
-				&a_values[idx], environment, true);
+	ap_environment_t * environment = ap_environment_lce_array(
+			envs.data(), envs.size(), &ptdimchange);
+	values.reserve(size);
+	for (ap_abstract1_t & abs : a_values) {
+		values.push_back(ap_abstract1_change_environment(
+				manager, false, &abs, environment, true));
 	}
-	return ap_abstract1_join_array(manager, values, size);
+	return ap_abstract1_join_array(manager, values.data(), values.size());
 }
 
-llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, AbstractState & as) {
-	ro << "{'mpt':{";
-	for (auto & mpt : as.m_mayPointsTo) {
-		ro << "'" << mpt.first << "':[";
-		for (auto & userPtr : mpt.second) {
-			ro << "'" << userPtr << "',";
-		}
-		ro << "],";
-	}
-	ro << "},abstract1:{" << std::make_pair(as.getManager(), &as.m_abstract1) << "}";
-	return ro;
-}

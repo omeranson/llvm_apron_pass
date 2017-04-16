@@ -259,19 +259,16 @@ namespace
 			// Get 'return' instruction
 			llvm::ReturnInst * returnInst = getReturnInstruction(*F);
 			if (!returnInst) {
-				llvm::errs() << F->getName() << " " << "-inf" << " " << "inf" << "\n";
 				return false;
 			}
 			// get temporary
 			llvm::Value * llvmValue = returnInst->getReturnValue();
 			if (!llvmValue) {
-				llvm::errs() << F->getName() << " " << "-inf" << " " << "inf" << "\n";
 				return false;
 			}
 			ValueFactory * factory = ValueFactory::getInstance();
 			Value * val = factory->getValue(llvmValue);
 			if (!val) {
-				llvm::errs() << F->getName() << " " << "-inf" << " " << "inf" << "\n";
 				return false;
 			}
 			// get temporary's abstract value
@@ -279,19 +276,6 @@ namespace
 			BasicBlock * last = BasicBlockManager::getInstance().getBasicBlock(
 					llvmlast);
 			ap_interval_t * interval = last->getVariableInterval(val);
-			if (Debug) {
-				llvm::errs() << last->getAbstractState() << "\n";
-				{
-					char * buffer;
-					size_t size;
-					FILE * bufferfp = open_memstream(&buffer, &size);
-					ap_abstract1_fprint(bufferfp, last->getManager(), &last->getAbstractValue());
-					fclose(bufferfp);
-					llvm::errs() << buffer << "\n";
-				}
-			}
-			        // chaoticExecution.print();
-			        // llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
                     /*********************************************/
                     /* OREN ISH SHALOM: Print the way I like it! */
                     /*********************************************/
@@ -302,19 +286,15 @@ namespace
 	                /*********************************************************/
 	                /* OREN ISH SHALOM: Write in the human readable format:  */
 	                /*                                                       */
-	                /* MY_FUNCTION_NAME = [45, 200], or for another example: */
+	                /* MY_FUNCTION_NAME = [45 200], or for another example:  */
 	                /*                                                       */
-	                /* MY_FUNCTION_NAME = [17, +00]                          */
+	                /* MY_FUNCTION_NAME = [17 +00]                           */
 	                /*                                                       */
 	                /*********************************************************/
 		    std::string EC;
 		    llvm::raw_fd_ostream fl(abs_path_filename_builder.str().c_str(), EC);
 		    fl << F->getName() << " = [ " << *interval->inf << " " << *interval->sup << " ]\n";
 		    fl.close();
-
-	                /*************************************************************************/
-	                /* OREN ISH SHALOM: Keep Omer's original printing -- He's a nice guy :)) */
-	                /*************************************************************************/
 			        return false;
                 }
             }

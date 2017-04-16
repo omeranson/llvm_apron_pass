@@ -649,7 +649,8 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 
 std::string BasicBlock::toString() {
 	std::ostringstream oss;
-	oss << getName() << ": " << std::make_pair(getManager(), &m_abst_value);
+	oss << getName() << ": " << std::make_pair(getManager(), &m_abst_value)
+			<< "AND " << getAbstractState() << "\n";
 	return oss.str();
 }
 
