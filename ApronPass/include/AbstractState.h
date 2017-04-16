@@ -28,11 +28,9 @@ public:
 	ap_tcons1_array_t m_constraints;
 
 	MemoryAccessAbstractValue(ap_environment_t * env,
-			std::string & userPtr,
+			ap_texpr1_t * last,
 			ap_texpr1_t * offset,
 			ap_texpr1_t * size);
-	ap_texpr1_t* createMemoryPointerTExpr(std::string & name);
-	ap_tcons1_array_t createTcons1Array();
 };
 
 /**
@@ -131,7 +129,7 @@ public:
 	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
 
 	ap_manager_t * getManager() const;
-	void updateUserOperationAbstract1();
+	void updateUserOperationAbstract1(ap_abstract1_t & abstract1);
 	// General commands
 	virtual bool join(AbstractState &);
 	// TODO(oanson) The following functions are missing

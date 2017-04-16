@@ -359,9 +359,26 @@ const std::string & BasicBlock::generateOffsetName(Value * value, const std::str
 	return *inserted.first;
 }
 
+const std::string & BasicBlock::generateLastName(const std::string & bufname, user_pointer_operation_e op) {
+	static std::set<std::string> names;
+	std::string s;
+	llvm::raw_string_ostream rso(s);
+	rso << "last(" << bufname << "," << op << ")";
+	rso.str();
+	// To make sure we always get the same c_str
+	std::pair<std::set<std::string>::iterator,bool> inserted = names.insert(s);
+	return *inserted.first;
+}
+
 ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
 		Value * value, const std::string & bufname) {
 	const std::string & generatedName = generateOffsetName(value, bufname);
+	return getVariableTExpr(generatedName);
+}
+
+ap_texpr1_t * BasicBlock::createUserPointerLastTreeExpression(
+		const std::string & bufname, user_pointer_operation_e op) {
+	const std::string & generatedName = generateLastName(bufname, op);
 	return getVariableTExpr(generatedName);
 }
 
@@ -524,7 +541,7 @@ bool BasicBlock::update() {
 	ap_environment_t* env = getEnvironment();
 	ap_abstract1_t abs = abstractMeetWithTconsList(constraints);
 	// ap_abstract1_t abs = abstractOfTconsList(constraints);
-	m_abstractState.updateUserOperationAbstract1();
+	m_abstractState.updateUserOperationAbstract1(abs);
 
 	if (Debug) {
 		llvm::errs() << getName() << ": Update: " <<std::make_pair(manager, &abs);

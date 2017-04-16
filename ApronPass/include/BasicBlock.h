@@ -71,8 +71,12 @@ public:
 
 	virtual const std::string & generateOffsetName(
 			Value * value, const std::string & bufname);
+	virtual const std::string & generateLastName(
+			const std::string & bufname, user_pointer_operation_e op);
 	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
 		Value * value, const std::string & bufname);
+	virtual ap_texpr1_t * createUserPointerLastTreeExpression(
+		const std::string & bufname, user_pointer_operation_e op);
 
 	virtual bool join(BasicBlock & basicBlock);
 	virtual bool meet(BasicBlock & basicBlock);
