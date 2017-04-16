@@ -1,4 +1,8 @@
 #include <Function.h>
+#include <BasicBlock.h>
+
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Instructions.h>
 
 FunctionManager FunctionManager::instance;
 FunctionManager & FunctionManager::getInstance() {
@@ -21,4 +25,72 @@ Function * FunctionManager::getFunction(llvm::Function * function) {
 
 bool Function::isUserPointer(std::string & ptrname) {
 	return ptrname.find("buf") == 0;
+}
+
+llvm::ReturnInst * Function::getReturnInstruction() {
+	llvm::Function &F = *m_function;
+	for (auto bbit = F.begin(), bbie = F.end(); bbit != bbie; bbit++) {
+		llvm::BasicBlock & bb = *bbit;
+		for (auto iit = bb.begin(), iie = bb.end(); iit != iie; iit++) {
+			llvm::Instruction & inst = *iit;
+			if (llvm::isa<llvm::ReturnInst>(inst)) {
+				llvm::ReturnInst & result = llvm::cast<llvm::ReturnInst>(inst);
+				return &result;
+			}
+		}
+	}
+	return NULL;
+}
+
+BasicBlock * Function::getReturnBasicBlock() {
+	llvm::ReturnInst * returnInst = getReturnInstruction();
+	llvm::BasicBlock * basicBlock = returnInst->getParent();
+	BasicBlockManager & basicBlockManager = BasicBlockManager::getInstance();
+	return basicBlockManager.getBasicBlock(basicBlock);
+}
+
+bool Function::isVarInOut(const char * varname) {
+	// Return true iff:
+	// 	varname is argument
+	// 	varname is last(*,*)
+	// 	varname is the return value
+	// XXX Memoize this value?
+	if ((strncmp(varname, "last(", sizeof("last(")-1) == 0) &&
+			varname[strlen(varname)-1] == ')') {
+		return true;
+	}
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	for (const llvm::Argument & argument : arguments) {
+		if (argument.getName() == varname) {
+			return true;
+		}
+	}
+	llvm::ReturnInst * returnInst = getReturnInstruction();
+	llvm::Value * returnValue = returnInst->getReturnValue();
+	if (returnValue->getName() == varname) {
+		return true;
+	}
+	return false;
+}
+
+ap_abstract1_t Function::trimmedLastAbstractValue() {
+	BasicBlock * returnBasicBlock = getReturnBasicBlock();
+	AbstractState & as = returnBasicBlock->getAbstractState();
+	ap_abstract1_t & asAbstract1 = as.m_abstract1;
+	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
+	ap_environment_t * environment = ap_abstract1_environment(manager, &asAbstract1);
+
+	// Forget all variables that are not arguments, 'last(*,*)', or the return value
+	std::vector<ap_var_t> forgetVars;
+	int env_size = environment->intdim;
+	for (int cnt = 0; cnt < env_size; cnt++) {
+		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
+		const char * varName = (const char*)var;
+		if (!isVarInOut(varName)) {
+			forgetVars.push_back(var);
+		}
+	}
+	ap_abstract1_t result = ap_abstract1_forget_array(manager, false, &as.m_abstract1,
+			forgetVars.data(), forgetVars.size(), false);
+	return result;
 }

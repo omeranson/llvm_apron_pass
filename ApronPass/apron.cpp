@@ -44,6 +44,7 @@
 #include <APStream.h>
 #include <Value.h>
 #include <CallGraph.h>
+#include <Function.h>
 
 bool Debug;
 llvm::cl::opt<bool, true> DebugOpt ("d", llvm::cl::desc("Enable additional debug output"), llvm::cl::location(Debug));
@@ -190,20 +191,6 @@ namespace
 		/* OREN ISH SHALOM removed : Apron() : blockCount(0), llvm::FunctionPass(ID) {} */
 		Apron() : blockCount(0), llvm::CallGraphSCCPass(ID) {}
 
-		virtual llvm::ReturnInst * getReturnInstruction(llvm::Function &F) {
-			for (auto bbit = F.begin(), bbie = F.end(); bbit != bbie; bbit++) {
-				llvm::BasicBlock & bb = *bbit;
-				for (auto iit = bb.begin(), iie = bb.end(); iit != iie; iit++) {
-					llvm::Instruction & inst = *iit;
-					if (llvm::isa<llvm::ReturnInst>(inst)) {
-						llvm::ReturnInst & result = llvm::cast<llvm::ReturnInst>(inst);
-						return &result;
-					}
-				}
-			}
-			return NULL;
-		}
-
         /***************************************************/
         /* OREN ISH SHALOM removed:                        */
         /*                                                 */
@@ -257,7 +244,15 @@ namespace
 			}
 
 			// Get 'return' instruction
-			llvm::ReturnInst * returnInst = getReturnInstruction(*F);
+			FunctionManager & functionManager = FunctionManager::getInstance();
+			Function * function = functionManager.getFunction(F);
+			if (Debug) {
+				ap_abstract1_t trimmedAbstract1 = function->trimmedLastAbstractValue();
+				llvm::errs() << "Trimmed abstract value: " <<
+						std::make_pair(BasicBlockManager::getInstance().m_manager,
+								&trimmedAbstract1);
+			}
+			llvm::ReturnInst * returnInst = function->getReturnInstruction();
 			if (!returnInst) {
 				return false;
 			}
