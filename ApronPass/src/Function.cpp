@@ -4,6 +4,7 @@
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/Support/raw_ostream.h>
 
 FunctionManager FunctionManager::instance;
 FunctionManager & FunctionManager::getInstance() {
@@ -133,8 +134,6 @@ ap_abstract1_t Function::trimmedLastJoinedAbstractValue() {
 			&returnBasicBlock->getAbstractValue(), environment, true);
 	ap_abstract1_t abstract1 = ap_abstract1_join(manager, false, &asAbstract1, &bbAbstract1);
 
-	llvm::errs() << "LastAbstrctValue, untrimmed: " << std::make_pair(manager, &abstract1);
-
 	// Forget all variables that are not arguments, 'last(*,*)', or the return value
 	std::vector<ap_var_t> forgetVars;
 	int env_size = environment->intdim;
@@ -147,5 +146,93 @@ ap_abstract1_t Function::trimmedLastJoinedAbstractValue() {
 	}
 	ap_abstract1_t result = ap_abstract1_forget_array(manager, false, &abstract1,
 			forgetVars.data(), forgetVars.size(), false);
+	return result;
+}
+
+std::vector<std::string> Function::getUserPointers() {
+	std::vector<std::string> result;
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	for (const llvm::Argument & argument : arguments) {
+		std::string name = argument.getName().str();
+		if (isUserPointer(name)) {
+			result.push_back(name);
+		}
+	}
+	return result;
+}
+
+std::map<std::string, ap_abstract1_t> Function::generateErrorStates() {
+	ap_abstract1_t trimmedASAbstract1 = trimmedLastASAbstractValue();
+	BasicBlock * basicBlock = getReturnBasicBlock();
+	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	// for each buf : user buffer:
+	// 	create constraints: size(buf) > last(buf,read)
+	// 	                    size(buf) > last(buf,write)
+	// 	newAbstract1 <- meet with these constraints
+	// 	newAbstract2 <- forget all last(*) values
+	// 	push_back newAbstract2
+	std::map<std::string, ap_abstract1_t> result;
+	std::vector<std::string> userBuffers = getUserPointers();
+	for (std::string & userBuffer : userBuffers) {
+		std::string name;
+		llvm::raw_string_ostream rso(name);
+		rso << "size(" << userBuffer << ")";
+		rso.str();
+		ap_var_t name_var = (ap_var_t)name.c_str();
+
+		ap_environment_t * environment = ap_abstract1_environment(
+				manager, &trimmedASAbstract1);
+		if (!ap_environment_mem_var(environment, name_var)) {
+			environment = ap_environment_add(environment, &name_var, 1, NULL, 0);
+		}
+		const std::string & last_read_name = basicBlock->generateLastName(
+				userBuffer, user_pointer_operation_read);
+		ap_var_t last_read_var = (ap_var_t)last_read_name.c_str();
+		if (!ap_environment_mem_var(environment, last_read_var)) {
+			environment = ap_environment_add(environment, &last_read_var, 1, NULL, 0);
+		}
+		const std::string & last_write_name = basicBlock->generateLastName(
+				userBuffer, user_pointer_operation_write);
+		ap_var_t last_write_var = (ap_var_t)last_write_name.c_str();
+		if (!ap_environment_mem_var(environment, last_write_var)) {
+			environment = ap_environment_add(environment, &last_write_var, 1, NULL, 0);
+		}
+
+		ap_texpr1_t * size = ap_texpr1_var(environment, name_var);
+
+		ap_texpr1_t * last_read = ap_texpr1_var(environment, last_read_var);
+		ap_texpr1_t * size_last_read_diff = ap_texpr1_binop(
+				AP_TEXPR_SUB, last_read, ap_texpr1_copy(size),
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t size_gt_last_read = ap_tcons1_make(
+				AP_CONS_SUP, size_last_read_diff, zero);
+
+		ap_texpr1_t * last_write = ap_texpr1_var(environment, last_write_var);
+		ap_texpr1_t * size_last_write_diff = ap_texpr1_binop(
+				AP_TEXPR_SUB, last_write, size,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t size_gt_last_write = ap_tcons1_make(
+				AP_CONS_SUP, size_last_write_diff, zero);
+
+		ap_tcons1_array_t array = ap_tcons1_array_make(environment, 2);
+		ap_tcons1_array_set(&array, 0, &size_gt_last_read);
+		ap_tcons1_array_set(&array, 1, &size_gt_last_write);
+		ap_abstract1_t abstract1_newenv = ap_abstract1_change_environment(
+				manager, false, &trimmedASAbstract1, environment, false);
+		ap_abstract1_t abstract1_with_size = ap_abstract1_meet_tcons_array(
+				manager, false, &abstract1_newenv, &array);
+
+		llvm::errs() << "Error state before forget for: " << name << ":" <<
+				std::make_pair(manager, &abstract1_with_size);
+		std::vector<ap_var_t> forgetVars;
+		forgetVars.push_back(last_read_var);
+		forgetVars.push_back(last_write_var);
+		ap_abstract1_t abstract1_with_size_trimmed = ap_abstract1_forget_array(
+				manager, false, &abstract1_with_size,
+				forgetVars.data(), forgetVars.size(), false);
+		result[userBuffer] = abstract1_with_size_trimmed;
+	}
 	return result;
 }

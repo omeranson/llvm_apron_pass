@@ -247,18 +247,25 @@ namespace
 			FunctionManager & functionManager = FunctionManager::getInstance();
 			Function * function = functionManager.getFunction(F);
 			if (Debug) {
+				ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
 				ap_abstract1_t trimmedAbstract1 = function->trimmedLastASAbstractValue();
 				llvm::errs() << "Trimmed AS abstract value: " <<
-						std::make_pair(BasicBlockManager::getInstance().m_manager,
+						std::make_pair(manager,
 								&trimmedAbstract1);
 				trimmedAbstract1 = function->trimmedLastBBAbstractValue();
 				llvm::errs() << "Trimmed BB abstract value: " <<
-						std::make_pair(BasicBlockManager::getInstance().m_manager,
+						std::make_pair(manager,
 								&trimmedAbstract1);
 				trimmedAbstract1 = function->trimmedLastJoinedAbstractValue();
 				llvm::errs() << "Trimmed joined abstract value: " <<
-						std::make_pair(BasicBlockManager::getInstance().m_manager,
+						std::make_pair(manager,
 								&trimmedAbstract1);
+				llvm::errs() << "Error states:\n";
+				std::map<std::string, ap_abstract1_t> errorStates = function->generateErrorStates();
+				for (auto & state : errorStates) {
+					llvm::errs() << "// Error state for " << state.first << ":\n";
+					llvm::errs() << std::make_pair(manager, &state.second);
+				}
 			}
 			llvm::ReturnInst * returnInst = function->getReturnInstruction();
 			if (!returnInst) {
