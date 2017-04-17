@@ -360,10 +360,14 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 }
 
 const std::string & BasicBlock::generateOffsetName(Value * value, const std::string & bufname) {
+	return generateOffsetName(value->getName(), bufname);
+}
+
+const std::string & BasicBlock::generateOffsetName(const std::string & valueName, const std::string & bufname) {
 	static std::set<std::string> names;
 	std::string s;
 	llvm::raw_string_ostream rso(s);
-	rso << "offset(" << value->getName() << "," << bufname << ")";
+	rso << "offset(" << valueName << "," << bufname << ")";
 	rso.str();
 	// To make sure we always get the same c_str
 	std::pair<std::set<std::string>::iterator,bool> inserted = names.insert(s);
@@ -383,7 +387,12 @@ const std::string & BasicBlock::generateLastName(const std::string & bufname, us
 
 ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
 		Value * value, const std::string & bufname) {
-	const std::string & generatedName = generateOffsetName(value, bufname);
+	return createUserPointerOffsetTreeExpression(value->getName(), bufname);
+}
+
+ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
+		const std::string & valueName, const std::string & bufname) {
+	const std::string & generatedName = generateOffsetName(valueName, bufname);
 	return getVariableTExpr(generatedName);
 }
 

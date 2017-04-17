@@ -529,6 +529,9 @@ protected:
 	virtual void populateTreeConstraintsForStrncpyFromUser(std::list<ap_tcons1_t> & constraints);
 
 	virtual void populateTreeConstraintsForUserMemoryOperation(
+			const std::string & ptr, ap_texpr1_t * size,
+			user_pointer_operation_e op);
+	virtual void populateTreeConstraintsForUserMemoryOperation(
 			Value * ptr, ap_texpr1_t * size,
 			user_pointer_operation_e op);
 	virtual void populateTreeConstraintsForUserMemoryOperation(
@@ -776,19 +779,24 @@ void CallValue::populateImportIovec(std::list<ap_tcons1_t> & constraints) {
 }
 
 void CallValue::populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints) {
-	// Do nothing
+	llvm::CallInst * callinst = asCallInst();
+	assert(callinst->getNumArgOperands() == 3);
+	user_pointer_operation_e op = getArgumentUserOperation(0);
+	llvm::Value * ptr = callinst->getArgOperand(1);
+	llvm::Value * size = callinst->getArgOperand(2);
+	populateTreeConstraintsForLiteralSize(ptr, size, op);
 }
 
 void CallValue::populateTreeConstraintsForUserMemoryOperation(
-		Value * ptr, ap_texpr1_t * size,
+		const std::string & ptrName, ap_texpr1_t * size,
 		user_pointer_operation_e op) {
 	BasicBlock * bb = getBasicBlock();
 	ValueFactory * valueFactory = ValueFactory::getInstance();
 	AbstractState & abstractState = bb->getAbstractState();
-	std::set<std::string> & userBuffers = abstractState.m_mayPointsTo[ptr->getName()];
+	std::set<std::string> & userBuffers = abstractState.m_mayPointsTo[ptrName];
 	for (auto & userBuffer : userBuffers) {
 		ap_texpr1_t * offset = bb->createUserPointerOffsetTreeExpression(
-				ptr, userBuffer);
+				ptrName, userBuffer);
 		ap_texpr1_t * last = bb->createUserPointerLastTreeExpression(userBuffer, op);
 		ap_environment_t * env = bb->getEnvironment();
 		MemoryAccessAbstractValue maav(env, last, offset, ap_texpr1_copy(size));
@@ -796,6 +804,12 @@ void CallValue::populateTreeConstraintsForUserMemoryOperation(
 		abstractState.memoryAccessAbstractValues.push_back(maav);
 	}
 	ap_texpr1_free(size);
+}
+
+void CallValue::populateTreeConstraintsForUserMemoryOperation(
+		Value * ptr, ap_texpr1_t * size,
+		user_pointer_operation_e op) {
+	populateTreeConstraintsForUserMemoryOperation(ptr->getName(), size, op);
 }
 
 void CallValue::populateTreeConstraintsForUserMemoryOperation(
