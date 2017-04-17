@@ -81,14 +81,15 @@ template <class stream>
 inline stream & operator<<(stream & s, Contract contract) {
 	Function * function = contract.function;
 	// Preamble
+	s << "#include \"contracts.h\"\n";
 	s << function->getSignature() << " {\n";
 	s << "\t// Preamble\n"; // TODO(oanson) res type should be taken from signature
 	std::vector<std::string> userPointers = function->getUserPointers();
 	std::map<std::string, ap_abstract1_t> errorStates = function->generateErrorStates();
 	ap_abstract1_t asabstarct1 = function->trimmedLastASAbstractValue();
 	for (std::string & userPointer : userPointers) {
-		s << "\tunsigned size(" << userPointer << ") = SE_size_obj(" << userPointer << ");\n";
-		s << "\tunsigned offset(" << userPointer << ") = " << userPointer << " - SE_base_obj(" << userPointer << ");\n";
+		s << "\ti64 offset(" << userPointer << ") = (uintptr_t)" << userPointer << " - SE_base_obj(" << userPointer << ");\n";
+		s << "\ti64 size(" << userPointer << ") = SE_size_obj(" << userPointer << ") - offset(" << userPointer << ");\n";
 	}
 	s << "\t" << function->getReturnTypeString() << " res;\n"; // TODO(oanson) res type should be taken from signature
 	s << "\tbool b;\n";
@@ -115,7 +116,7 @@ inline stream & operator<<(stream & s, Contract contract) {
 				" && \"Invalid iovec pointer " << *call.iovec_name << "\");\n";
 	// 	Verify each item within iovec
 		s << "\tfor (idx = 0; idx < " << *call.iovec_len_name << "; idx++) {\n";
-		s << "\t\tunsigned iovec_element_size = SE_size_obj(" << *call.iovec_name << "[idx].iov_base);\n";
+		s << "\t\ti64 iovec_element_size = SE_size_obj(" << *call.iovec_name << "[idx].iov_base);\n";
 		s << "\t\tassert(iovec_element_size >= " << *call.iovec_name << "[idx].iov_len);\n";
 		s << "\t}\n";
 	}
@@ -126,11 +127,11 @@ inline stream & operator<<(stream & s, Contract contract) {
 	s << "\t// Modifications\n";
 	for (std::string & userPointer : userPointers) {
 		s << "\t// Modification for " << userPointer << ":\n";
-		s << "\tunsigned last(" << userPointer << ", write);\n";
+		s << "\ti64 last(" << userPointer << ", write);\n";
 		s << "\tHAVOC(last(" << userPointer << ", write));\n";
 		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &asabstarct1);
 		s << "\tif " << Conjunction(&array) << " {\n";
-		s << "\t\tHAVOC(" << userPointer << ", " << " last(" << userPointer << ", write));\n";
+		s << "\t\tHAVOC_SIZE(" << userPointer << ", " << " last(" << userPointer << ", write));\n";
 		s << "\t}\n";
 	}
 	// IOVectors
@@ -142,7 +143,7 @@ inline stream & operator<<(stream & s, Contract contract) {
 		s << "\t// Modification for " << *call.iovec_name << ":\n";
 		s << "\tfor (idx = 0; idx < " << *call.iovec_len_name << "; idx++) {\n";
 		// 	HAVOC all internal pointers
-		s << "\t\tHAVOC(" << *call.iovec_name << "[idx].iov_base, " << *call.iovec_name << "[idx].iov_len);\n";
+		s << "\t\tHAVOC_SIZE(" << *call.iovec_name << "[idx].iov_base, " << *call.iovec_name << "[idx].iov_len);\n";
 		s << "\t}\n";
 	}
 	// Postconditions
@@ -166,7 +167,8 @@ inline stream & operator<<(stream & s, Contract contract) {
 	s << "\t}\n";
 
 	// Postamble
-	s << "\tassume(false);\n";
+	s << "\tassume(0);\n";
+	s << "\treturn 0; // Unreachable\n";
 	s << "}\n";
 
 	// VA wrapper
