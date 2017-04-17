@@ -157,8 +157,9 @@ inline stream & operator<<(stream & s, Contract contract) {
 			&oldName, &newName, 1);
 	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1_renamed);
 	s << "\tHAVOC(b);\n";
+	s << "\tHAVOC(res);\n";
 	s << "\tif " << Conjunction("b", &array) << " {\n";
-	s << "\t\tHAVOC(res);\n";
+	s << "\t\treturn res;\n";
 	s << "\t}\n";
 
 	// Postamble
