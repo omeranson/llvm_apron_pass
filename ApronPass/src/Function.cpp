@@ -256,12 +256,12 @@ std::string Function::getTypeString(llvm::Type * type) {
 		llvm::Type * pointedType = type->getPointerElementType();
 		if (pointedType->isStructTy()) {
 			if (pointedType->getStructName() == "struct.iovec") {
-				return "struct iovec * __user";
+				return "struct iovec *";
 			}
 			rso << "/*" << pointedType->getStructName() << "*/ ";
 			// Fall through
 		}
-		rso << "char * __user";
+		rso << "char *";
 		return rso.str();
 }
 
@@ -269,18 +269,27 @@ std::string Function::getReturnTypeString() {
 	return getTypeString(m_function->getReturnType());
 }
 
+std::vector<std::pair<std::string, std::string> > Function::getArgumentStrings() {
+	std::vector<std::pair<std::string, std::string> > result;
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	for (const llvm::Argument & argument : arguments) {
+		result.push_back(std::make_pair(getTypeString(argument.getType()), argument.getName()));
+	}
+	return result;
+}
+
 std::string Function::getSignature() {
 	std::string result;
 	llvm::raw_string_ostream rso(result);
 	rso << getTypeString(m_function->getReturnType()) << " " << getName() << "(";
-	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	auto arguments = getArgumentStrings();
 	bool first = true;
-	for (const llvm::Argument & argument : arguments) {
+	for (auto & argumentPair : arguments) {
 		if (!first) {
 			rso << ", ";
 		}
 		first = false;
-		rso << getTypeString(argument.getType()) << " " << argument.getName();
+		rso << argumentPair.first << " " << argumentPair.second;
 	}
 	rso << ")";
 	return rso.str();

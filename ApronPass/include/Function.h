@@ -47,6 +47,7 @@ public:
 	virtual bool isVarInOut(const char * varname);
 	std::map<std::string, ap_abstract1_t> generateErrorStates();
 	std::string getName();
+	std::vector<std::pair<std::string, std::string> > getArgumentStrings();
 	std::string getSignature();
 	std::string getTypeString(llvm::Type * type);
 	std::string getReturnTypeString();
@@ -165,9 +166,26 @@ inline stream & operator<<(stream & s, Contract contract) {
 	s << "\t}\n";
 
 	// Postamble
-	s << "\tassume(false)\n";
+	s << "\tassume(false);\n";
 	s << "}\n";
 
+	// VA wrapper
+	s << function->getReturnTypeString() << " __" << function->getName() << "_va_wrapper(va_list args) {\n";
+	auto arguments = function->getArgumentStrings();
+	for (auto argument : arguments) {
+		s << "\t" << argument.first << " " << argument.second << " = va_arg(args, " << argument.first << ");\n";
+	}
+	s << "\treturn " << function->getName() << "(";
+	bool first = true;
+	for (auto argument : arguments) {
+		if (!first) {
+			s << ", ";
+		}
+		first = false;
+		s << argument.second;
+	}
+	s << ");\n";
+	s << "}\n";
 	return s;
 }
 
