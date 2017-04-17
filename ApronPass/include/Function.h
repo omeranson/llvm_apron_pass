@@ -48,6 +48,8 @@ public:
 	std::map<std::string, ap_abstract1_t> generateErrorStates();
 	std::string getName();
 	std::string getSignature();
+	std::string getTypeString(llvm::Type * type);
+	std::string getReturnTypeString();
 	const std::vector<ImportIovecCall> & getImportIovecCalls();
 };
 
@@ -87,7 +89,7 @@ inline stream & operator<<(stream & s, Contract contract) {
 		s << "\tunsigned size(" << userPointer << ") = SE_size_obj(" << userPointer << ");\n";
 		s << "\tunsigned offset(" << userPointer << ") = " << userPointer << " - SE_base_obj(" << userPointer << ");\n";
 	}
-	s << "\tint res;\n"; // TODO(oanson) res type should be taken from signature
+	s << "\t" << function->getReturnTypeString() << " res;\n"; // TODO(oanson) res type should be taken from signature
 	s << "\tbool b;\n";
 	// Preconditions
 	// Standard variables

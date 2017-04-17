@@ -246,11 +246,39 @@ std::string Function::getName() {
 	return m_function->getName();
 }
 
+std::string Function::getTypeString(llvm::Type * type) {
+		std::string result;
+		llvm::raw_string_ostream rso(result);
+		if (!type->isPointerTy()) {
+			rso << *type;
+			return rso.str();
+		}
+		llvm::Type * pointedType = type->getPointerElementType();
+		if (pointedType->isStructTy() && pointedType->getStructName() == "struct.iovec") {
+			return "struct iovec * __user";
+		}
+		rso << "char * __user";
+		return rso.str();
+}
+
+std::string Function::getReturnTypeString() {
+	return getTypeString(m_function->getReturnType());
+}
+
 std::string Function::getSignature() {
-	// XXX(oanson) VERY INCOMPLETE
 	std::string result;
 	llvm::raw_string_ostream rso(result);
-	rso << "int " << getName() << "(...)";
+	rso << getTypeString(m_function->getReturnType()) << " " << getName() << "(";
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	bool first = true;
+	for (const llvm::Argument & argument : arguments) {
+		if (!first) {
+			rso << ", ";
+		}
+		first = false;
+		rso << getTypeString(argument.getType()) << " " << argument.getName();
+	}
+	rso << ")";
 	return rso.str();
 }
 
