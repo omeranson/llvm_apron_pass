@@ -117,7 +117,7 @@ public:
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
 	virtual ap_abstract1_t abstractOfTconsList(
 			std::list<ap_tcons1_t> & constraints);
-	virtual ap_abstract1_t abstractMeetWithTconsList(
+	virtual ap_abstract1_t applyConstraints(
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_tcons1_array_t createTcons1Array(
 			std::list<ap_tcons1_t> & constraints);

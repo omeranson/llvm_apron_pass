@@ -542,7 +542,7 @@ protected:
 	virtual void populateTreeConstraintsForLiteralSize(llvm::Value * ptr,
 			llvm::Value * llvmsize, user_pointer_operation_e op);
 	virtual void populateTreeConstraintsForCopyToFromUser(user_pointer_operation_e op);
-	virtual void populateImportIovec(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraintsForImportIovec(std::list<ap_tcons1_t> & constraints);
 	virtual user_pointer_operation_e getArgumentUserOperation(int arg);
 	virtual user_pointer_operation_e getImportIovecOp();
 	virtual const std::string & getArgumentName(int arg);
@@ -726,7 +726,7 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			return;
 		}
 		if ("import_iovec" == funcName) {
-			populateImportIovec(constraints);
+			populateTreeConstraintsForImportIovec(constraints);
 			return;
 		}
 	}
@@ -766,7 +766,7 @@ const std::string & CallValue::getImportIovecLenName() {
 	return getArgumentName(2);
 }
 
-void CallValue::populateImportIovec(std::list<ap_tcons1_t> & constraints) {
+void CallValue::populateTreeConstraintsForImportIovec(std::list<ap_tcons1_t> & constraints) {
 	BasicBlock * bb = getBasicBlock();
 	ValueFactory * valueFactory = ValueFactory::getInstance();
 	AbstractState & abstractState = bb->getAbstractState();
@@ -776,6 +776,12 @@ void CallValue::populateImportIovec(std::list<ap_tcons1_t> & constraints) {
 			user_pointer_operation_write : user_pointer_operation_read;
 	abstractState.m_importedIovecCalls.push_back(ImportIovecCall(
 		op, getImportIovecPtrName(), getImportIovecLenName()));
+
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	ap_texpr1_t * var_texpr = createTreeExpression(bb);
+	ap_tcons1_t return_value = ap_tcons1_make(AP_CONS_EQ, var_texpr, zero);
+	constraints.push_back(return_value);
 }
 
 void CallValue::populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints) {

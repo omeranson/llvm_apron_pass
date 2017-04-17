@@ -559,7 +559,7 @@ bool BasicBlock::update() {
 
 	ap_manager_t * manager = getManager();
 	ap_environment_t* env = getEnvironment();
-	ap_abstract1_t abs = abstractMeetWithTconsList(constraints);
+	ap_abstract1_t abs = applyConstraints(constraints);
 	// ap_abstract1_t abs = abstractOfTconsList(constraints);
 	m_abstractState.updateUserOperationAbstract1(abs);
 
@@ -620,14 +620,20 @@ ap_tcons1_array_t BasicBlock::getBasicBlockConstraints(BasicBlock * basicBlock) 
 	return terminatorValue->getBasicBlockConstraints(basicBlock);
 }
 
-ap_abstract1_t BasicBlock::abstractMeetWithTconsList(
+ap_abstract1_t BasicBlock::applyConstraints(
 		std::list<ap_tcons1_t> & constraints) {
 	if (constraints.empty()) {
 		return m_abst_value;
 	}
 	ap_tcons1_array_t array = createTcons1Array(constraints);
-	ap_abstract1_t abs = ap_abstract1_meet_tcons_array(
-			getManager(), false, &m_abst_value, &array);
+	ap_abstract1_t abs;
+	if (ap_abstract1_is_bottom(getManager(), &m_abst_value)) {
+		abs = ap_abstract1_of_tcons_array(
+				getManager(), getEnvironment(), &array);
+	} else {
+		abs = ap_abstract1_meet_tcons_array(
+				getManager(), false, &m_abst_value, &array);
+	}
 	return abs;
 }
 
