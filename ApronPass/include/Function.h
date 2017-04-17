@@ -24,7 +24,9 @@ struct Contract {
 
 struct Conjunction {
 	ap_tcons1_array_t * array;
-	Conjunction(ap_tcons1_array_t * array) : array(array) {}
+	std::string base;
+	Conjunction(ap_tcons1_array_t * array) : base("1"), array(array) {}
+	Conjunction(const std::string & base, ap_tcons1_array_t * array) : base(base), array(array) {}
 };
 
 class Function {
@@ -58,11 +60,11 @@ public:
 
 template <class stream>
 inline stream & operator<<(stream & s, Conjunction contract) {
-	s << "(1 ";
+	s << "(" << contract.base;
 	size_t size = ap_tcons1_array_size(contract.array);
 	for (int idx = 0; idx < size; idx++) {
 		ap_tcons1_t tcons = ap_tcons1_array_get(contract.array, idx);
-		s << "&& (" << tcons << ")";
+		s << " && (" << tcons << ")";
 	}
 	s << ")";
 	return s;
@@ -71,7 +73,9 @@ inline stream & operator<<(stream & s, Conjunction contract) {
 template <class stream>
 inline stream & operator<<(stream & s, Contract contract) {
 	Function * function = contract.function;
+	// Preamble
 	s << function->getSignature() << " {\n";
+	s << "\t// Preamble\n"; // TODO(oanson) res type should be taken from signature
 	std::vector<std::string> userPointers = function->getUserPointers();
 	std::map<std::string, ap_abstract1_t> errorStates = function->generateErrorStates();
 	ap_abstract1_t asabstarct1 = function->trimmedLastASAbstractValue();
@@ -80,7 +84,9 @@ inline stream & operator<<(stream & s, Contract contract) {
 		s << "\tunsigned offset(" << userPointer << ") = " << userPointer << " - SE_base_obj(" << userPointer << ");\n";
 	}
 	s << "\tint res;\n"; // TODO(oanson) res type should be taken from signature
+	s << "\tbool b;\n";
 	// Preconditions
+	s << "\t// Preconditions\n";
 	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
 	for (auto & errorState : errorStates) {
 		s << "\t// Error state for " << errorState.first << ":\n";
@@ -90,6 +96,7 @@ inline stream & operator<<(stream & s, Contract contract) {
 	// Modifications
 	// 	For each buf : user buffer 
 	// 		HAVOC(buf, last(buf,write))
+	s << "\t// Modifications\n";
 	for (std::string & userPointer : userPointers) {
 		s << "\t// Modification for " << userPointer << ":\n";
 		s << "\tunsigned last(" << userPointer << ", write);\n";
@@ -100,7 +107,18 @@ inline stream & operator<<(stream & s, Contract contract) {
 		s << "\t}\n";
 	}
 	// Postconditions
+	s << "\t// Postconditions\n";
+	ap_abstract1_t retvalAbstract1 = function->trimmedLastBBAbstractValue();
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1);
+	s << "\tHAVOC(b);\n";
+	s << "\tif " << Conjunction("b", &array) << " {\n";
+	s << "\t\tHAVOC(res);\n";
+	s << "\t}\n";
+
+	// Postamble
+	s << "\tassume(false)\n";
 	s << "}\n";
+
 	return s;
 }
 
