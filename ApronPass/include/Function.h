@@ -7,8 +7,11 @@
 
 #include <ap_abstract1.h>
 
+#include <llvm/IR/Instructions.h>
+
 #include <APStream.h>
 #include <BasicBlock.h>
+#include <Value.h>
 
 namespace llvm {
 	class Function;
@@ -109,7 +112,17 @@ inline stream & operator<<(stream & s, Contract contract) {
 	// Postconditions
 	s << "\t// Postconditions\n";
 	ap_abstract1_t retvalAbstract1 = function->trimmedLastBBAbstractValue();
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1);
+	llvm::ReturnInst * returnInst = function->getReturnInstruction();
+	llvm::Value * returnValue = returnInst->getReturnValue();
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * returnValueValue = factory->getValue(returnValue);
+	std::string & returnValueName = returnValueValue->getName();
+	ap_var_t oldName = (ap_var_t)returnValueName.c_str();
+	ap_var_t newName = (ap_var_t)"res";
+	ap_abstract1_t retvalAbstract1_renamed = ap_abstract1_rename_array(
+			manager, false, &retvalAbstract1,
+			&oldName, &newName, 1);
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1_renamed);
 	s << "\tHAVOC(b);\n";
 	s << "\tif " << Conjunction("b", &array) << " {\n";
 	s << "\t\tHAVOC(res);\n";
