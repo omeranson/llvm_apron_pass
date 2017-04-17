@@ -254,8 +254,12 @@ std::string Function::getTypeString(llvm::Type * type) {
 			return rso.str();
 		}
 		llvm::Type * pointedType = type->getPointerElementType();
-		if (pointedType->isStructTy() && pointedType->getStructName() == "struct.iovec") {
-			return "struct iovec * __user";
+		if (pointedType->isStructTy()) {
+			if (pointedType->getStructName() == "struct.iovec") {
+				return "struct iovec * __user";
+			}
+			rso << "/*" << pointedType->getStructName() << "*/ ";
+			// Fall through
 		}
 		rso << "char * __user";
 		return rso.str();
