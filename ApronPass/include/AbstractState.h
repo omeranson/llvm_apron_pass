@@ -33,6 +33,16 @@ public:
 			ap_texpr1_t * size);
 };
 
+struct ImportIovecCall {
+	const user_pointer_operation_e op;
+	const std::string * iovec_name;
+	const std::string * iovec_len_name;
+	ImportIovecCall(user_pointer_operation_e op, const std::string & iovec_name, const std::string & iovec_len_name) :
+			op(op), iovec_name(&iovec_name), iovec_len_name(&iovec_len_name) {}
+	ImportIovecCall(user_pointer_operation_e op, const std::string * iovec_name, const std::string * iovec_len_name) :
+			op(op), iovec_name(iovec_name), iovec_len_name(iovec_len_name) {}
+};
+
 /**
  * An abstract state of a basic block. Contains:
  * May alias information
@@ -122,6 +132,7 @@ public:
 	/* with its Apron counterpart                   */
 	/************************************************/
 	ap_abstract1_t m_abstract1;
+	std::vector<ImportIovecCall> m_importedIovecCalls;
 
 	// (Apron) analysis of integers
 	// TODO(oanson) TBD

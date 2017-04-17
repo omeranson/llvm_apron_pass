@@ -539,6 +539,13 @@ protected:
 	virtual void populateTreeConstraintsForLiteralSize(llvm::Value * ptr,
 			llvm::Value * llvmsize, user_pointer_operation_e op);
 	virtual void populateTreeConstraintsForCopyToFromUser(user_pointer_operation_e op);
+	virtual void populateImportIovec(std::list<ap_tcons1_t> & constraints);
+	virtual user_pointer_operation_e getArgumentUserOperation(int arg);
+	virtual user_pointer_operation_e getImportIovecOp();
+	virtual const std::string & getArgumentName(int arg);
+	virtual const std::string & getImportIovecPtrName();
+	virtual const std::string & getImportIovecLenName();
+
 public:
 	CallValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
@@ -666,6 +673,9 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("strncpy_from_user" == funcName) {
 		return true;
 	}
+	if ("import_iovec" == funcName) {
+		return true;
+	}
 	return false;
 }
 
@@ -712,9 +722,57 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			populateTreeConstraintsForStrncpyFromUser(constraints);
 			return;
 		}
+		if ("import_iovec" == funcName) {
+			populateImportIovec(constraints);
+			return;
+		}
 	}
 	InstructionValue::populateTreeConstraints(constraints);
 	return;
+}
+
+user_pointer_operation_e CallValue::getArgumentUserOperation(int arg) {
+	llvm::CallInst * callinst = asCallInst();
+	llvm::Value * llvmOp = callinst->getArgOperand(arg);
+	llvm::ConstantInt & opValue = llvm::cast<llvm::ConstantInt>(*llvmOp);
+	const llvm::APInt & apint = opValue.getValue();
+	unsigned opRawValue = apint.getZExtValue();
+	assert((opRawValue == 0) || (opRawValue == 1));
+	return ((opRawValue == 0) ? user_pointer_operation_read :
+			user_pointer_operation_write);
+}
+
+user_pointer_operation_e CallValue::getImportIovecOp() {
+	return getArgumentUserOperation(0);
+}
+
+const std::string & CallValue::getArgumentName(int arg) {
+	llvm::CallInst * callinst = asCallInst();
+	llvm::Value * llvmVal = callinst->getArgOperand(arg);
+	ValueFactory * valueFactory = ValueFactory::getInstance();
+	Value * value = valueFactory->getValue(llvmVal);
+	std::string & name = value->getName();
+	return name;
+}
+
+const std::string & CallValue::getImportIovecPtrName() {
+	return getArgumentName(1);
+}
+
+const std::string & CallValue::getImportIovecLenName() {
+	return getArgumentName(2);
+}
+
+void CallValue::populateImportIovec(std::list<ap_tcons1_t> & constraints) {
+	BasicBlock * bb = getBasicBlock();
+	ValueFactory * valueFactory = ValueFactory::getInstance();
+	AbstractState & abstractState = bb->getAbstractState();
+	/* The op sent to import_iovec is the oposite of what we plan to do,
+	 * i.e. read -> write, and write -> read */
+	user_pointer_operation_e op = (getImportIovecOp() == user_pointer_operation_read) ?
+			user_pointer_operation_write : user_pointer_operation_read;
+	abstractState.m_importedIovecCalls.push_back(ImportIovecCall(
+		op, getImportIovecPtrName(), getImportIovecLenName()));
 }
 
 void CallValue::populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints) {

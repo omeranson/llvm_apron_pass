@@ -253,3 +253,9 @@ std::string Function::getSignature() {
 	rso << "int " << getName() << "(...)";
 	return rso.str();
 }
+
+const std::vector<ImportIovecCall> & Function::getImportIovecCalls() {
+	BasicBlock * returnBasicBlock = getReturnBasicBlock();
+	AbstractState & as = returnBasicBlock->getAbstractState();
+	return as.m_importedIovecCalls;
+}

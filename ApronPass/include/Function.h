@@ -48,6 +48,7 @@ public:
 	std::map<std::string, ap_abstract1_t> generateErrorStates();
 	std::string getName();
 	std::string getSignature();
+	const std::vector<ImportIovecCall> & getImportIovecCalls();
 };
 
 class FunctionManager{
@@ -89,6 +90,7 @@ inline stream & operator<<(stream & s, Contract contract) {
 	s << "\tint res;\n"; // TODO(oanson) res type should be taken from signature
 	s << "\tbool b;\n";
 	// Preconditions
+	// Standard variables
 	s << "\t// Preconditions\n";
 	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
 	for (auto & errorState : errorStates) {
@@ -96,8 +98,27 @@ inline stream & operator<<(stream & s, Contract contract) {
 		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &errorState.second);
 		s << "\tassert(!" << Conjunction(&array) << " && \"Invalid pointer " << errorState.first << "\");\n";
 	}
+	// IOVectors
+	// For each op, ptr, len : import_iovec calls
+	const std::vector<ImportIovecCall> & importIovecCalls = function->getImportIovecCalls();
+	if (!importIovecCalls.empty()) {
+		s << "\tint idx;\n";
+	}
+	for (const ImportIovecCall & call : importIovecCalls) {
+		s << "\t// Error state for " << *call.iovec_name << ":\n";
+	// 	Verify iovec not accessed beyond end of object
+		s << "\tassert(size(" << *call.iovec_name <<
+				") <= sizeof(struct iovec)*" << *call.iovec_len_name <<
+				" && \"Invalid iovec pointer " << *call.iovec_name << "\");\n";
+	// 	Verify each item within iovec
+		s << "\tfor (idx = 0; idx < " << *call.iovec_len_name << "; idx++) {\n";
+		s << "\t\tunsigned iovec_element_size = SE_size_obj(" << *call.iovec_name << "[idx].iov_base);\n";
+		s << "\t\tassert(iovec_element_size >= " << *call.iovec_name << "[idx].iov_len);\n";
+		s << "\t}\n";
+	}
 	// Modifications
-	// 	For each buf : user buffer 
+	// 	Standard variables
+	// 	For each buf : user buffer
 	// 		HAVOC(buf, last(buf,write))
 	s << "\t// Modifications\n";
 	for (std::string & userPointer : userPointers) {
@@ -107,6 +128,18 @@ inline stream & operator<<(stream & s, Contract contract) {
 		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &asabstarct1);
 		s << "\tif " << Conjunction(&array) << " {\n";
 		s << "\t\tHAVOC(" << userPointer << ", " << " last(" << userPointer << ", write));\n";
+		s << "\t}\n";
+	}
+	// IOVectors
+	// For each op, ptr, len : import_iovec calls
+	for (const ImportIovecCall & call : importIovecCalls) {
+		if (call.op != user_pointer_operation_write) {
+			continue;
+		}
+		s << "\t// Modification for " << *call.iovec_name << ":\n";
+		s << "\tfor (idx = 0; idx < " << *call.iovec_len_name << "; idx++) {\n";
+		// 	HAVOC all internal pointers
+		s << "\t\tHAVOC(" << *call.iovec_name << "[idx].iov_base, " << *call.iovec_name << "[idx].iov_len);\n";
 		s << "\t}\n";
 	}
 	// Postconditions
