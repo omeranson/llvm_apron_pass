@@ -28,11 +28,19 @@ public:
 	ap_tcons1_array_t m_constraints;
 
 	MemoryAccessAbstractValue(ap_environment_t * env,
-			std::string & userPtr,
+			ap_texpr1_t * last,
 			ap_texpr1_t * offset,
 			ap_texpr1_t * size);
-	ap_texpr1_t* createMemoryPointerTExpr(std::string & name);
-	ap_tcons1_array_t createTcons1Array();
+};
+
+struct ImportIovecCall {
+	const user_pointer_operation_e op;
+	const std::string * iovec_name;
+	const std::string * iovec_len_name;
+	ImportIovecCall(user_pointer_operation_e op, const std::string & iovec_name, const std::string & iovec_len_name) :
+			op(op), iovec_name(&iovec_name), iovec_len_name(&iovec_len_name) {}
+	ImportIovecCall(user_pointer_operation_e op, const std::string * iovec_name, const std::string * iovec_len_name) :
+			op(op), iovec_name(iovec_name), iovec_len_name(iovec_len_name) {}
 };
 
 /**
@@ -83,9 +91,6 @@ public:
 	typedef std::map<std::string, std::set<std::string> > may_points_to_t;
 	
 protected:
-
-	static std::map<std::string, std::string> g_userPointerNames[user_pointer_operation_count];
-
 	/*************************************************/
 	/* OREN ISH SHALOM remarks:                      */
 	/* our abstract state is made of a cartesian     */
@@ -127,15 +132,15 @@ public:
 	/* with its Apron counterpart                   */
 	/************************************************/
 	ap_abstract1_t m_abstract1;
+	std::vector<ImportIovecCall> m_importedIovecCalls;
 
 	// (Apron) analysis of integers
 	// TODO(oanson) TBD
 	// (Apron) analysis of (user) read/write/last0 pointers
 	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
 
-	std::string & getUserPointerName(std::string & userPtr, user_pointer_operation_e op);
 	ap_manager_t * getManager() const;
-	void updateUserOperationAbstract1();
+	void updateUserOperationAbstract1(ap_abstract1_t & abstract1);
 	// General commands
 	virtual bool join(AbstractState &);
 	// TODO(oanson) The following functions are missing
@@ -149,6 +154,37 @@ public:
 	ap_abstract1_t join(std::vector<ap_abstract1_t> & values);
 };
 
-llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, AbstractState & as);
+template <class stream>
+inline stream & operator<<(stream & s, AbstractState & as) {
+	s << "{'mpt':{";
+	for (auto & mpt : as.m_mayPointsTo) {
+		s << "'" << mpt.first << "':[";
+		for (auto & userPtr : mpt.second) {
+			s << "'" << userPtr << "',";
+		}
+		s << "],";
+	}
+	s << "},abstract1:{" << std::make_pair(as.getManager(), &as.m_abstract1) << "}";
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, user_pointer_operation_e op) {
+	switch (op) {
+	case user_pointer_operation_read:
+		s << "read";
+		break;
+	case user_pointer_operation_write:
+		s << "write";
+		break;
+	case user_pointer_operation_first0:
+		s << "first0";
+		break;
+	default:
+		s << "<invalid user_pointer_operation_e>";
+		break;
+	}
+	return s;
+}
 
 #endif // ABSTRACT_STATE_H

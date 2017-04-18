@@ -44,6 +44,7 @@
 #include <APStream.h>
 #include <Value.h>
 #include <CallGraph.h>
+#include <Function.h>
 
 bool Debug;
 llvm::cl::opt<bool, true> DebugOpt ("d", llvm::cl::desc("Enable additional debug output"), llvm::cl::location(Debug));
@@ -190,20 +191,6 @@ namespace
 		/* OREN ISH SHALOM removed : Apron() : blockCount(0), llvm::FunctionPass(ID) {} */
 		Apron() : blockCount(0), llvm::CallGraphSCCPass(ID) {}
 
-		virtual llvm::ReturnInst * getReturnInstruction(llvm::Function &F) {
-			for (auto bbit = F.begin(), bbie = F.end(); bbit != bbie; bbit++) {
-				llvm::BasicBlock & bb = *bbit;
-				for (auto iit = bb.begin(), iie = bb.end(); iit != iie; iit++) {
-					llvm::Instruction & inst = *iit;
-					if (llvm::isa<llvm::ReturnInst>(inst)) {
-						llvm::ReturnInst & result = llvm::cast<llvm::ReturnInst>(inst);
-						return &result;
-					}
-				}
-			}
-			return NULL;
-		}
-
         /***************************************************/
         /* OREN ISH SHALOM removed:                        */
         /*                                                 */
@@ -257,21 +244,41 @@ namespace
 			}
 
 			// Get 'return' instruction
-			llvm::ReturnInst * returnInst = getReturnInstruction(*F);
+			FunctionManager & functionManager = FunctionManager::getInstance();
+			Function * function = functionManager.getFunction(F);
+			if (Debug) {
+				ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
+				ap_abstract1_t trimmedAbstract1 = function->trimmedLastASAbstractValue();
+				llvm::errs() << "Trimmed AS abstract value: " <<
+						std::make_pair(manager,
+								&trimmedAbstract1);
+				trimmedAbstract1 = function->trimmedLastBBAbstractValue();
+				llvm::errs() << "Trimmed BB abstract value: " <<
+						std::make_pair(manager,
+								&trimmedAbstract1);
+				trimmedAbstract1 = function->trimmedLastJoinedAbstractValue();
+				llvm::errs() << "Trimmed joined abstract value: " <<
+						std::make_pair(manager,
+								&trimmedAbstract1);
+				llvm::errs() << "Error states:\n";
+				std::map<std::string, ap_abstract1_t> errorStates = function->generateErrorStates();
+				for (auto & state : errorStates) {
+					llvm::errs() << "// Error state for " << state.first << ":\n";
+					llvm::errs() << std::make_pair(manager, &state.second);
+				}
+			}
+			llvm::ReturnInst * returnInst = function->getReturnInstruction();
 			if (!returnInst) {
-				llvm::errs() << F->getName() << " " << "-inf" << " " << "inf" << "\n";
 				return false;
 			}
 			// get temporary
 			llvm::Value * llvmValue = returnInst->getReturnValue();
 			if (!llvmValue) {
-				llvm::errs() << F->getName() << " " << "-inf" << " " << "inf" << "\n";
 				return false;
 			}
 			ValueFactory * factory = ValueFactory::getInstance();
 			Value * val = factory->getValue(llvmValue);
 			if (!val) {
-				llvm::errs() << F->getName() << " " << "-inf" << " " << "inf" << "\n";
 				return false;
 			}
 			// get temporary's abstract value
@@ -279,19 +286,6 @@ namespace
 			BasicBlock * last = BasicBlockManager::getInstance().getBasicBlock(
 					llvmlast);
 			ap_interval_t * interval = last->getVariableInterval(val);
-			if (Debug) {
-				llvm::errs() << last->getAbstractState() << "\n";
-				{
-					char * buffer;
-					size_t size;
-					FILE * bufferfp = open_memstream(&buffer, &size);
-					ap_abstract1_fprint(bufferfp, last->getManager(), &last->getAbstractValue());
-					fclose(bufferfp);
-					llvm::errs() << buffer << "\n";
-				}
-			}
-			        // chaoticExecution.print();
-			        // llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
                     /*********************************************/
                     /* OREN ISH SHALOM: Print the way I like it! */
                     /*********************************************/
@@ -302,9 +296,9 @@ namespace
 	                /*********************************************************/
 	                /* OREN ISH SHALOM: Write in the human readable format:  */
 	                /*                                                       */
-	                /* MY_FUNCTION_NAME = [45, 200], or for another example: */
+	                /* MY_FUNCTION_NAME = [45 200], or for another example:  */
 	                /*                                                       */
-	                /* MY_FUNCTION_NAME = [17, +00]                          */
+	                /* MY_FUNCTION_NAME = [17 +00]                           */
 	                /*                                                       */
 	                /*********************************************************/
 		    std::string EC;
@@ -312,9 +306,12 @@ namespace
 		    fl << F->getName() << " = [ " << *interval->inf << " " << *interval->sup << " ]\n";
 		    fl.close();
 
-	                /*************************************************************************/
-	                /* OREN ISH SHALOM: Keep Omer's original printing -- He's a nice guy :)) */
-	                /*************************************************************************/
+                    std::string contract_path_filename;
+                    llvm::raw_string_ostream contract_path_filename_builder(contract_path_filename);
+                    contract_path_filename_builder << "/tmp/llvm_apron_pass/" << F->getName() << ".contract.c";
+		    llvm::raw_fd_ostream fl2(contract_path_filename_builder.str().c_str(), EC);
+		    fl2 << Contract(function);
+		    fl2.close();
 			        return false;
                 }
             }

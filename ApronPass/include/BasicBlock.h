@@ -56,9 +56,6 @@ protected:
 	virtual bool joinInAbstract1(ap_abstract1_t & abst_value);
 	virtual ap_abstract1_t getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock);
 	virtual AbstractState getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock);
-	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
-		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
-	virtual ap_tcons1_t getSetValueTcons(Value * left, Value * right);
 public:
 	unsigned updateCount;
 	unsigned joinCount;
@@ -74,8 +71,16 @@ public:
 
 	virtual const std::string & generateOffsetName(
 			Value * value, const std::string & bufname);
+	virtual const std::string & generateOffsetName(
+			const std::string & valueName, const std::string & bufname);
+	virtual const std::string & generateLastName(
+			const std::string & bufname, user_pointer_operation_e op);
+	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
+		const std::string & valueName, const std::string & bufname);
 	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
 		Value * value, const std::string & bufname);
+	virtual ap_texpr1_t * createUserPointerLastTreeExpression(
+		const std::string & bufname, user_pointer_operation_e op);
 
 	virtual bool join(BasicBlock & basicBlock);
 	virtual bool meet(BasicBlock & basicBlock);
@@ -112,10 +117,12 @@ public:
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
 	virtual ap_abstract1_t abstractOfTconsList(
 			std::list<ap_tcons1_t> & constraints);
-	virtual ap_abstract1_t abstractMeetWithTconsList(
+	virtual ap_abstract1_t applyConstraints(
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_tcons1_array_t createTcons1Array(
 			std::list<ap_tcons1_t> & constraints);
+	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
+		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
 
 	virtual AbstractState & getAbstractState();
 	virtual Function * getFunction();

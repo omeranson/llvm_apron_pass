@@ -55,6 +55,8 @@ public:
 	virtual ap_tcons1_t getSetValueTcons(
 			BasicBlock * basicBlock, Value * other);
 
+	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
+
 	virtual unsigned getBitSize();
 	virtual unsigned getByteSize();
 };
@@ -73,6 +75,7 @@ public:
 	virtual void populateTreeConstraints(
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_texpr1_t * createRHSTreeExpression();
+	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 	virtual bool isSkip();
 	virtual void forget();
 };

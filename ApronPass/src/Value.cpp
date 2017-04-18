@@ -107,20 +107,9 @@ std::string GepValue::getValueString() {
 
 void GepValue::addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
 		ap_texpr1_t * value_texpr, const std::string & pointerName) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-
-	BasicBlock * basicBlock = getBasicBlock();
-	ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
-			this, pointerName);
-	ap_environment_t * environment = basicBlock->getEnvironment();
-	ap_texpr1_extend_environment_with(value_texpr, environment);
-	ap_texpr1_extend_environment_with(var_texpr, environment);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
-	constraints.push_back(result);
+	std::vector<ap_tcons1_t> tconss;
+	getBasicBlock()->addOffsetConstraint(tconss, value_texpr, this, pointerName);
+	constraints.insert(constraints.end(), tconss.begin(), tconss.end());
 }
 
 void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
@@ -141,45 +130,38 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	std::set<std::string> &dest = abstractState.m_mayPointsTo[getName()];
 	dest.clear();
 	basicBlock->forget(basicBlock->generateOffsetName(this, pointerName).c_str());
+	ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
 	if (function->isUserPointer(pointerName)) {
 		dest.insert(pointerName);
-
-		ap_texpr1_t * value_texpr = offset->createTreeExpression(basicBlock);
-		addOffsetConstraint(constraints, value_texpr, pointerName);
-		ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
-				this, pointerName);
-		ap_tcons1_t greaterThan0 = ap_tcons1_make(
-				AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
-		constraints.push_back(greaterThan0);
+		addOffsetConstraint(constraints, offset_texpr, pointerName);
 	} else {
 		std::set<std::string> &srcUserPointers = abstractState.m_mayPointsTo[pointerName];
 		for (auto & srcPtrName : srcUserPointers) {
 			dest.insert(srcPtrName);
-			ap_texpr1_t * var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
-					this, srcPtrName);
-			ap_tcons1_t greaterThan0 = ap_tcons1_make(
-					AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
-			constraints.push_back(greaterThan0);
-
-			ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
 			ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
 					src, srcPtrName);
-			ap_texpr1_extend_environment_with(offset_texpr, basicBlock->getEnvironment());
+			ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
+			ap_texpr1_extend_environment_with(offset_texpr_copy, basicBlock->getEnvironment());
 			ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
 			ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
-					offset_texpr, offset_var_texpr,
+					offset_texpr_copy, offset_var_texpr,
 					AP_RTYPE_INT, AP_RDIR_ZERO);
 			assert(value_texpr);
 			addOffsetConstraint(constraints, value_texpr, srcPtrName);
 		}
+		ap_texpr1_free(offset_texpr);
 	}
 }
 
 class VariableValue : public Value {
+protected:
+	virtual llvm::Argument * asArgument();
+	virtual Function * getFunction();
 public:
 	VariableValue(llvm::Value * value) : Value(value) {}
 	virtual std::string getValueString();
 	virtual std::string toString() ;
+	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 };
 std::string VariableValue::getValueString() {
 	return getName();
@@ -187,6 +169,23 @@ std::string VariableValue::getValueString() {
 
 std::string VariableValue::toString() {
 	return getName();
+}
+
+llvm::Argument * VariableValue::asArgument() {
+	return &llvm::cast<llvm::Argument>(*m_value);
+}
+
+Function * VariableValue::getFunction() {
+	FunctionManager & manager = FunctionManager::getInstance();
+	llvm::Function * function = asArgument()->getParent();
+	return manager.getFunction(function);
+}
+
+void VariableValue::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+	std::string & name = getName();
+	if (getFunction()->isUserPointer(name)) {
+		buffers.insert(name);
+	}
 }
 
 llvm::Instruction * InstructionValue::asInstruction() {
@@ -217,6 +216,14 @@ void InstructionValue::populateTreeConstraints(
 
 ap_texpr1_t * InstructionValue::createRHSTreeExpression() {
 	abort();
+}
+
+void InstructionValue::populateMayPointsToUserBuffers(
+		std::set<std::string> & buffers) {
+	BasicBlock * basicBlock = getBasicBlock();
+	AbstractState & as = basicBlock->getAbstractState();
+	std::set<std::string> & asbuffers = as.m_mayPointsTo[getName()];
+	buffers.insert(asbuffers.begin(), asbuffers.end());
 }
 
 bool InstructionValue::isSkip() {
@@ -508,7 +515,6 @@ protected:
 	virtual std::string getCalledFunctionName();
 	bool isDebugFunction(const std::string & funcName) const;
 	bool isKernelUserMemoryOperation(const std::string & funcName) const;
-	bool isKernelUserMemoryTestOperation(const std::string & funcName) const;
 
 	virtual void populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints);
 	void populateTreeConstraintsForGetPutUser(
@@ -522,9 +528,8 @@ protected:
 	virtual void populateTreeConstraintsForStrnlenUser(std::list<ap_tcons1_t> & constraints);
 	virtual void populateTreeConstraintsForStrncpyFromUser(std::list<ap_tcons1_t> & constraints);
 
-	void populateMPT();
 	virtual void populateTreeConstraintsForUserMemoryOperation(
-			std::string & ptr, ap_texpr1_t * size,
+			const std::string & ptr, ap_texpr1_t * size,
 			user_pointer_operation_e op);
 	virtual void populateTreeConstraintsForUserMemoryOperation(
 			Value * ptr, ap_texpr1_t * size,
@@ -537,6 +542,13 @@ protected:
 	virtual void populateTreeConstraintsForLiteralSize(llvm::Value * ptr,
 			llvm::Value * llvmsize, user_pointer_operation_e op);
 	virtual void populateTreeConstraintsForCopyToFromUser(user_pointer_operation_e op);
+	virtual void populateTreeConstraintsForImportIovec(std::list<ap_tcons1_t> & constraints);
+	virtual user_pointer_operation_e getArgumentUserOperation(int arg);
+	virtual user_pointer_operation_e getImportIovecOp();
+	virtual const std::string & getArgumentName(int arg);
+	virtual const std::string & getImportIovecPtrName();
+	virtual const std::string & getImportIovecLenName();
+
 public:
 	CallValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
@@ -664,12 +676,7 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("strncpy_from_user" == funcName) {
 		return true;
 	}
-	return false;
-}
-
-bool CallValue::isKernelUserMemoryTestOperation(const std::string & funcName) const {
-	// TODO Memoize this method
-	if ("add_user_pointer" == funcName) {
+	if ("import_iovec" == funcName) {
 		return true;
 	}
 	return false;
@@ -718,10 +725,8 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			populateTreeConstraintsForStrncpyFromUser(constraints);
 			return;
 		}
-	}
-	if (isKernelUserMemoryTestOperation(funcName)) {
-		if ("add_user_pointer" == funcName) {
-			populateMPT();
+		if ("import_iovec" == funcName) {
+			populateTreeConstraintsForImportIovec(constraints);
 			return;
 		}
 	}
@@ -729,48 +734,82 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	return;
 }
 
-void CallValue::populateMPT() {
-	BasicBlock * bb = getBasicBlock();
-	AbstractState & abstractState = bb->getAbstractState();
+user_pointer_operation_e CallValue::getArgumentUserOperation(int arg) {
 	llvm::CallInst * callinst = asCallInst();
-	assert(callinst->getNumArgOperands() == 3);
-	// 0 -> source pointer
-	// 1 -> dest pointer
-	// 2 -> offset
-	llvm::Value * llvmsrc = callinst->getArgOperand(0);
-	llvm::Value * llvmdest = callinst->getArgOperand(1);
-	llvm::Value * llvmoffset = callinst->getArgOperand(2);
-	// abstractState.may_points_to[llvmsrc->getName().str()][llvmdest->getName().str()].insert(llvmoffset);
+	llvm::Value * llvmOp = callinst->getArgOperand(arg);
+	llvm::ConstantInt & opValue = llvm::cast<llvm::ConstantInt>(*llvmOp);
+	const llvm::APInt & apint = opValue.getValue();
+	unsigned opRawValue = apint.getZExtValue();
+	assert((opRawValue == 0) || (opRawValue == 1));
+	return ((opRawValue == 0) ? user_pointer_operation_read :
+			user_pointer_operation_write);
 }
 
-void CallValue::populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints) {
-	// Do nothing
+user_pointer_operation_e CallValue::getImportIovecOp() {
+	return getArgumentUserOperation(0);
 }
 
-void CallValue::populateTreeConstraintsForUserMemoryOperation(
-		std::string & ptr, ap_texpr1_t * size,
-		user_pointer_operation_e op)
-{
-#if 0
+const std::string & CallValue::getArgumentName(int arg) {
+	llvm::CallInst * callinst = asCallInst();
+	llvm::Value * llvmVal = callinst->getArgOperand(arg);
+	ValueFactory * valueFactory = ValueFactory::getInstance();
+	Value * value = valueFactory->getValue(llvmVal);
+	std::string & name = value->getName();
+	return name;
+}
+
+const std::string & CallValue::getImportIovecPtrName() {
+	return getArgumentName(1);
+}
+
+const std::string & CallValue::getImportIovecLenName() {
+	return getArgumentName(2);
+}
+
+void CallValue::populateTreeConstraintsForImportIovec(std::list<ap_tcons1_t> & constraints) {
 	BasicBlock * bb = getBasicBlock();
 	ValueFactory * valueFactory = ValueFactory::getInstance();
 	AbstractState & abstractState = bb->getAbstractState();
-	AbstractState::may_points_to_t & may_points_to = abstractState.may_points_to[ptr];
-	for (auto & it : may_points_to) {
-		std::string userPtr = it.first;
-		std::set<llvm::Value*> & llvmoffsets = it.second;
-		for (llvm::Value * llvmoffset : llvmoffsets) {
-			Value * offset = valueFactory->getValue(llvmoffset);
-			ap_texpr1_t * offsetExpr = offset->createTreeExpression(bb);
-			std::string & userPtrOp = abstractState.getUserPointerName(userPtr, op);
-			ap_environment_t * env = bb->getEnvironment();
-			MemoryAccessAbstractValue maav(
-					env, userPtrOp, offsetExpr, size);
-			// Placed back in abstractState to be joined at end of BB
-			abstractState.memoryAccessAbstractValues.push_back(maav);
-		}
+	/* The op sent to import_iovec is the oposite of what we plan to do,
+	 * i.e. read -> write, and write -> read */
+	user_pointer_operation_e op = (getImportIovecOp() == user_pointer_operation_read) ?
+			user_pointer_operation_write : user_pointer_operation_read;
+	abstractState.m_importedIovecCalls.push_back(ImportIovecCall(
+		op, getImportIovecPtrName(), getImportIovecLenName()));
+
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	ap_texpr1_t * var_texpr = createTreeExpression(bb);
+	ap_tcons1_t return_value = ap_tcons1_make(AP_CONS_EQ, var_texpr, zero);
+	constraints.push_back(return_value);
+}
+
+void CallValue::populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints) {
+	llvm::CallInst * callinst = asCallInst();
+	assert(callinst->getNumArgOperands() == 3);
+	user_pointer_operation_e op = getArgumentUserOperation(0);
+	llvm::Value * ptr = callinst->getArgOperand(1);
+	llvm::Value * size = callinst->getArgOperand(2);
+	populateTreeConstraintsForLiteralSize(ptr, size, op);
+}
+
+void CallValue::populateTreeConstraintsForUserMemoryOperation(
+		const std::string & ptrName, ap_texpr1_t * size,
+		user_pointer_operation_e op) {
+	BasicBlock * bb = getBasicBlock();
+	ValueFactory * valueFactory = ValueFactory::getInstance();
+	AbstractState & abstractState = bb->getAbstractState();
+	std::set<std::string> & userBuffers = abstractState.m_mayPointsTo[ptrName];
+	for (auto & userBuffer : userBuffers) {
+		ap_texpr1_t * offset = bb->createUserPointerOffsetTreeExpression(
+				ptrName, userBuffer);
+		ap_texpr1_t * last = bb->createUserPointerLastTreeExpression(userBuffer, op);
+		ap_environment_t * env = bb->getEnvironment();
+		MemoryAccessAbstractValue maav(env, last, offset, ap_texpr1_copy(size));
+		// Placed back in abstractState to be joined at end of BB
+		abstractState.memoryAccessAbstractValues.push_back(maav);
 	}
-#endif	
+	ap_texpr1_free(size);
 }
 
 void CallValue::populateTreeConstraintsForUserMemoryOperation(
@@ -1560,6 +1599,10 @@ ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
 			AP_RTYPE_INT, AP_RDIR_ZERO);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
 	return result;
+}
+
+void Value::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+	return;
 }
 
 std::ostream& operator<<(std::ostream& os, Value& value)
