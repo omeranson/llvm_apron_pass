@@ -1,3 +1,4 @@
+#include <AbstractState.h>
 #include <APStream.h>
 #include <Function.h>
 #include <BasicBlock.h>
@@ -79,7 +80,7 @@ ap_abstract1_t Function::trimmedLastASAbstractValue() {
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	AbstractState & as = returnBasicBlock->getAbstractState();
 	ap_abstract1_t & asAbstract1 = as.m_abstract1;
-	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
+	ap_manager_t * manager = apron_manager;
 	ap_environment_t * environment = ap_abstract1_environment(manager, &asAbstract1);
 
 	// Forget all variables that are not arguments, 'last(*,*)', or the return value
@@ -101,7 +102,7 @@ ap_abstract1_t Function::trimmedLastASAbstractValue() {
 ap_abstract1_t Function::trimmedLastBBAbstractValue() {
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	ap_abstract1_t & abstract1 = returnBasicBlock->getAbstractValue();
-	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
+	ap_manager_t * manager = apron_manager;
 	ap_environment_t * environment = ap_abstract1_environment(manager, &abstract1);
 
 	// Forget all variables that are not arguments, 'last(*,*)', or the return value
@@ -123,7 +124,7 @@ ap_abstract1_t Function::trimmedLastBBAbstractValue() {
 ap_abstract1_t Function::trimmedLastJoinedAbstractValue() {
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	AbstractState & as = returnBasicBlock->getAbstractState();
-	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
+	ap_manager_t * manager = apron_manager;
 	ap_environment_t * asEnv = ap_abstract1_environment(manager, &as.m_abstract1);
 	ap_environment_t * bbEnv = ap_abstract1_environment(manager, &returnBasicBlock->getAbstractValue());
 	ap_dimchange_t * dimchange1 = NULL;
@@ -167,7 +168,7 @@ std::vector<std::string> Function::getUserPointers() {
 std::map<std::string, ap_abstract1_t> Function::generateErrorStates() {
 	ap_abstract1_t trimmedASAbstract1 = trimmedLastASAbstractValue();
 	BasicBlock * basicBlock = getReturnBasicBlock();
-	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
+	ap_manager_t * manager = apron_manager;
 	ap_scalar_t* zero = ap_scalar_alloc ();
 	ap_scalar_set_int(zero, 0);
 	// for each buf : user buffer:

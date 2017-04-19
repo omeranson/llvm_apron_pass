@@ -8,6 +8,8 @@
 #include <ap_environment.h>
 #include <ap_interval.h>
 
+extern ap_manager_t * apron_manager;
+
 template <class stream>
 inline stream & operator<<(stream & s, ap_interval_t & interval) {
 	char * buffer;
@@ -61,6 +63,12 @@ inline stream & operator<<(stream & s, std::pair<ap_manager_t*, ap_abstract1_t*>
 		fclose(bufferfp);
 		s << buffer << "Variables: " << env << "\n";
 	}
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, ap_abstract1_t* value) {
+	s << std::make_pair(apron_manager, value);
 	return s;
 }
 

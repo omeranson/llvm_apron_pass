@@ -6,12 +6,7 @@
 #include <string>
 #include <vector>
 
-#include <ap_abstract1.h>
 #include <llvm/Support/raw_ostream.h>
-
-namespace llvm {
-	class Value;
-}
 
 typedef enum {
 	user_pointer_operation_read,
@@ -21,6 +16,8 @@ typedef enum {
 	// 'user_pointer_operation_count' must be last:
 	user_pointer_operation_count
 } user_pointer_operation_e;
+
+extern ap_manager_t * apron_manager;
 
 class MemoryAccessAbstractValue {
 public:
@@ -152,14 +149,16 @@ public:
 	/* I've changed this name to be more consistent */
 	/* with its Apron counterpart                   */
 	/************************************************/
-	ap_abstract1_t m_abstract1;
-	std::vector<ImportIovecCall> m_importedIovecCalls;
-	std::vector<CopyMsghdrFromUserCall> m_copyMsghdrFromUserCalls;
 
 	// (Apron) analysis of integers
-	// TODO(oanson) TBD
+	ApronAbstractState m_apronAbstractState;
 	// (Apron) analysis of (user) read/write/last0 pointers
 	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
+	virtual const std::string & generateOffsetName(
+			const std::string & valueName, const std::string & bufname);
+
+	std::vector<ImportIovecCall> m_importedIovecCalls;
+	std::vector<CopyMsghdrFromUserCall> m_copyMsghdrFromUserCalls;
 
 	ap_manager_t * getManager() const;
 	void updateUserOperationAbstract1(ap_abstract1_t & abstract1);
@@ -186,7 +185,7 @@ inline stream & operator<<(stream & s, AbstractState & as) {
 		}
 		s << "],";
 	}
-	s << "},abstract1:{" << std::make_pair(as.getManager(), &as.m_abstract1) << "}";
+	s << "},abstract1:{" << &as.m_abstract1 << "}";
 	return s;
 }
 
@@ -201,6 +200,9 @@ inline stream & operator<<(stream & s, user_pointer_operation_e op) {
 		break;
 	case user_pointer_operation_first0:
 		s << "first0";
+		break;
+	case user_pointer_operation_count:
+		s << (unsigned)op;
 		break;
 	default:
 		s << "<invalid user_pointer_operation_e>";

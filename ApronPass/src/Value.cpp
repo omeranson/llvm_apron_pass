@@ -112,12 +112,9 @@ void GepValue::addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
 	constraints.insert(constraints.end(), tconss.begin(), tconss.end());
 }
 
-void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
+void GepValue::update(AbstractState & state) {
 	BasicBlock * basicBlock = getBasicBlock();
-	Function * function = basicBlock->getFunction();
-	AbstractState & abstractState = basicBlock->getAbstractState();
+	Function * function = getFunction();
 	ValueFactory * factory = ValueFactory::getInstance();
 	llvm::GetElementPtrInst * gepi = asGetElementPtrInst();
 
@@ -127,15 +124,16 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	Value * offset = factory->getValue(gepi->getOperand(1));
 
 	std::string pointerName = src->getName();
-	std::set<std::string> &dest = abstractState.m_mayPointsTo[getName()];
+	std::set<std::string> &dest = state.m_mayPointsTo[getName()];
 	dest.clear();
-	basicBlock->forget(basicBlock->generateOffsetName(this, pointerName).c_str());
-	ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
+	std::string & offsetName = state.generateOffsetName(getName(), pointerName);
+	state.m_apronAbstractState.forget(offsetName);
+	ap_texpr1_t * offset_texpr = offset->createTreeExpression(state);
 	if (function->isUserPointer(pointerName)) {
 		dest.insert(pointerName);
 		addOffsetConstraint(constraints, offset_texpr, pointerName);
 	} else {
-		std::set<std::string> &srcUserPointers = abstractState.m_mayPointsTo[pointerName];
+		std::set<std::string> &srcUserPointers = state.m_mayPointsTo[pointerName];
 		for (auto & srcPtrName : srcUserPointers) {
 			dest.insert(srcPtrName);
 			ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
@@ -192,26 +190,10 @@ llvm::Instruction * InstructionValue::asInstruction() {
 	return &llvm::cast<llvm::Instruction>(*m_value);
 }
 
-void InstructionValue::populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints) {
-	// TODO consider making a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-
-	BasicBlock * basicBlock = getBasicBlock();
-	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
-	assert(var_texpr && "Tree expression is NULL");
+void InstructionValue::update(AbstractState & state) {
 	ap_texpr1_t * value_texpr = createRHSTreeExpression();
 	assert(value_texpr && "RHS Tree expression is NULL");
-
-	basicBlock->extendTexprEnvironment(var_texpr);
-	basicBlock->extendTexprEnvironment(value_texpr);
-
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
-	constraints.push_back(result);
+	state.m_apronAbstractState.assign(getName(), value_texpr);
 }
 
 ap_texpr1_t * InstructionValue::createRHSTreeExpression() {
@@ -240,10 +222,6 @@ BasicBlock * InstructionValue::getBasicBlock() {
 	BasicBlockManager & factory = BasicBlockManager::getInstance();
 	BasicBlock * result = factory.getBasicBlock(llvmBasicBlock);
 	return result;
-}
-
-void InstructionValue::havoc() {
-	Value::havoc(getBasicBlock());
 }
 
 bool TerminatorInstructionValue::isSkip() {
@@ -1280,8 +1258,7 @@ ap_tcons1_t SelectValueInstruction::getSetFalseValueTcons() {
 	return getSetValueTcons(getFalseValue());
 }
 
-void SelectValueInstruction::populateTreeConstraints(
-		std::list<ap_tcons1_t> & constraints) {
+void SelectValueInstruction::update(AbstractState & state) {
 	/*
 	The command is %4 <- select %1, %2, %3
 	We have all the information (it is in the list<ap_tcons1_t>). What if we
@@ -1612,8 +1589,8 @@ bool Value::isSkip() {
 	return false;
 }
 
-ap_texpr1_t * Value::createTreeExpression(BasicBlock * basicBlock) {
-	return basicBlock->getVariableTExpr(this);
+ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
+	return state.m_apronAbstractState->getVariableTExpr(getName());
 }
 
 ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
@@ -1639,13 +1616,8 @@ ap_tcons1_t Value::getValueEq0Tcons(BasicBlock * basicBlock) {
 	return result;
 }
 
-void Value::havoc() {
-	llvm::errs() << "havoc not implemented for this value: " << this << "\n";
-	abort();
-}
-
-void Value::havoc(BasicBlock * bb) {
-	bb->forget(this);
+void Value::havoc(AbstractState & state) {
+	state.m_apronAbstractState.forget(getName());
 }
 
 void Value::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {

@@ -37,12 +37,8 @@ BasicBlockManager & BasicBlockManager::getInstance() {
 	return instance;
 }
 
-BasicBlockManager::BasicBlockManager() : m_manager(create_manager()) {}
-//BasicBlockManager::BasicBlockManager() : m_manager(ap_ppl_poly_manager_alloc(true)) {}
-//BasicBlockManager::BasicBlockManager() : m_manager(box_manager_alloc()) {}
-
 BasicBlock * BasicBlockManager::createBasicBlock(llvm::BasicBlock * basicBlock) {
-	BasicBlock * result = new BasicBlock(m_manager, basicBlock);
+	BasicBlock * result = new BasicBlock(basicBlock);
 	return result;
 }
 
@@ -63,9 +59,8 @@ BasicBlock * BasicBlockManager::getBasicBlock(llvm::BasicBlock * basicBlock) {
 /*				   BasicBlock				     */
 int BasicBlock::basicBlockCount = 0;
 
-BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
+BasicBlock::BasicBlock(llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
-		m_manager(manager),
 		m_markedForChanged(false),
 		m_abst_value(ap_abstract1_bottom(manager, ap_environment_alloc_empty())),
 		updateCount(0) {
@@ -107,7 +102,7 @@ ap_abstract1_t & BasicBlock::getAbstractValue() {
 
 ap_manager_t * BasicBlock::getManager() {
 	// In a function, since manager is global, and this impl. may change
-	return m_manager;
+	return apron_manager;
 }
 
 ap_environment_t * BasicBlock::getEnvironment() {
@@ -357,32 +352,6 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 		}
 	}
 	return other;
-}
-
-const std::string & BasicBlock::generateOffsetName(Value * value, const std::string & bufname) {
-	return generateOffsetName(value->getName(), bufname);
-}
-
-const std::string & BasicBlock::generateOffsetName(const std::string & valueName, const std::string & bufname) {
-	static std::set<std::string> names;
-	std::string s;
-	llvm::raw_string_ostream rso(s);
-	rso << "offset(" << valueName << "," << bufname << ")";
-	rso.str();
-	// To make sure we always get the same c_str
-	std::pair<std::set<std::string>::iterator,bool> inserted = names.insert(s);
-	return *inserted.first;
-}
-
-const std::string & BasicBlock::generateLastName(const std::string & bufname, user_pointer_operation_e op) {
-	static std::set<std::string> names;
-	std::string s;
-	llvm::raw_string_ostream rso(s);
-	rso << "last(" << bufname << "," << op << ")";
-	rso.str();
-	// To make sure we always get the same c_str
-	std::pair<std::set<std::string>::iterator,bool> inserted = names.insert(s);
-	return *inserted.first;
 }
 
 ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(

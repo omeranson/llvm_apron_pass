@@ -39,8 +39,9 @@
 #include <ap_ppl.h>
 
 /***********************************/
-/* INCLUDE FILES :: omer's project */
+/* INCLUDE FILES :: this project */
 /***********************************/
+#include <AbstractState.h>
 #include <APStream.h>
 #include <Value.h>
 #include <CallGraph.h>
@@ -108,9 +109,9 @@ namespace
 
 		void print() {
 			llvm::errs() << "Apron: Library " <<
-					BasicBlockManager::getInstance().m_manager->library <<
+					apron_manager->library <<
 					", version " <<
-					BasicBlockManager::getInstance().m_manager->version << "\n";
+					apron_manager->version << "\n";
 			callGraph.printAsDot();
 			std::set<BasicBlock *>::iterator it;
 			for (it = seen.begin(); it != seen.end(); it++) {
@@ -211,7 +212,7 @@ namespace
 			FunctionManager & functionManager = FunctionManager::getInstance();
 			Function * function = functionManager.getFunction(F);
 			if (Debug) {
-				ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
+				ap_manager_t * manager = apron_manager;
 				ap_abstract1_t trimmedAbstract1 = function->trimmedLastASAbstractValue();
 				llvm::errs() << "Trimmed AS abstract value: " <<
 						std::make_pair(manager,

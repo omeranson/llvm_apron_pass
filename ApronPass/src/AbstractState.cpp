@@ -2,6 +2,23 @@
 #include <AbstractState.h>
 #include <BasicBlock.h>
 
+extern "C" {
+#include <Adaptor.h>
+}
+
+ap_manager_t * apron_manager = create_manager();
+
+class raw_uniq_string_ostream : public llvm::raw_string_ostream {
+	std::set<std::string> & m_cache;
+	std::string buf;
+	raw_uniq_string_ostream(std::set<std::string> & cache) :
+		m_cache(cache), llvm::raw_string_ostream(buf) {}
+	std::string & uniq_str() {
+		std::pair<std::set<std::string>::iterator,bool> inserted =
+				m_cache.insert(str());
+		return *inserted.first;
+	}
+};
 MemoryAccessAbstractValue::MemoryAccessAbstractValue(ap_environment_t * env,
 		ap_texpr1_t * last,
 		ap_texpr1_t * offset,
@@ -39,8 +56,23 @@ AbstractState::AbstractState() :
 		m_abstract1(ap_abstract1_bottom(getManager(), ap_environment_alloc_empty())) {
 }
 
+
+const std::string & AbstractState::generateOffsetName(const std::string & valueName, const std::string & bufname) {
+	static std::set<std::string> names;
+	raw_uniq_string_ostream rso(names);
+	rso << "offset(" << valueName << "," << bufname << ")";
+	return rso.uniq_str();
+}
+
+const std::string & AbstractState::generateLastName(const std::string & bufname, user_pointer_operation_e op) {
+	static std::set<std::string> names;
+	raw_uniq_string_ostream rso(names);
+	rso << "last(" << bufname << "," << op << ")";
+	return rso.uniq_str();
+}
+
 ap_manager_t * AbstractState::getManager() const {
-	return BasicBlockManager::getInstance().m_manager;
+	return apron_manager;
 }
 
 void AbstractState::updateUserOperationAbstract1(ap_abstract1_t & abstract1) {
@@ -150,24 +182,6 @@ bool AbstractState::join(AbstractState &other)
 {
 	bool isChanged = false;
 	// Join 'May' reference
-	/********************************************************/
-	/* OREN ISH SHALOM remarks: I'm removing this duplicate */
-	/* typedef and force everyone to use the type already   */
-	/* defined in AbstractState.h                           */
-	/********************************************************/
-	//typedef std::map<std::string, std::set<llvm::Value *> > may_points_to_t;
-
-	/********************************************************/
-	/* OREN ISH SHALOM remarks: I'm removing this temporary */
-	/* local variable and join in place with this           */
-	/********************************************************/
-	//std::map<std::string, may_points_to_t > may_points_to;
-
-	/********************************************************/
-	/* OREN ISH SHALOM remarks: I'm removing this duplicate */
-	/* typedef and force everyone to use the type already   */
-	/* defined in AbstractState.h                           */
-	/********************************************************/
 	joinMayPointsTo(other.m_mayPointsTo);
 	// Join (Apron) analysis of integers
 	// TODO(oanson) TBD

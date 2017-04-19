@@ -23,14 +23,10 @@ protected:
 	static BasicBlockManager instance;
 	std::map<llvm::BasicBlock *, BasicBlock *> instances;
 	BasicBlock * createBasicBlock(llvm::BasicBlock * basicBlock);
-	// TODO Move m_manager to ChaoticExecution class
 
-	BasicBlockManager();
 public:
 	static BasicBlockManager & getInstance();
 	BasicBlock * getBasicBlock(llvm::BasicBlock * basicBlock);
-
-	ap_manager_t * m_manager;
 };
 
 class BasicBlock {
@@ -41,11 +37,10 @@ protected:
 	llvm::BasicBlock * m_basicBlock;
 	ap_abstract1_t m_abst_value;
 	std::string m_name;
-	ap_manager_t * m_manager;
 	bool m_markedForChanged;
 	AbstractState m_abstractState;
 
-	BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock);
+	BasicBlock(llvm::BasicBlock * basicBlock);
 	virtual void initialiseBlockName();
 
 	virtual bool is_eq(ap_abstract1_t & value);
@@ -70,10 +65,6 @@ public:
 	virtual bool update();
 	virtual void makeTop();
 
-	virtual const std::string & generateOffsetName(
-			Value * value, const std::string & bufname);
-	virtual const std::string & generateOffsetName(
-			const std::string & valueName, const std::string & bufname);
 	virtual const std::string & generateLastName(
 			const std::string & bufname, user_pointer_operation_e op);
 	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(

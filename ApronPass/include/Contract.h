@@ -201,7 +201,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	// Preconditions
 	// Standard variables
 	s << depth << "// Preconditions\n";
-	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
+	ap_manager_t * manager = apron_manager;
 	for (auto & errorState : errorStates) {
 		s << depth << "// Error state for " << errorState.first << ":\n";
 		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &errorState.second);
