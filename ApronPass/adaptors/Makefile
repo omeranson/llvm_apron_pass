@@ -11,7 +11,7 @@ lib%_adaptor.so: %.o
 
 %.o: %.c
 	@ echo '[CC]	[$^]	[$@]'
-	@ ${CC} -c -o $@ $^ ${CXXFLAGS}
+	@ ${CC} -c -o $@ $^ ${CFLAGS}
 
 %.o: %.cpp
 	@ echo '[CXX]	[$^]	[$@]'

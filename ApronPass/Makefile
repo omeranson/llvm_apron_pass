@@ -12,7 +12,7 @@ all: ${OBJS} libapronpass.so
 
 %.o: %.c $(HEADERS)
 	@ echo '[CC]	[$<]	[$@]'
-	@ ${CC} -c -o $@ $< ${CXXFLAGS}
+	@ ${CC} -c -o $@ $< ${CFLAGS}
 
 %.o: %.cpp $(HEADERS)
 	@ echo '[CXX]	[$<]	[$@]'
