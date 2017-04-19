@@ -242,6 +242,10 @@ BasicBlock * InstructionValue::getBasicBlock() {
 	return result;
 }
 
+void InstructionValue::havoc() {
+	Value::havoc(getBasicBlock());
+}
+
 bool TerminatorInstructionValue::isSkip() {
 	return true;
 }
@@ -1633,6 +1637,15 @@ ap_tcons1_t Value::getValueEq0Tcons(BasicBlock * basicBlock) {
 	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, var_texpr, zero);
 	return result;
+}
+
+void Value::havoc() {
+	llvm::errs() << "havoc not implemented for this value: " << this << "\n";
+	abort();
+}
+
+void Value::havoc(BasicBlock * bb) {
+	bb->forget(this);
 }
 
 void Value::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {

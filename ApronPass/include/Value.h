@@ -56,6 +56,8 @@ public:
 			BasicBlock * basicBlock, Value * other);
 	virtual ap_tcons1_t getValueEq0Tcons(
 			BasicBlock * basicBlock);
+	virtual void havoc();
+	virtual void havoc(BasicBlock * bb);
 
 	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 
@@ -80,6 +82,7 @@ public:
 	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 	virtual bool isSkip();
 	virtual void forget();
+	virtual void havoc();
 };
 
 class TerminatorInstructionValue : public InstructionValue {
