@@ -45,6 +45,7 @@
 #include <Value.h>
 #include <CallGraph.h>
 #include <Function.h>
+#include <Contract.h>
 
 bool Debug;
 llvm::cl::opt<bool, true> DebugOpt ("d", llvm::cl::desc("Enable additional debug output"), llvm::cl::location(Debug));
@@ -310,7 +311,7 @@ namespace
                     llvm::raw_string_ostream contract_path_filename_builder(contract_path_filename);
                     contract_path_filename_builder << "/tmp/llvm_apron_pass/" << F->getName() << ".contract.c";
 		    llvm::raw_fd_ostream fl2(contract_path_filename_builder.str().c_str(), EC);
-		    fl2 << Contract(function);
+		    fl2 << contract(function);
 		    fl2.close();
 			        return false;
                 }

@@ -35,12 +35,33 @@ public:
 
 struct ImportIovecCall {
 	const user_pointer_operation_e op;
-	const std::string * iovec_name;
-	const std::string * iovec_len_name;
+	const std::string iovec_name;
+	const std::string iovec_len_name;
 	ImportIovecCall(user_pointer_operation_e op, const std::string & iovec_name, const std::string & iovec_len_name) :
-			op(op), iovec_name(&iovec_name), iovec_len_name(&iovec_len_name) {}
-	ImportIovecCall(user_pointer_operation_e op, const std::string * iovec_name, const std::string * iovec_len_name) :
 			op(op), iovec_name(iovec_name), iovec_len_name(iovec_len_name) {}
+	ImportIovecCall(user_pointer_operation_e op, const std::string * iovec_name, const std::string * iovec_len_name) :
+			op(op), iovec_name(*iovec_name), iovec_len_name(*iovec_len_name) {}
+};
+
+struct CopyMsghdrFromUserCall {
+	const user_pointer_operation_e op;
+	const std::string msghdr_name;
+	CopyMsghdrFromUserCall(user_pointer_operation_e op, const std::string & msghdr_name) :
+			op(op), msghdr_name(msghdr_name) {}
+	CopyMsghdrFromUserCall(user_pointer_operation_e op, const std::string * msghdr_name) :
+			op(op), msghdr_name(*msghdr_name) {}
+	ImportIovecCall asImportIovecCall() const {
+		std::string iovec_name;
+		llvm::raw_string_ostream iovec_name_rso(iovec_name);
+		iovec_name_rso << msghdr_name << "__msg_iov";
+
+		std::string iovec_len_expr;
+		llvm::raw_string_ostream iovec_len_expr_rso(iovec_len_expr);
+		iovec_len_expr_rso << msghdr_name << "->msg_iovlen";
+
+		return ImportIovecCall(op, iovec_name_rso.str(),
+				iovec_len_expr_rso.str());
+	}
 };
 
 /**
@@ -133,6 +154,7 @@ public:
 	/************************************************/
 	ap_abstract1_t m_abstract1;
 	std::vector<ImportIovecCall> m_importedIovecCalls;
+	std::vector<CopyMsghdrFromUserCall> m_copyMsghdrFromUserCalls;
 
 	// (Apron) analysis of integers
 	// TODO(oanson) TBD

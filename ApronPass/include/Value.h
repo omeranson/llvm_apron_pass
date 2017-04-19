@@ -54,6 +54,8 @@ public:
 	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
 	virtual ap_tcons1_t getSetValueTcons(
 			BasicBlock * basicBlock, Value * other);
+	virtual ap_tcons1_t getValueEq0Tcons(
+			BasicBlock * basicBlock);
 
 	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 

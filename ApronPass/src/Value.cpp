@@ -543,6 +543,7 @@ protected:
 			llvm::Value * llvmsize, user_pointer_operation_e op);
 	virtual void populateTreeConstraintsForCopyToFromUser(user_pointer_operation_e op);
 	virtual void populateTreeConstraintsForImportIovec(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraintsForCopyMsghdrFromUser(std::list<ap_tcons1_t> & constraints);
 	virtual user_pointer_operation_e getArgumentUserOperation(int arg);
 	virtual user_pointer_operation_e getImportIovecOp();
 	virtual const std::string & getArgumentName(int arg);
@@ -679,6 +680,9 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("import_iovec" == funcName) {
 		return true;
 	}
+	if ("copy_msghdr_from_user" == funcName) {
+		return true;
+	}
 	return false;
 }
 
@@ -729,6 +733,10 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			populateTreeConstraintsForImportIovec(constraints);
 			return;
 		}
+		if ("copy_msghdr_from_user" == funcName) {
+			populateTreeConstraintsForCopyMsghdrFromUser(constraints);
+			return;
+		}
 	}
 	InstructionValue::populateTreeConstraints(constraints);
 	return;
@@ -768,7 +776,6 @@ const std::string & CallValue::getImportIovecLenName() {
 
 void CallValue::populateTreeConstraintsForImportIovec(std::list<ap_tcons1_t> & constraints) {
 	BasicBlock * bb = getBasicBlock();
-	ValueFactory * valueFactory = ValueFactory::getInstance();
 	AbstractState & abstractState = bb->getAbstractState();
 	/* The op sent to import_iovec is the oposite of what we plan to do,
 	 * i.e. read -> write, and write -> read */
@@ -777,10 +784,29 @@ void CallValue::populateTreeConstraintsForImportIovec(std::list<ap_tcons1_t> & c
 	abstractState.m_importedIovecCalls.push_back(ImportIovecCall(
 		op, getImportIovecPtrName(), getImportIovecLenName()));
 
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	ap_texpr1_t * var_texpr = createTreeExpression(bb);
-	ap_tcons1_t return_value = ap_tcons1_make(AP_CONS_EQ, var_texpr, zero);
+	ap_tcons1_t return_value = getValueEq0Tcons(bb);
+	constraints.push_back(return_value);
+}
+
+
+void CallValue::populateTreeConstraintsForCopyMsghdrFromUser(
+		std::list<ap_tcons1_t> & constraints) {
+	llvm::CallInst * callinst = asCallInst();
+	assert(callinst->getNumArgOperands() == 4);
+	BasicBlock * bb = getBasicBlock();
+	AbstractState & abstractState = bb->getAbstractState();
+
+	user_pointer_operation_e op = user_pointer_operation_write;
+	llvm::Value * llvmOp = callinst->getArgOperand(2);
+	llvm::Constant * opValue = llvm::dyn_cast<llvm::Constant>(llvmOp);
+	if (opValue && opValue->isZeroValue()) {
+		op = user_pointer_operation_read;
+	}
+
+	abstractState.m_copyMsghdrFromUserCalls.push_back(
+			CopyMsghdrFromUserCall(op, getArgumentName(1)));
+
+	ap_tcons1_t return_value = getValueEq0Tcons(bb);
 	constraints.push_back(return_value);
 }
 
@@ -1598,6 +1624,14 @@ ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
 			AP_TEXPR_SUB, value_texpr, var_texpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
+	return result;
+}
+
+ap_tcons1_t Value::getValueEq0Tcons(BasicBlock * basicBlock) {
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
+	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, var_texpr, zero);
 	return result;
 }
 

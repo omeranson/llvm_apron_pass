@@ -300,3 +300,9 @@ const std::vector<ImportIovecCall> & Function::getImportIovecCalls() {
 	AbstractState & as = returnBasicBlock->getAbstractState();
 	return as.m_importedIovecCalls;
 }
+
+const std::vector<CopyMsghdrFromUserCall> & Function::getCopyMsghdrFromUserCalls() {
+	BasicBlock * returnBasicBlock = getReturnBasicBlock();
+	AbstractState & as = returnBasicBlock->getAbstractState();
+	return as.m_copyMsghdrFromUserCalls;
+}
