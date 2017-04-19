@@ -93,14 +93,22 @@ inline stream & operator<<(stream & s, Precondition<ImportIovecCall> p) {
 	const ImportIovecCall & call = *p.t;
 	s << depth << "// Error state for iovec " << call.iovec_name << ":\n";
 // 	Verify iovec not accessed beyond end of object
-	s << depth << "assert(size(" << call.iovec_name <<
+	s << depth << "if (SE_SAT(!(size(" << call.iovec_name <<
 			") >= sizeof(struct iovec)*" << call.iovec_len_name <<
-			" && \"Invalid iovec pointer " << call.iovec_name << "\");\n";
+			"))) {\n";
+	++depth;
+	s << "warn(\"Invalid iovec pointer " << call.iovec_name << "\");\n";
+	--depth;
+	s << depth << "}\n";
 // 	Verify each item within iovec
 	s << depth << "for (idx = 0; idx < " << call.iovec_len_name << "; idx++) {\n";
 	++depth;
 	s << depth << "i64 iovec_element_size = SE_size_obj(" << call.iovec_name << "[idx].iov_base);\n";
-	s << depth << "assert(iovec_element_size >= " << call.iovec_name << "[idx].iov_len);\n";
+	s << depth << "if (SE_SAT(!(iovec_element_size >= " << call.iovec_name << "[idx].iov_len))) {\n";
+	++depth;
+	s << "warn(\"Invalid iovec internal pointer " << call.iovec_name << "\");\n";
+	--depth;
+	s << depth << "}\n";
 	--depth;
 	s << depth << "}\n";
 	return s;
@@ -110,16 +118,22 @@ template <class stream>
 inline stream & operator<<(stream & s, Precondition<CopyMsghdrFromUserCall> p) {
 	const CopyMsghdrFromUserCall & call = *p.t;
 	s << depth << "// Error state for msghdr " << call.msghdr_name << ":\n";
-	s << depth << "assert(size(" << call.msghdr_name <<
-			") >= sizeof(struct msghdr)" <<
-			" && \"Invalid msghdr pointer " << call.msghdr_name << "\");\n";
+	s << depth << "if (SE_SAT(!(size(" << call.msghdr_name <<
+			") >= sizeof(struct msghdr)))) {\n";
+	++depth;
+	s << depth << "warn(\"Invalid msghdr pointer " << call.msghdr_name << "\");\n";
+	--depth;
+	s << depth << "}\n";
 	ImportIovecCall iic = call.asImportIovecCall();
 	s << precondition(&iic);
 	// XXX(oanson) Incomplete - msghdr has other fields
 	// 	msg_name (len: msg_namelen)
-	s << depth << "assert(size(" << call.msghdr_name << "->msg_name) >= "
-			<< call.msghdr_name << "->msg_namelen" <<
-			" && \"Invalid pointer " << call.msghdr_name << "->msg_name\");\n";
+	s << depth << "if (SE_SAT(!(size(" << call.msghdr_name << "->msg_name) >= "
+			<< call.msghdr_name << "->msg_namelen))) {\n";
+	++depth;
+	s << depth << "warn(\"Invalid pointer " << call.msghdr_name << "->msg_name\");\n";
+	--depth;
+	s << depth << "}";
 	return s;
 }
 
@@ -191,7 +205,11 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	for (auto & errorState : errorStates) {
 		s << depth << "// Error state for " << errorState.first << ":\n";
 		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &errorState.second);
-		s << depth << "assert(!" << Conjunction(&array) << " && \"Invalid pointer " << errorState.first << "\");\n";
+		s << depth << "if(SE_SAT(" << Conjunction(&array) << ")) {\n";
+		++depth;
+		s << depth << "warn(\"Invalid pointer " << errorState.first << "\");\n";
+		--depth;
+		s << depth << "}\n";
 	}
 	for (const ImportIovecCall & call : importIovecCalls) {
 		s << precondition(&call);
@@ -237,7 +255,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "HAVOC(res);\n";
 	s << depth << "if " << Conjunction("b", &array) << " {\n";
 	++depth;
-	s << depth << "\treturn res;\n";
+	s << depth << "return res;\n";
 	--depth;
 	s << depth << "}\n";
 
