@@ -6,7 +6,7 @@ CC=gcc
 ###############
 # DIRECTORIES #
 ###############
-BASEDIR            = .
+BASEDIR            = $(shell pwd)
 LEXER_DIR          = $(BASEDIR)/FOLDER_0_Flex
 LEXER_User_DIR     = $(BASEDIR)/FOLDER_1_LEXER_User
 LEXER_Inline_DIR   = $(BASEDIR)/FOLDER_2_LEXER_Inline
