@@ -596,6 +596,10 @@ bool BasicBlock::update() {
 	return markedForChanged || isChanged;
 }
 
+void BasicBlock::makeTop() {
+	m_abst_value = ap_abstract1_top(getManager(), getEnvironment());
+}
+
 void BasicBlock::populateConstraintsFromAbstractValue(
 		std::list<ap_tcons1_t> & constraints) {
 	if (isBottom()) {
@@ -627,13 +631,8 @@ ap_abstract1_t BasicBlock::applyConstraints(
 	}
 	ap_tcons1_array_t array = createTcons1Array(constraints);
 	ap_abstract1_t abs;
-	if (ap_abstract1_is_bottom(getManager(), &m_abst_value)) {
-		abs = ap_abstract1_of_tcons_array(
-				getManager(), getEnvironment(), &array);
-	} else {
-		abs = ap_abstract1_meet_tcons_array(
-				getManager(), false, &m_abst_value, &array);
-	}
+	abs = ap_abstract1_meet_tcons_array(
+			getManager(), false, &m_abst_value, &array);
 	return abs;
 }
 

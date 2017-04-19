@@ -68,6 +68,7 @@ public:
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
 	virtual bool update();
+	virtual void makeTop();
 
 	virtual const std::string & generateOffsetName(
 			Value * value, const std::string & bufname);

@@ -59,45 +59,6 @@ llvm::cl::opt<unsigned> UpdateCountMax ("update-count-max",
 /**************************/
 namespace
 {
-	/*******************************************************/
-	/* OREN ISH SHALOM edited:                             */
-	/* Write the summary of each function into a dedicated */
-	/* text file with the same name                        */
-	/*******************************************************/
-/*
-	class Function {
-	private:
-		llvm::Function & function;
-	public:
-		Function(llvm::Function & function) : function(function) {}
-		const llvm::Function & getFunction() {
-			return function;
-		}
-		BasicBlock * root;
-	}
-	*/
-
-	/** Holds a (possibly abstract) value.
-	 *  Abstract domains to extend this parameter.
-	 */
-
-	/** Holds a map from variable name to values */
-	/*
-	class Context {
-	private:
-		std::map<std::string, Value*> values;
-	public:
-		bool setValue(std::string & varName, Value * value) {
-			std::map<std::string, Value*>::iterator it = values.find(varName);
-			if (it == values.end()) {
-				values.insert(std::pair<std::string, Value*>(varName, value));
-				return true;
-			}
-			return it->second->join(*value);
-		}
-	};
-	*/
-
 	class ChaoticExecution {
 	private:
 		CallGraph & callGraph;
@@ -118,7 +79,9 @@ namespace
 
 		void execute() {
 			worklist.clear();
-			worklist.push_front(callGraph.getRoot());
+			BasicBlock * root = callGraph.getRoot();
+			root->makeTop();
+			worklist.push_front(root);
 			while (!worklist.empty()) {
 				BasicBlock * block = worklist.front();
 				worklist.pop_front();
