@@ -74,31 +74,26 @@ all:
 	@echo "\n"
 	opt -instnamer ${inputbc}.O3.MergeReturn.bc -o ${inputbc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"
-	@echo "***************************************"
-	@echo "* Prepare to Run the Inliner Pass ... *"
-	@echo "**************************************"
-	@echo "\n"
-	cd $(INLINE_SELECTED_FUNCTIONS_DIR)
-	@echo "\n"	
 	@echo "********************************************************"
 	@echo "* llvm-dis to work with  human readable text files ... *"
-	@echo "* 'cause I love human readable text files          ... *"
+	@echo "* 'cause I love human readable text files :]]      ... *"
 	@echo "********************************************************"
 	@echo "\n"
-	llvm-dis -o=./FOLDER_6_Input/Input.ll ${inputbc}.O3.MergeReturn.InstNamer.bc
+	llvm-dis -o=$(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_6_INPUT/Input.ll ${inputbc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"
 	@echo "*****************************************************"
 	@echo "* Use the original c file to detect functions that  *"
 	@echo "* have an input paramater with __user attribute     *"
 	@echo "*****************************************************"
 	@echo "\n"
-	cp ${inputc} ./FOLDER_6_Input/Input.c
+	cp ${inputc}.c $(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_6_INPUT/Input.c
 	@echo "\n"
 	@echo "***************************************"
 	@echo "* Run The Actual Inliner Pass Now ... *"
 	@echo "***************************************"
 	@echo "\n"
-	${MAKE}
+	cd $(INLINE_SELECTED_FUNCTIONS_DIR) && ${MAKE}
+	@echo "\n"
 	@echo "**********************"
 	@echo "* Run Apron Pass ... *"
 	@echo "**********************"

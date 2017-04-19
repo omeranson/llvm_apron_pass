@@ -1,3 +1,4 @@
 *.swp
 *.so
 *.o
+**/FOLDER_3_INLINE_SELECTED_FUNCTIONS/INLINE_ME/*
