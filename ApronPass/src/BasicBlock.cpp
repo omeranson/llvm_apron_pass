@@ -362,7 +362,7 @@ bool BasicBlock::update() {
 	}
 	bool markedForChanged = m_markedForChanged;
 	m_markedForChanged = false;
-	bool isChanged = ap_abstract1_is_eq(manager, &prev, &abs);
+	bool isChanged = (aas != prev);
 	return markedForChanged || isChanged;
 }
 

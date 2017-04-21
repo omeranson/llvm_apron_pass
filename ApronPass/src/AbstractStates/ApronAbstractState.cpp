@@ -1,4 +1,7 @@
 #include <AbstractStates/ApronAbstractState.h>
+#include <APStream.h>
+
+#include <llvm/Support/raw_ostream.h>
 
 #include <ap_environment.h>
 
@@ -20,8 +23,8 @@ ApronAbstractState ApronAbstractState::bottom() {
 	return abst;
 }
 
-ap_environment_t * ApronAbstractState::getEnvironment() {
-	return ap_abstract1_environment(apron_manager, &m_abstract1);
+ap_environment_t * ApronAbstractState::getEnvironment() const {
+	return ap_abstract1_environment(apron_manager, (ap_abstract1_t*)&m_abstract1);
 }
 
 void ApronAbstractState::extendEnvironment(ap_texpr1_t * texpr) {
@@ -36,6 +39,13 @@ void ApronAbstractState::extendEnvironment(ap_tcons1_t * tcons) {
 
 bool ApronAbstractState::join(const ApronAbstractState & other) {
 	++joinCount;
+	if (other.isBottom()) {
+		return false;
+	} if (other.isTop()) {
+		bool result = isTop();
+		*this = top();
+		return result;
+	}
 	ap_dimchange_t * dimchange1 = NULL;
 	ap_dimchange_t * dimchange2 = NULL;
 	ap_abstract1_t prev = m_abstract1;
@@ -69,16 +79,20 @@ void ApronAbstractState::assign(const std::string & var, ap_texpr1_t * value) {
 }
 
 void ApronAbstractState::extend(const std::string & var, bool isBottom) {
+	if (isKnown(var)) {
+		return;
+	}
 	ap_environment_t * environment = ap_abstract1_environment(apron_manager, &m_abstract1);
 	ap_var_t apvar = (ap_var_t)var.c_str();
-	if (!ap_environment_mem_var(environment, apvar)) {
-		environment = ap_environment_add(environment, &apvar, 1, NULL, 0);
-		m_abstract1 = ap_abstract1_change_environment(apron_manager, false,
-				&m_abstract1, environment, isBottom);
-	}
+	environment = ap_environment_add(environment, &apvar, 1, NULL, 0);
+	m_abstract1 = ap_abstract1_change_environment(apron_manager, false,
+			&m_abstract1, environment, isBottom);
 }
 
 void ApronAbstractState::forget(const std::string & varname, bool isBottom) {
+	if (!isKnown(varname)) {
+		return;
+	}
 	ap_var_t var = (ap_var_t)varname.c_str();
 	m_abstract1 = ap_abstract1_forget_array(apron_manager, false,
 			&m_abstract1, &var, 1, isBottom);
@@ -134,6 +148,23 @@ bool ApronAbstractState::isTop() const {
 
 bool ApronAbstractState::isBottom() const {
 	return ap_abstract1_is_bottom(apron_manager, (ap_abstract1_t*)&m_abstract1);
+}
+
+bool ApronAbstractState::isKnown(const std::string & var) const {
+	ap_environment_t * environment = getEnvironment();
+	ap_var_t apvar = (ap_var_t)var.c_str();
+	return ap_environment_mem_var(environment, apvar);
+}
+
+bool ApronAbstractState::operator==(const ApronAbstractState &other) const {
+	return ap_environment_is_eq(getEnvironment(), other.getEnvironment()) &&
+			ap_abstract1_is_eq(apron_manager,
+					(ap_abstract1_t*)&m_abstract1,
+					(ap_abstract1_t*)&other.m_abstract1);
+}
+
+bool ApronAbstractState::operator!=(const ApronAbstractState &other) const {
+	return !(*this == other);
 }
 
 ap_texpr1_t * ApronAbstractState::asTexpr(const std::string & var) {

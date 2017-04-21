@@ -16,12 +16,12 @@ protected:
 	bool m_isMeetAggregate = false;
 	std::vector<ap_tcons1_t> m_meetAggregates;
 	int joinCount = 0;
-	int m_wideningThreshold = 1000;
+	int m_wideningThreshold = WideningThreshold;
 
 	virtual void meet(ap_tcons1_array_t & tconsarray);
 public:
 // XXX(oanson) The functions in this public block should be made protected once possible
-	virtual ap_environment_t * getEnvironment();
+	virtual ap_environment_t * getEnvironment() const;
 	virtual void extendEnvironment(ap_texpr1_t * texpr);
 	virtual void extendEnvironment(ap_tcons1_t * tcons);
 public:
@@ -45,6 +45,9 @@ public:
 	// Getters
 	virtual bool isTop() const;
 	virtual bool isBottom() const;
+	virtual bool isKnown(const std::string & var) const;
+	virtual bool operator==(const ApronAbstractState &) const;
+	virtual bool operator!=(const ApronAbstractState &) const;
 	virtual ap_texpr1_t * asTexpr(const std::string & var);
 	virtual ap_texpr1_t * asTexpr(int64_t value);
 	virtual ap_texpr1_t * asTexpr(double value);
