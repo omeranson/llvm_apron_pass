@@ -87,7 +87,8 @@ public:
 	GepValue (llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip() { return false; }
-	virtual void populateTreeConstraints(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints);
 };
 
 llvm::GetElementPtrInst * GepValue::asGetElementPtrInst() {
@@ -112,8 +113,10 @@ void GepValue::addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
 	constraints.insert(constraints.end(), tconss.begin(), tconss.end());
 }
 
-void GepValue::update(AbstractState & state) {
+void GepValue::populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints) {
 	BasicBlock * basicBlock = getBasicBlock();
+	AbstractState & state = basicBlock->getAbstractState();
 	Function * function = getFunction();
 	ValueFactory * factory = ValueFactory::getInstance();
 	llvm::GetElementPtrInst * gepi = asGetElementPtrInst();
@@ -126,7 +129,7 @@ void GepValue::update(AbstractState & state) {
 	std::string pointerName = src->getName();
 	std::set<std::string> &dest = state.m_mayPointsTo[getName()];
 	dest.clear();
-	std::string & offsetName = state.generateOffsetName(getName(), pointerName);
+	const std::string & offsetName = state.generateOffsetName(getName(), pointerName);
 	state.m_apronAbstractState.forget(offsetName);
 	ap_texpr1_t * offset_texpr = offset->createTreeExpression(state);
 	if (function->isUserPointer(pointerName)) {
@@ -196,6 +199,11 @@ void InstructionValue::update(AbstractState & state) {
 	state.m_apronAbstractState.assign(getName(), value_texpr);
 }
 
+void InstructionValue::populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints) {
+	update(getBasicBlock()->getAbstractState());
+}
+
 ap_texpr1_t * InstructionValue::createRHSTreeExpression() {
 	abort();
 }
@@ -222,6 +230,10 @@ BasicBlock * InstructionValue::getBasicBlock() {
 	BasicBlockManager & factory = BasicBlockManager::getInstance();
 	BasicBlock * result = factory.getBasicBlock(llvmBasicBlock);
 	return result;
+}
+
+Function * InstructionValue::getFunction() {
+	return getBasicBlock()->getFunction();
 }
 
 bool TerminatorInstructionValue::isSkip() {
@@ -328,7 +340,7 @@ ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(int idx) {
 		//llvm::errs() << "\n";
 		abort();
 	}
-	return operand->createTreeExpression(getBasicBlock());
+	return operand->createTreeExpression(getBasicBlock()->getAbstractState());
 }
 
 ap_texpr1_t * BinaryOperationValue::createRHSTreeExpression() {
@@ -423,7 +435,7 @@ protected:
 	virtual std::string getConstantString()  = 0;
 public:
 	ConstantValue(llvm::Value * value) : Value(value) {}
-	virtual ap_texpr1_t* createTreeExpression(BasicBlock* basicBlock) = 0;
+	virtual ap_texpr1_t* createTreeExpression(AbstractState & state) = 0;
 };
 
 std::string ConstantValue::getValueString()  {
@@ -435,7 +447,7 @@ protected:
 	virtual std::string getConstantString() ;
 public:
 	ConstantIntValue(llvm::Value * value) : ConstantValue(value) {}
-	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 	virtual unsigned getBitSize();
 };
 
@@ -446,12 +458,11 @@ std::string ConstantIntValue::getConstantString()  {
 }
 
 ap_texpr1_t * ConstantIntValue::createTreeExpression(
-		BasicBlock * basicBlock) {
+		AbstractState & state) {
 	llvm::ConstantInt & intValue = llvm::cast<llvm::ConstantInt>(*m_value);
 	const llvm::APInt & apint = intValue.getValue();
 	int64_t svalue = apint.getSExtValue();
-	ap_texpr1_t * result = ap_texpr1_cst_scalar_int(
-			basicBlock->getEnvironment(), svalue);
+	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr(svalue);
 	return result;
 }
 
@@ -464,7 +475,7 @@ protected:
 	virtual std::string getConstantString() ;
 public:
 	ConstantFloatValue(llvm::Value * value) : ConstantValue(value) {}
-	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 };
 
 std::string ConstantFloatValue::getConstantString()  {
@@ -482,12 +493,11 @@ std::string ConstantFloatValue::getConstantString()  {
 }
 
 ap_texpr1_t * ConstantFloatValue::createTreeExpression(
-		BasicBlock * basicBlock) {
+		AbstractState & state) {
 	llvm::ConstantFP & fpValue = llvm::cast<llvm::ConstantFP>(*m_value);
 	const llvm::APFloat & apfloat = fpValue.getValueAPF();
 	double value = apfloat.convertToDouble();
-	ap_texpr1_t * result = ap_texpr1_cst_scalar_double(
-			basicBlock->getEnvironment(), value);
+	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr(value);
 	return result;
 }
 
@@ -864,7 +874,7 @@ void CallValue::populateTreeConstraintsForLiteralSize(llvm::Value * ptr,
 		llvm::Value * llvmsize, user_pointer_operation_e op) {
 	ValueFactory * valueFactory = ValueFactory::getInstance();
 	Value * sizeValue = valueFactory->getValue(llvmsize);
-	ap_texpr1_t * size = sizeValue->createTreeExpression(getBasicBlock());
+	ap_texpr1_t * size = sizeValue->createTreeExpression(getBasicBlock()->getAbstractState());
 
 	populateTreeConstraintsForUserMemoryOperation(ptr, size, op);
 }
@@ -1258,7 +1268,8 @@ ap_tcons1_t SelectValueInstruction::getSetFalseValueTcons() {
 	return getSetValueTcons(getFalseValue());
 }
 
-void SelectValueInstruction::update(AbstractState & state) {
+void SelectValueInstruction::populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints) {
 	/*
 	The command is %4 <- select %1, %2, %3
 	We have all the information (it is in the list<ap_tcons1_t>). What if we
@@ -1356,7 +1367,7 @@ ap_texpr1_t * CastOperationValue::createRHSTreeExpression() {
 	llvm::Value * operand = inst->getOperand(0);
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(operand);
-	return value->createTreeExpression(getBasicBlock());
+	return value->createTreeExpression(getBasicBlock()->getAbstractState());
 }
 
 class BranchInstructionValue : public TerminatorInstructionValue {
@@ -1590,14 +1601,15 @@ bool Value::isSkip() {
 }
 
 ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
-	return state.m_apronAbstractState->getVariableTExpr(getName());
+	return state.m_apronAbstractState.asTexpr(getName());
 }
 
 ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
 	ap_scalar_t* zero = ap_scalar_alloc ();
 	ap_scalar_set_int(zero, 0);
-	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
-	ap_texpr1_t * value_texpr = other->createTreeExpression(basicBlock);
+	AbstractState & state = basicBlock->getAbstractState();
+	ap_texpr1_t * var_texpr = createTreeExpression(state);
+	ap_texpr1_t * value_texpr = other->createTreeExpression(state);
 	// Verify the environments are up-to-date
 	basicBlock->extendTexprEnvironment(var_texpr);
 	basicBlock->extendTexprEnvironment(value_texpr);
@@ -1609,9 +1621,10 @@ ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
 }
 
 ap_tcons1_t Value::getValueEq0Tcons(BasicBlock * basicBlock) {
+	AbstractState & state = basicBlock->getAbstractState();
 	ap_scalar_t* zero = ap_scalar_alloc ();
 	ap_scalar_set_int(zero, 0);
-	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
+	ap_texpr1_t * var_texpr = createTreeExpression(state);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, var_texpr, zero);
 	return result;
 }

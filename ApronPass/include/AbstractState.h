@@ -8,6 +8,8 @@
 
 #include <llvm/Support/raw_ostream.h>
 
+#include <AbstractStates/ApronAbstractState.h>
+
 typedef enum {
 	user_pointer_operation_read,
 	user_pointer_operation_write,
@@ -131,37 +133,26 @@ protected:
 	bool joinUserPointers(
 		std::set<std::string> & dest,
 		std::set<std::string> & src);
-	bool joinAbstract1(ap_abstract1_t * abstract1);
 
 public:
-
 	AbstractState();
 
-	/************************************************/
-	/* OREN ISH SHALOM remarks:                     */
-	/* I've changed this name to be more consistent */
-	/* with its Apron counterpart                   */
-	/************************************************/
+	// May points to analysis
 	may_points_to_t m_mayPointsTo;
-	
-	/************************************************/
-	/* OREN ISH SHALOM remarks:                     */
-	/* I've changed this name to be more consistent */
-	/* with its Apron counterpart                   */
-	/************************************************/
-
 	// (Apron) analysis of integers
 	ApronAbstractState m_apronAbstractState;
 	// (Apron) analysis of (user) read/write/last0 pointers
 	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
-	virtual const std::string & generateOffsetName(
+	static const std::string & generateOffsetName(
 			const std::string & valueName, const std::string & bufname);
+	static const std::string & generateLastName(
+			const std::string & bufname, user_pointer_operation_e op);
 
 	std::vector<ImportIovecCall> m_importedIovecCalls;
 	std::vector<CopyMsghdrFromUserCall> m_copyMsghdrFromUserCalls;
 
 	ap_manager_t * getManager() const;
-	void updateUserOperationAbstract1(ap_abstract1_t & abstract1);
+	void updateUserOperationAbstract1();
 	// General commands
 	virtual bool join(AbstractState &);
 	// TODO(oanson) The following functions are missing
@@ -185,7 +176,7 @@ inline stream & operator<<(stream & s, AbstractState & as) {
 		}
 		s << "],";
 	}
-	s << "},abstract1:{" << &as.m_abstract1 << "}";
+	s << "},abstract1:{" << &as.m_apronAbstractState.m_abstract1 << "}";
 	return s;
 }
 

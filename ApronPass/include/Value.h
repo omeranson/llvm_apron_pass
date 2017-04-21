@@ -46,7 +46,7 @@ public:
 	virtual std::string toString();
 	virtual bool isSkip();
 
-	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 	virtual ap_tcons1_t getSetValueTcons(
 			BasicBlock * basicBlock, Value * other);
 	virtual ap_tcons1_t getValueEq0Tcons(
@@ -67,11 +67,14 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& ro, Value* value);
 class InstructionValue : public Value {
 protected:
 	virtual llvm::Instruction * asInstruction();
-	//virtual BasicBlock * getBasicBlock();
+	virtual BasicBlock * getBasicBlock();
 	virtual Function * getFunction();
 public:
 	InstructionValue(llvm::Value * value) : Value(value) {}
 	virtual void update(AbstractState & state);
+	// @deprecated
+	virtual void populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints);
 	virtual ap_texpr1_t * createRHSTreeExpression();
 	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 	virtual bool isSkip();

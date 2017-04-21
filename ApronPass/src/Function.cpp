@@ -79,7 +79,7 @@ bool Function::isVarInOut(const char * varname) {
 ap_abstract1_t Function::trimmedLastASAbstractValue() {
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	AbstractState & as = returnBasicBlock->getAbstractState();
-	ap_abstract1_t & asAbstract1 = as.m_abstract1;
+	ap_abstract1_t & asAbstract1 = as.m_apronAbstractState.m_abstract1;
 	ap_manager_t * manager = apron_manager;
 	ap_environment_t * environment = ap_abstract1_environment(manager, &asAbstract1);
 
@@ -125,14 +125,14 @@ ap_abstract1_t Function::trimmedLastJoinedAbstractValue() {
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	AbstractState & as = returnBasicBlock->getAbstractState();
 	ap_manager_t * manager = apron_manager;
-	ap_environment_t * asEnv = ap_abstract1_environment(manager, &as.m_abstract1);
+	ap_environment_t * asEnv = ap_abstract1_environment(manager, &as.m_apronAbstractState.m_abstract1);
 	ap_environment_t * bbEnv = ap_abstract1_environment(manager, &returnBasicBlock->getAbstractValue());
 	ap_dimchange_t * dimchange1 = NULL;
 	ap_dimchange_t * dimchange2 = NULL;
 	ap_environment_t * environment = ap_environment_lce(
 			asEnv, bbEnv, &dimchange1, &dimchange2);
 	ap_abstract1_t asAbstract1 = ap_abstract1_change_environment(manager, false,
-			&as.m_abstract1, environment, true);
+			&as.m_apronAbstractState.m_abstract1, environment, true);
 	ap_abstract1_t bbAbstract1 = ap_abstract1_change_environment(manager, false,
 			&returnBasicBlock->getAbstractValue(), environment, true);
 	ap_abstract1_t abstract1 = ap_abstract1_join(manager, false, &asAbstract1, &bbAbstract1);
@@ -191,13 +191,13 @@ std::map<std::string, ap_abstract1_t> Function::generateErrorStates() {
 		if (!ap_environment_mem_var(environment, name_var)) {
 			environment = ap_environment_add(environment, &name_var, 1, NULL, 0);
 		}
-		const std::string & last_read_name = basicBlock->generateLastName(
+		const std::string & last_read_name = basicBlock->getAbstractState().generateLastName(
 				userBuffer, user_pointer_operation_read);
 		ap_var_t last_read_var = (ap_var_t)last_read_name.c_str();
 		if (!ap_environment_mem_var(environment, last_read_var)) {
 			environment = ap_environment_add(environment, &last_read_var, 1, NULL, 0);
 		}
-		const std::string & last_write_name = basicBlock->generateLastName(
+		const std::string & last_write_name = basicBlock->getAbstractState().generateLastName(
 				userBuffer, user_pointer_operation_write);
 		ap_var_t last_write_var = (ap_var_t)last_write_name.c_str();
 		if (!ap_environment_mem_var(environment, last_write_var)) {

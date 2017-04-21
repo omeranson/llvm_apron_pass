@@ -35,7 +35,6 @@ protected:
 	static int basicBlockCount;
 
 	llvm::BasicBlock * m_basicBlock;
-	ap_abstract1_t m_abst_value;
 	std::string m_name;
 	bool m_markedForChanged;
 	AbstractState m_abstractState;
@@ -43,12 +42,8 @@ protected:
 	BasicBlock(llvm::BasicBlock * basicBlock);
 	virtual void initialiseBlockName();
 
-	virtual bool is_eq(ap_abstract1_t & value);
 	virtual void processInstruction(std::list<ap_tcons1_t> & constraints,
 			llvm::Instruction & inst);
-	virtual void addBogusInitialConstarints(
-		std::list<ap_tcons1_t>  & constraints);
-	virtual bool joinInAbstract1(ap_abstract1_t & abst_value);
 	virtual ap_abstract1_t getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock);
 	virtual AbstractState getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock);
 public:
@@ -59,14 +54,10 @@ public:
 	virtual std::string toString();
 	virtual llvm::BasicBlock * getLLVMBasicBlock();
 	virtual void setChanged();
-	virtual void populateConstraintsFromAbstractValue(
-			std::list<ap_tcons1_t> & constraints);
 	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
 	virtual bool update();
 	virtual void makeTop();
 
-	virtual const std::string & generateLastName(
-			const std::string & bufname, user_pointer_operation_e op);
 	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
 		const std::string & valueName, const std::string & bufname);
 	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
@@ -75,35 +66,23 @@ public:
 		const std::string & bufname, user_pointer_operation_e op);
 
 	virtual bool join(BasicBlock & basicBlock);
-	virtual bool meet(BasicBlock & basicBlock);
-	virtual bool meet(ap_abstract1_t & abst_value);
-	virtual bool meet(std::list<ap_abstract1_t> & abst_values);
-	virtual bool meet(ap_tcons1_t & constraint);
-	virtual bool unify(BasicBlock & basicBlock);
-	virtual bool unify(ap_abstract1_t & abst_value);
-	virtual bool unify(std::list<ap_abstract1_t> & abst_values);
-	virtual bool unify(ap_tcons1_t & constraint);
 	virtual bool isTop(ap_abstract1_t & value);
 	virtual bool isBottom(ap_abstract1_t & value);
 	virtual bool isTop();
 	virtual bool isBottom();
-	virtual bool operator==(BasicBlock & basicBlock);
 
+	// @deprecated
 	virtual ap_manager_t * getManager();
+	// @deprecated
 	virtual ap_environment_t * getEnvironment();
-	virtual void setEnvironment(ap_environment_t * nenv);
 	virtual void extendEnvironment(Value * value);
 	virtual void extendEnvironment(const std::string & varname);
-	virtual void extendEnvironment(const char * varname);
 	virtual void forget(Value * value);
 	virtual void forget(const std::string & varname);
-	virtual void forget(const char * varname);
 	virtual ap_interval_t * getVariableInterval(Value * value);
 	virtual ap_interval_t * getVariableInterval(const std::string & value);
-	virtual ap_interval_t * getVariableInterval(const char * value);
 	virtual ap_texpr1_t * getVariableTExpr(Value * value);
 	virtual ap_texpr1_t * getVariableTExpr(const std::string & value);
-	virtual ap_texpr1_t * getVariableTExpr(const char * value);
 	virtual ap_texpr1_t* getConstantTExpr(unsigned);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);

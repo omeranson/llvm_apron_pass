@@ -11,9 +11,10 @@ ap_manager_t * apron_manager = create_manager();
 class raw_uniq_string_ostream : public llvm::raw_string_ostream {
 	std::set<std::string> & m_cache;
 	std::string buf;
+public:
 	raw_uniq_string_ostream(std::set<std::string> & cache) :
 		m_cache(cache), llvm::raw_string_ostream(buf) {}
-	std::string & uniq_str() {
+	const std::string & uniq_str() {
 		std::pair<std::set<std::string>::iterator,bool> inserted =
 				m_cache.insert(str());
 		return *inserted.first;
@@ -52,10 +53,8 @@ MemoryAccessAbstractValue::MemoryAccessAbstractValue(ap_environment_t * env,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-AbstractState::AbstractState() :
-		m_abstract1(ap_abstract1_bottom(getManager(), ap_environment_alloc_empty())) {
+AbstractState::AbstractState() : m_apronAbstractState(ApronAbstractState::bottom()) {
 }
-
 
 const std::string & AbstractState::generateOffsetName(const std::string & valueName, const std::string & bufname) {
 	static std::set<std::string> names;
@@ -75,8 +74,9 @@ ap_manager_t * AbstractState::getManager() const {
 	return apron_manager;
 }
 
-void AbstractState::updateUserOperationAbstract1(ap_abstract1_t & abstract1) {
+void AbstractState::updateUserOperationAbstract1() {
 	ap_manager_t * manager = getManager();
+	ap_abstract1_t & abstract1 = m_apronAbstractState.m_abstract1;
 	// Construct the environment
 	unsigned size = memoryAccessAbstractValues.size();
 	std::vector<ap_abstract1_t> values;
@@ -89,7 +89,7 @@ void AbstractState::updateUserOperationAbstract1(ap_abstract1_t & abstract1) {
 		values.push_back(abstract_value);
 	}
 	ap_abstract1_t abstract = join(values);
-	joinAbstract1(&abstract);
+	m_apronAbstractState.join(abstract);
 	//m_abstract1 = abstract;
 }
 
@@ -166,27 +166,15 @@ bool AbstractState::joinMayPointsTo(may_points_to_t &otherMayPointsTo)
 	return isChanged;
 }
 
-bool AbstractState::joinAbstract1(ap_abstract1_t * abstract1)
-{
-	ap_manager_t * manager = getManager();
-	ap_abstract1_t prev = m_abstract1;
-	m_abstract1 = join(&m_abstract1, abstract1);
-	bool isChanged = !(ap_environment_is_eq(
-				ap_abstract1_environment(manager, &m_abstract1),
-				ap_abstract1_environment(manager, &prev)) &&
-			(ap_abstract1_is_eq(manager, &m_abstract1, &prev)));
-	return isChanged;
-}
-
 bool AbstractState::join(AbstractState &other)
 {
 	bool isChanged = false;
 	// Join 'May' reference
 	joinMayPointsTo(other.m_mayPointsTo);
 	// Join (Apron) analysis of integers
-	// TODO(oanson) TBD
+	isChanged = m_apronAbstractState.join(other.m_apronAbstractState) || isChanged;
 	// Join (Apron) analysis of (user) read/write/last0 pointers
-	isChanged = joinAbstract1(&other.m_abstract1) | isChanged;
+	// TODO(oanson) TBD
 	return isChanged;
 }
 
