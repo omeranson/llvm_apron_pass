@@ -62,6 +62,7 @@ bool ApronAbstractState::join(const ApronAbstractState & other) {
 			&other_abstract1, environment, true);
 
 	if ((joinCount % m_wideningThreshold) == 0) {
+		llvm::errs() << "Widening " << &this_abst << " with " << &other_abst;
 		m_abstract1 = ap_abstract1_widening(apron_manager,
 				&this_abst, &other_abst);
 	} else {

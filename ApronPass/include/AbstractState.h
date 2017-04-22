@@ -72,7 +72,12 @@ struct CopyMsghdrFromUserCall {
 class AbstractState {
 public:
 	/*******************************************************************/
-	/* OREN ISH SHALOM edited: let us use this code for reference      */
+	/* pt is a mapping between pointers, and the buffers they *may*    */
+	/* point to. The buffers are either user buffers (passed e.g. via  */
+	/* arguments), "kernel" for any kernel pointer, "null" for the     */
+	/* null pointer, or "user" for any pointer to userspace that is    */
+	/* not recognised as a buffer (This shouldn't really happen).      */
+	/* Let us use this code for reference                              */
 	/*                                                                 */
 	/* int f9(__user char *buf1, __user char *buf2, int size)          */
 	/* {                                                               */
@@ -86,26 +91,28 @@ public:
 	/*         p = buf2; // and this is (**)                           */
 	/*     }                                                           */
 	/* }                                                               */
-	/*******************************************************************/
-	/*******************************************************************/
-	/* OREN ISH SHALOM edited:                                         */
 	/* --------------------------------------------------------------- */
 	/* the pointer p in line (*) is updated with                       */
 	/*                                                                 */
-	/* map[p] = {pair(buf1,OFFSET_LINE(*)_BUF1)}                       */
+	/* map[p] = {buf1}                                                 */
+	/* Additionally, and offset(p,buf1) <= 3 constraint should be      */
+	/* added to the numerical part of the AbstractState                */
 	/*                                                                 */
 	/* --------------------------------------------------------------- */
 	/*                                                                 */
 	/* the pointer p in line (**) is updated with                      */
 	/*                                                                 */
-	/* map[p] = {pair(buf2,OFFSET_LINE(**)_BUF2)}                      */
+	/* map[p] = buf2                                                   */
+	/* Additionally, and offset(p,buf2) <= 0 constraint should be      */
+	/* added to the numerical part of the AbstractState                */
 	/*                                                                 */
 	/* --------------------------------------------------------------- */
 	/*                                                                 */
 	/* the join between (*) and (**) should then be:                   */
 	/*                                                                 */
-	/* map[p] = {pair(buf1,OFFSET_LINE(*)_BUF1),                       */
-	/*           pair(buf2,OFFSET_LINE(**)_BUF2)}                      */
+	/* map[p] = {buf1,buf2}                                            */
+	/* The join also joins the constraints on offset(p,buf1) and       */
+	/* offset(p, buf2)                                                 */
 	/*                                                                 */
 	/*******************************************************************/
 	typedef std::map<std::string, std::set<std::string> > may_points_to_t;

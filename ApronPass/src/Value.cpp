@@ -63,20 +63,61 @@ public:
 	virtual bool isSkip() { return true; }
 };
 
-class AllocaValue : public NopInstructionValue {
+class AllocaValue : public InstructionValue {
 public:
-	AllocaValue(llvm::Value * value) : NopInstructionValue(value) {}
+	AllocaValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual void update(AbstractState & state);
 };
 
-class LoadValue : public NopInstructionValue {
+void AllocaValue::update(AbstractState & state) {
+	std::set<std::string> & pt = state.m_mayPointsTo[getName()];
+	pt.clear();
+	pt.insert("kernel");
+}
+
+class LoadValue : public InstructionValue {
+protected:
+	llvm::LoadInst * asLoadInst();
 public:
-	LoadValue(llvm::Value * value) : NopInstructionValue(value) {}
+	LoadValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual void update(AbstractState & state);
 };
 
-class StoreValue : public NopInstructionValue {
+llvm::LoadInst * LoadValue::asLoadInst() {
+	return &llvm::cast<llvm::LoadInst>(*m_value);
+}
+
+void LoadValue::update(AbstractState & state) {
+	if (isPointer()) {
+		std::set<std::string> & pt = state.m_mayPointsTo[getName()];
+		pt.clear();
+		// XXX(oanson) INCOMPLETE: Somehow remove "kernel"
+	}
+	llvm::Value * src = asLoadInst()->getOperand(0);
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * srcValue = factory->getValue(src);
+	std::set<std::string> & pt = state.m_mayPointsTo[srcValue->getName()];
+	pt.erase("null");
+}
+
+class StoreValue : public InstructionValue {
+protected:
+	virtual llvm::StoreInst * asStoreInst();
 public:
-	StoreValue(llvm::Value * value) : NopInstructionValue(value) {}
+	StoreValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual void update(AbstractState & state);
 };
+
+llvm::StoreInst * StoreValue::asStoreInst() {
+	return &llvm::cast<llvm::StoreInst>(*m_value);
+}
+void StoreValue::update(AbstractState & state) {
+	llvm::Value * dest = asStoreInst()->getOperand(0);
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * destValue = factory->getValue(dest);
+	std::set<std::string> & pt = state.m_mayPointsTo[destValue->getName()];
+	pt.erase("null");
+}
 
 class GepValue : public InstructionValue {
 public:
@@ -334,17 +375,10 @@ ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(int idx) {
 	ValueFactory * factory = ValueFactory::getInstance();
 	llvm::Value * llvmOperand = asUser()->getOperand(idx);
 	Value * operand = factory->getValue(llvmOperand);
-	if (!operand) {
-		//llvm::errs() << "Unknown value:";
-		//llvmOperand->print(llvm::errs());
-		//llvm::errs() << "\n";
-		abort();
-	}
 	return operand->createTreeExpression(getBasicBlock()->getAbstractState());
 }
 
 ap_texpr1_t * BinaryOperationValue::createRHSTreeExpression() {
-
 	ap_texpr1_t * op0_texpr = createOperandTreeExpression(0);
 	ap_texpr1_t * op1_texpr = createOperandTreeExpression(1);
 	// TODO They don't have logical ops in #ap_texpr_op_t
@@ -374,7 +408,40 @@ protected:
 	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_SUB; }
 public:
 	SubtractionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	virtual void update(AbstractState & state);
 };
+
+void SubtractionOperationValue::update(AbstractState & state) {
+	ValueFactory * factory = ValueFactory::getInstance();
+	llvm::Value * left = asUser()->getOperand(0);
+	llvm::Value * right = asUser()->getOperand(1);
+	if (llvm::isa<llvm::PtrToIntInst>(left) && llvm::isa<llvm::PtrToIntInst>(right)) {
+		llvm::Value * leftPtr = llvm::cast<llvm::PtrToIntInst>(
+				*left).getPointerOperand();
+		llvm::Value * rightPtr = llvm::cast<llvm::PtrToIntInst>(
+				*right).getPointerOperand();
+
+		ValueFactory * factory = ValueFactory::getInstance();
+		Value * leftPtrVal = factory->getValue(leftPtr);
+		Value * rightPtrVal = factory->getValue(rightPtr);
+
+		std::set<std::string> & leftPT = state.m_mayPointsTo[leftPtrVal->getName()];
+		leftPT.erase("null");
+		std::set<std::string> & rightPT = state.m_mayPointsTo[rightPtrVal->getName()];
+
+		std::vector<std::string> intersection;
+		std::set_intersection(leftPT.begin(), leftPT.end(),
+				rightPT.begin(), rightPT.end(),
+				intersection.begin());
+
+		leftPT.clear();
+		leftPT.insert(intersection.begin(), intersection.end());
+		rightPT.clear();
+		rightPT.insert(intersection.begin(), intersection.end());
+		return;
+	}
+	return BinaryOperationValue::update(state);
+}
 
 class MultiplicationOperationValue : public BinaryOperationValue {
 protected:
@@ -498,6 +565,23 @@ ap_texpr1_t * ConstantFloatValue::createTreeExpression(
 	const llvm::APFloat & apfloat = fpValue.getValueAPF();
 	double value = apfloat.convertToDouble();
 	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr(value);
+	return result;
+}
+
+class ConstantNullValue : public ConstantValue {
+protected:
+	virtual std::string getConstantString() ;
+public:
+	ConstantNullValue(llvm::Value * value) : ConstantValue(value) {}
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
+};
+
+std::string ConstantNullValue::getConstantString() {
+	return "null";
+}
+
+ap_texpr1_t * ConstantNullValue::createTreeExpression(AbstractState & state) {
+	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr((int64_t)0);
 	return result;
 }
 
@@ -1547,6 +1631,10 @@ std::string Value::llvmValueName(llvm::Value * value) {
 	return oss.str();
 }
 
+bool Value::isPointer() {
+	return m_value->getType()->isPointerTy();
+}
+
 static const llvm::Module *getModuleFromVal(const llvm::Value *V) {
   if (const llvm::Argument *MA = llvm::dyn_cast<llvm::Argument>(V))
     return MA->getParent() ? MA->getParent()->getParent() : 0;
@@ -1799,6 +1887,9 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 	}
 	if (llvm::isa<llvm::ConstantFP>(constant)) {
 		return new ConstantFloatValue(constant);
+	}
+	if (llvm::isa<llvm::ConstantPointerNull>(constant)) {
+		return new ConstantNullValue(constant);
 	}
 	return NULL;
 }

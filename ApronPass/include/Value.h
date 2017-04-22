@@ -45,6 +45,7 @@ public:
 	virtual std::string getValueString();
 	virtual std::string toString();
 	virtual bool isSkip();
+	virtual bool isPointer();
 
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 	virtual ap_tcons1_t getSetValueTcons(

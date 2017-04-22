@@ -191,7 +191,7 @@ ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlo
 		llvm::Value * incoming = phi->getIncomingValueForBlock(
 				basicBlock.getLLVMBasicBlock());
 		Value * incomingValue = factory->getValue(incoming);
-		if (!phi->getType()->isPointerTy()) {
+		if (!phiValue->isPointer()) {
 			ap_tcons1_t tcons = phiValue->getSetValueTcons(this, incomingValue);
 			tconstraints.push_back(tcons);
 			envs.push_back(ap_tcons1_envref(&tcons));
@@ -292,10 +292,10 @@ AbstractState BasicBlock::getAbstractStateMetWithIncomingPhis(BasicBlock & basic
 		if (!phi) {
 			continue;
 		}
-		if (!phi->getType()->isPointerTy()) {
+		Value * phiValue = factory->getValue(phi);
+		if (!phiValue->isPointer()) {
 			continue;
 		}
-		Value * phiValue = factory->getValue(phi);
 		llvm::Value * incoming = phi->getIncomingValueForBlock(
 				basicBlock.getLLVMBasicBlock());
 		Value * incomingValue = factory->getValue(incoming);

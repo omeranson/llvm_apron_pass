@@ -54,6 +54,7 @@ MemoryAccessAbstractValue::MemoryAccessAbstractValue(ap_environment_t * env,
 ///////////////////////////////////////////////////////////////////////////////
 
 AbstractState::AbstractState() : m_apronAbstractState(ApronAbstractState::bottom()) {
+	m_mayPointsTo["null"].insert("null");
 }
 
 const std::string & AbstractState::generateOffsetName(const std::string & valueName, const std::string & bufname) {
