@@ -18,12 +18,12 @@ protected:
 	int joinCount = 0;
 	int m_wideningThreshold = WideningThreshold;
 
-	virtual void meet(ap_tcons1_array_t & tconsarray);
 public:
 // XXX(oanson) The functions in this public block should be made protected once possible
 	virtual ap_environment_t * getEnvironment() const;
 	virtual void extendEnvironment(ap_texpr1_t * texpr);
 	virtual void extendEnvironment(ap_tcons1_t * tcons);
+	virtual void meet(ap_tcons1_array_t & tconsarray);
 public:
 	ap_abstract1_t m_abstract1;
 	ApronAbstractState(const ap_abstract1_t & abst);

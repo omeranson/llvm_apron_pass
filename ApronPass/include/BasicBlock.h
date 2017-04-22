@@ -9,6 +9,7 @@
 #include <llvm/IR/BasicBlock.h>
 
 #include <ap_abstract1.h>
+#include <ap_texpr1.h>
 
 #include <AbstractState.h>
 
@@ -44,8 +45,10 @@ protected:
 
 	virtual void processInstruction(std::list<ap_tcons1_t> & constraints,
 			llvm::Instruction & inst);
-	virtual ap_abstract1_t getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock);
-	virtual AbstractState getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock);
+
+	virtual AbstractState getAbstractStateWithAssumptions(BasicBlock & predecessor);
+	virtual void updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
+	virtual void updateAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
 public:
 	unsigned updateCount;
 	unsigned joinCount;
@@ -54,7 +57,7 @@ public:
 	virtual std::string toString();
 	virtual llvm::BasicBlock * getLLVMBasicBlock();
 	virtual void setChanged();
-	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
+	virtual Value * getTerminatorValue();
 	virtual bool update();
 	virtual void makeTop();
 
@@ -90,8 +93,6 @@ public:
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_abstract1_t applyConstraints(
 			std::list<ap_tcons1_t> & constraints);
-	virtual ap_tcons1_array_t createTcons1Array(
-			std::list<ap_tcons1_t> & constraints);
 	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
 		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
 
@@ -104,4 +105,20 @@ std::ostream& operator<<(std::ostream& os,  BasicBlock* basicBlock);
 llvm::raw_ostream& operator<<(llvm::raw_ostream& ro,  BasicBlock& basicBlock);
 llvm::raw_ostream& operator<<(llvm::raw_ostream& ro,  BasicBlock* basicBlock);
 
+template <class collection>
+inline ap_tcons1_array_t createTcons1Array(
+		ap_environment_t * environment, collection & constraints) {
+	ap_tcons1_array_t array = ap_tcons1_array_make(
+			environment, constraints.size());
+	int idx = 0;
+	bool failed;
+	for (ap_tcons1_t & constraint : constraints) {
+		ap_tcons1_t constraint2 = ap_tcons1_copy(&constraint);
+		failed = ap_tcons1_extend_environment_with(&constraint2, environment);
+		assert(!failed);
+		failed = ap_tcons1_array_set(&array, idx++, &constraint2);
+		assert(!failed);
+	}
+	return array;
+}
 #endif /* BASIC_BLOCK_H */

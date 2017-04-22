@@ -574,6 +574,7 @@ protected:
 public:
 	ConstantNullValue(llvm::Value * value) : ConstantValue(value) {}
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
+	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 };
 
 std::string ConstantNullValue::getConstantString() {
@@ -583,6 +584,10 @@ std::string ConstantNullValue::getConstantString() {
 ap_texpr1_t * ConstantNullValue::createTreeExpression(AbstractState & state) {
 	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr((int64_t)0);
 	return result;
+}
+
+void ConstantNullValue::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+	buffers.insert("null");
 }
 
 class CallValue : public InstructionValue {
@@ -1064,11 +1069,10 @@ std::string IntegerCompareValue::getPredicateString() {
 	case llvm::CmpInst::ICMP_ULE:
 	case llvm::CmpInst::ICMP_SLE:
 		return "<=";
-		return ">";
 	case llvm::CmpInst::BAD_FCMP_PREDICATE:
 	case llvm::CmpInst::BAD_ICMP_PREDICATE:
 	deafult:
-		return "???";
+		break;
 	}
 	return "???";
 }
@@ -1176,10 +1180,12 @@ bool IntegerCompareValue::isSkip() {
 class PhiValue : public InstructionValue {
 protected:
 	virtual llvm::PHINode * asPHINode();
+	virtual Value * getIncomingValue(BasicBlock * source);
 public:
 	PhiValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip();
+	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 };
 
 llvm::PHINode * PhiValue::asPHINode() {
@@ -1205,6 +1211,47 @@ std::string PhiValue::getValueString() {
 
 bool PhiValue::isSkip() {
 	return true;
+}
+
+Value * PhiValue::getIncomingValue(BasicBlock * source) {
+	llvm::PHINode * phi = asPHINode();
+	llvm::BasicBlock * llvmsource = source->getLLVMBasicBlock();
+	llvm::Value * incoming = phi->getIncomingValueForBlock(llvmsource);
+	ValueFactory * factory = ValueFactory::getInstance();
+	return factory->getValue(incoming);
+}
+
+void PhiValue::updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
+	Value * incomingValue = getIncomingValue(source);
+	std::string & name = getName();
+	if (!isPointer()) {
+		ap_texpr1_t * value_texpr =
+				incomingValue->createTreeExpression(state);
+		state.m_apronAbstractState.forget(name);
+		state.m_apronAbstractState.assign(name, value_texpr);
+	} else {
+		// Assign offsets of one to the other
+		// set pt
+		std::string incomingName = incomingValue->getName();
+		if (getFunction()->isUserPointer(incomingName)) {
+			const std::string & offsetName = AbstractState::generateOffsetName(name, incomingName);
+			ap_texpr1_t * zeroExpr = state.m_apronAbstractState.asTexpr((int64_t)0);
+			state.m_apronAbstractState.assign(offsetName, zeroExpr);
+			std::set<std::string> & pt = state.m_mayPointsTo[name];
+			pt.clear();
+			pt.insert(incomingName);
+		} else {
+			std::set<std::string> &srcUserPointers = state.m_mayPointsTo[incomingName];
+			state.m_mayPointsTo[name] = srcUserPointers;
+			for (auto & srcPtrName : srcUserPointers) {
+				const std::string & offsetName = AbstractState::generateOffsetName(name, srcPtrName);
+				state.m_apronAbstractState.forget(offsetName);
+				const std::string & incomingOffsetName = AbstractState::generateOffsetName(incomingName, srcPtrName);
+				ap_texpr1_t * incomingOffsetTexpr = state.m_apronAbstractState.asTexpr(incomingOffsetName);
+				state.m_apronAbstractState.assign(offsetName, incomingOffsetTexpr);
+			}
+		}
+	}
 }
 
 class SelectValueInstruction : public InstructionValue {
@@ -1471,7 +1518,14 @@ protected:
 public:
 	BranchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
 	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
+	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 };
+
+void BranchInstructionValue::updateAssumptions(
+		BasicBlock * source, BasicBlock * dest, AbstractState & state) {
+	ap_tcons1_array_t array = getBasicBlockConstraints(dest);
+	state.m_apronAbstractState.meet(array);
+}
 
 ap_tcons1_array_t BranchInstructionValue::getBasicBlockConstraints(
 		BasicBlock * basicBlock) {
@@ -1722,6 +1776,10 @@ void Value::havoc(AbstractState & state) {
 }
 
 void Value::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+	return;
+}
+
+void Value::updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
 	return;
 }
 

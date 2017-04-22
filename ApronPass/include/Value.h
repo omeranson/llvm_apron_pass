@@ -55,6 +55,7 @@ public:
 	virtual void havoc(AbstractState & state);
 
 	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
+	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 
 	virtual unsigned getBitSize();
 	virtual unsigned getByteSize();

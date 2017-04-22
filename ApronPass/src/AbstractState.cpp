@@ -110,21 +110,10 @@ bool AbstractState::joinMayPointsTo(may_points_to_t &otherMayPointsTo)
 {
 	bool isChanged = false;
 
-	/***************************************************/
-	/* OREN ISH SHALOM: just numbered what we're doing */
-	/***************************************************/
 	/***************************************/
-	/* OREN ISH SHALOM:                    */
 	/* Iterate over otherMayPointsTo       */
-	/*                                     */
 	/* REMINDER:                           */
-	/*                                     */
-	/* map[p] =                            */
-	/* {                                   */
-	/*     pair(buf1,OFFSET_LINE(*)_BUF1), */
-	/*     pair(buf2,OFFSET_LINE(**)_BUF2) */
-	/* }                                   */
-	/*                                     */
+	/* map[p] = {buf1,buf2}                */
 	/***************************************/
 	for (auto &allPointersIterator:otherMayPointsTo)
 	{
@@ -171,7 +160,7 @@ bool AbstractState::join(AbstractState &other)
 {
 	bool isChanged = false;
 	// Join 'May' reference
-	joinMayPointsTo(other.m_mayPointsTo);
+	isChanged = joinMayPointsTo(other.m_mayPointsTo) || isChanged;
 	// Join (Apron) analysis of integers
 	isChanged = m_apronAbstractState.join(other.m_apronAbstractState) || isChanged;
 	// Join (Apron) analysis of (user) read/write/last0 pointers
