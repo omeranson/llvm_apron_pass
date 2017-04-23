@@ -138,6 +138,16 @@ void ApronAbstractState::finish_meet_aggregate() {
 	m_meetAggregates.clear();
 }
 
+void ApronAbstractState::makeTop() {
+	*this = ApronAbstractState::top();
+	m_meetAggregates.clear();
+}
+
+void ApronAbstractState::makeBottom() {
+	*this = ApronAbstractState::bottom();
+	m_meetAggregates.clear();
+}
+
 void ApronAbstractState::meet(ap_tcons1_array_t & tconsarray) {
 	m_abstract1 = ap_abstract1_meet_tcons_array(
 			apron_manager, false, &m_abstract1, &tconsarray);

@@ -209,3 +209,14 @@ ap_abstract1_t AbstractState::join(std::vector<ap_abstract1_t> & a_values) {
 	return ap_abstract1_join_array(manager, values.data(), values.size());
 }
 
+void AbstractState::makeTop() {
+	assert(0 && "TODO: Not yet implemented");
+}
+
+void AbstractState::makeBottom() {
+	m_mayPointsTo.clear();
+	m_apronAbstractState.makeBottom();
+	memoryAccessAbstractValues.clear();
+	m_importedIovecCalls.clear();
+	m_copyMsghdrFromUserCalls.clear();
+}

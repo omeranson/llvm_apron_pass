@@ -171,6 +171,9 @@ public:
 
 	ap_abstract1_t join(ap_abstract1_t * val1, ap_abstract1_t * val2);
 	ap_abstract1_t join(std::vector<ap_abstract1_t> & values);
+
+	virtual void makeTop();
+	virtual void makeBottom();
 };
 
 template <class stream>

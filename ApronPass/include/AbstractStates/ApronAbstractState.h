@@ -41,6 +41,8 @@ public:
 	virtual void start_meet_aggregate();
 	virtual void meet(ap_tcons1_t & cons);
 	virtual void finish_meet_aggregate();
+	virtual void makeTop();
+	virtual void makeBottom();
 
 	// Getters
 	virtual bool isTop() const;

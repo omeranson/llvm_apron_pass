@@ -57,6 +57,17 @@ void appendValue(std::ostringstream & oss,
 	}
 }
 
+template <class T>
+void updateToIntersection(T & left, T & right) {
+	T intersection;
+	std::set_intersection(left.begin(), left.end(), right.begin(), right.end(),
+			std::inserter(intersection, intersection.end()));
+	left.clear();
+	right.clear();
+	left.insert(intersection.begin(), intersection.end());
+	right.insert(intersection.begin(), intersection.end());
+}
+
 class NopInstructionValue : public InstructionValue {
 public:
 	NopInstructionValue(llvm::Value * value) : InstructionValue(value) {}
@@ -235,7 +246,7 @@ llvm::Instruction * InstructionValue::asInstruction() {
 }
 
 void InstructionValue::update(AbstractState & state) {
-	ap_texpr1_t * value_texpr = createRHSTreeExpression();
+	ap_texpr1_t * value_texpr = createRHSTreeExpression(state);
 	assert(value_texpr && "RHS Tree expression is NULL");
 	state.m_apronAbstractState.assign(getName(), value_texpr);
 }
@@ -245,7 +256,7 @@ void InstructionValue::populateTreeConstraints(
 	update(getBasicBlock()->getAbstractState());
 }
 
-ap_texpr1_t * InstructionValue::createRHSTreeExpression() {
+ap_texpr1_t * InstructionValue::createRHSTreeExpression(AbstractState & state) {
 	abort();
 }
 
@@ -325,10 +336,10 @@ protected:
 	virtual std::string getOperationSymbol()  = 0;
 	virtual ap_texpr_op_t getTreeOperation()  = 0;
 	virtual std::string getValueString() ;
-	virtual ap_texpr1_t * createRHSTreeExpression();
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 public:
 	BinaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
-	virtual ap_texpr1_t * createOperandTreeExpression(int idx);
+	virtual ap_texpr1_t * createOperandTreeExpression(AbstractState & state, int idx);
 	virtual bool isSkip();
 };
 
@@ -371,23 +382,21 @@ bool BinaryOperationValue::isSkip() {
 	return false;
 }
 
-ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(int idx) {
+ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(AbstractState & state, int idx) {
 	ValueFactory * factory = ValueFactory::getInstance();
 	llvm::Value * llvmOperand = asUser()->getOperand(idx);
 	Value * operand = factory->getValue(llvmOperand);
-	return operand->createTreeExpression(getBasicBlock()->getAbstractState());
+	return operand->createTreeExpression(state);
 }
 
-ap_texpr1_t * BinaryOperationValue::createRHSTreeExpression() {
-	ap_texpr1_t * op0_texpr = createOperandTreeExpression(0);
-	ap_texpr1_t * op1_texpr = createOperandTreeExpression(1);
-	// TODO They don't have logical ops in #ap_texpr_op_t
+ap_texpr1_t * BinaryOperationValue::createRHSTreeExpression(AbstractState & state) {
+	ap_texpr1_t * op0_texpr = createOperandTreeExpression(state, 0);
+	ap_texpr1_t * op1_texpr = createOperandTreeExpression(state, 1);
 	ap_texpr_op_t operation = getTreeOperation();
 	// TODO Handle reals
 	// Align environments
-	BasicBlock * basicBlock = getBasicBlock();
-	basicBlock->extendTexprEnvironment(op0_texpr);
-	basicBlock->extendTexprEnvironment(op1_texpr);
+	state.m_apronAbstractState.extendEnvironment(op0_texpr);
+	state.m_apronAbstractState.extendEnvironment(op1_texpr);
 	ap_texpr1_t * texpr = ap_texpr1_binop(
 			operation, op0_texpr, op1_texpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
@@ -429,15 +438,7 @@ void SubtractionOperationValue::update(AbstractState & state) {
 		leftPT.erase("null");
 		std::set<std::string> & rightPT = state.m_mayPointsTo[rightPtrVal->getName()];
 
-		std::vector<std::string> intersection;
-		std::set_intersection(leftPT.begin(), leftPT.end(),
-				rightPT.begin(), rightPT.end(),
-				intersection.begin());
-
-		leftPT.clear();
-		leftPT.insert(intersection.begin(), intersection.end());
-		rightPT.clear();
-		rightPT.insert(intersection.begin(), intersection.end());
+		updateToIntersection(leftPT, rightPT);
 		return;
 	}
 	return BinaryOperationValue::update(state);
@@ -472,21 +473,19 @@ class SHLOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return " << "; }
 	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MOD; }
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 public:
 	SHLOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
-	ap_texpr1_t * createRHSTreeExpression();
 };
 
-ap_texpr1_t * SHLOperationValue::createRHSTreeExpression() {
-	ap_texpr1_t * op0_texpr = createOperandTreeExpression(0);
-	ap_texpr1_t * op1_texpr = createOperandTreeExpression(1);
+ap_texpr1_t * SHLOperationValue::createRHSTreeExpression(AbstractState & state) {
+	ap_texpr1_t * op0_texpr = createOperandTreeExpression(state, 0);
+	ap_texpr1_t * op1_texpr = createOperandTreeExpression(state, 1);
 	// TODO Handle reals
 	// Align environments
-	BasicBlock * basicBlock = getBasicBlock();
-	basicBlock->extendTexprEnvironment(op0_texpr);
-	basicBlock->extendTexprEnvironment(op1_texpr);
-	ap_texpr1_t * two = ap_texpr1_cst_scalar_int(
-			getBasicBlock()->getEnvironment(), 2);
+	state.m_apronAbstractState.extendEnvironment(op0_texpr);
+	state.m_apronAbstractState.extendEnvironment(op1_texpr);
+	ap_texpr1_t * two = state.m_apronAbstractState.asTexpr((int64_t)2);
 	ap_texpr1_t * op1_shl = ap_texpr1_binop(
 			AP_TEXPR_POW, two, op1_texpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
@@ -572,7 +571,9 @@ class ConstantNullValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
 public:
-	ConstantNullValue(llvm::Value * value) : ConstantValue(value) {}
+	ConstantNullValue(llvm::Value * value) : ConstantValue(value) {
+		llvm::errs() << "Null ptr: llvm name: " << value->getName() << " my name: " << getName() << "\n";
+	}
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 };
@@ -639,12 +640,12 @@ public:
     /**************************/
     /* OREN ISH SHALOM added: */
     /**************************/
-    virtual ap_texpr1_t *createRHSTreeExpression();
+    virtual ap_texpr1_t *createRHSTreeExpression(AbstractState & state);
 	virtual void populateTreeConstraints(
 			std::list<ap_tcons1_t> & constraints);
 };
 
-ap_texpr1_t *CallValue::createRHSTreeExpression()
+ap_texpr1_t *CallValue::createRHSTreeExpression(AbstractState & state)
 {
     int inf_value = 0;
     int sup_value = 0;
@@ -672,10 +673,7 @@ ap_texpr1_t *CallValue::createRHSTreeExpression()
     } else {
         llvm::errs() << "Couldn't open summary for " << funcname << "\n";
     }
-	ap_texpr1_t *inf =
-	    ap_texpr1_cst_scalar_int(
-	        getBasicBlock()->getEnvironment(),
-	        inf_value);
+	ap_texpr1_t *inf = state.m_apronAbstractState.asTexpr((int64_t)inf_value);
 
 	return inf;
 }
@@ -1265,9 +1263,10 @@ protected:
 			constraint_condition_t consCond);
 	virtual bool isConstraintConditionToAPNeedsReverse(
 			constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTcons(constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTrueTcons();
-	virtual ap_tcons1_t getConditionFalseTcons();
+	virtual ap_tcons1_t getConditionTcons(AbstractState & state,
+			constraint_condition_t consCond);
+	virtual ap_tcons1_t getConditionTrueTcons(AbstractState & state);
+	virtual ap_tcons1_t getConditionFalseTcons(AbstractState & state);
 	virtual ap_tcons1_t getSetValueTcons(Value * value);
 	virtual ap_tcons1_t getSetTrueValueTcons();
 	virtual ap_tcons1_t getSetFalseValueTcons();
@@ -1349,7 +1348,7 @@ bool SelectValueInstruction::isConstraintConditionToAPNeedsReverse(
 	}
 }
 
-ap_tcons1_t SelectValueInstruction::getConditionTcons(
+ap_tcons1_t SelectValueInstruction::getConditionTcons(AbstractState & state,
 		constraint_condition_t consCond) {
 	// TODO definitely make into a global
 	ap_scalar_t* zero = ap_scalar_alloc ();
@@ -1358,8 +1357,8 @@ ap_tcons1_t SelectValueInstruction::getConditionTcons(
 	CompareValue * compareValue = static_cast<CompareValue*>(condition);
 	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
 	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
-	ap_texpr1_t * left = compareValue->createOperandTreeExpression(0);
-	ap_texpr1_t * right = compareValue->createOperandTreeExpression(1);
+	ap_texpr1_t * left = compareValue->createOperandTreeExpression(state, 0);
+	ap_texpr1_t * right = compareValue->createOperandTreeExpression(state, 1);
 	ap_texpr1_t * texpr ;
 	if (reverse) {
 		texpr = ap_texpr1_binop(
@@ -1374,16 +1373,16 @@ ap_tcons1_t SelectValueInstruction::getConditionTcons(
 	return result;
 }
 
-ap_tcons1_t SelectValueInstruction::getConditionTrueTcons() {
+ap_tcons1_t SelectValueInstruction::getConditionTrueTcons(AbstractState & state) {
 	Value * condition = getCondition();
 	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(compareValue->getConditionType());
+	return getConditionTcons(state, compareValue->getConditionType());
 }
 
-ap_tcons1_t SelectValueInstruction::getConditionFalseTcons() {
+ap_tcons1_t SelectValueInstruction::getConditionFalseTcons(AbstractState & state) {
 	Value * condition = getCondition();
 	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(compareValue->getNegatedConditionType());
+	return getConditionTcons(state, compareValue->getNegatedConditionType());
 }
 
 ap_tcons1_t SelectValueInstruction::getSetValueTcons(Value * value) {
@@ -1423,9 +1422,11 @@ void SelectValueInstruction::populateTreeConstraints(
 	std::list<ap_tcons1_t> constraintsTrue = constraints;
 	std::list<ap_tcons1_t> constraintsFalse = constraints;
 
-	ap_tcons1_t conditionTrue = getConditionTrueTcons();
+	BasicBlock * basicBlock = getBasicBlock();
+	AbstractState & state = basicBlock->getAbstractState();
+	ap_tcons1_t conditionTrue = getConditionTrueTcons(state);
 	ap_tcons1_t setTrueValue = getSetTrueValueTcons();
-	ap_tcons1_t conditionFalse = getConditionFalseTcons();
+	ap_tcons1_t conditionFalse = getConditionFalseTcons(state);
 	ap_tcons1_t setFalseValue = getSetFalseValueTcons();
 
 	constraintsTrue.push_back(conditionTrue);
@@ -1434,7 +1435,6 @@ void SelectValueInstruction::populateTreeConstraints(
 	constraintsFalse.push_back(conditionFalse);
 	constraintsFalse.push_back(setFalseValue);
 
-	BasicBlock * basicBlock = getBasicBlock();
 	ap_abstract1_t abstValueTrue =
 			basicBlock->abstractOfTconsList(constraintsTrue);
 	ap_abstract1_t abstValueFalse =
@@ -1470,7 +1470,7 @@ llvm::UnaryInstruction * UnaryOperationValue::asUnaryInstruction() {
 
 class CastOperationValue : public UnaryOperationValue {
 protected:
-	virtual ap_texpr1_t * createRHSTreeExpression();
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 public:
 	CastOperationValue(llvm::Value * value) : UnaryOperationValue(value) {}
 	virtual std::string getValueString();
@@ -1493,7 +1493,7 @@ bool CastOperationValue::isSkip() {
 	return false;
 }
 
-ap_texpr1_t * CastOperationValue::createRHSTreeExpression() {
+ap_texpr1_t * CastOperationValue::createRHSTreeExpression(AbstractState & state) {
 	llvm::UnaryInstruction * inst = asUnaryInstruction();
 	llvm::Value * operand = inst->getOperand(0);
 	ValueFactory * factory = ValueFactory::getInstance();
@@ -1504,77 +1504,130 @@ ap_texpr1_t * CastOperationValue::createRHSTreeExpression() {
 class BranchInstructionValue : public TerminatorInstructionValue {
 protected:
 	virtual Value * getCondition();
-	virtual ap_tcons1_t getConditionTcons(constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTrueTcons();
-	virtual ap_tcons1_t getConditionFalseTcons();
+	virtual ap_tcons1_t getConditionTcons(AbstractState & state,
+			constraint_condition_t consCond);
+	virtual ap_tcons1_t getConditionTrueTcons(AbstractState & state);
+	virtual ap_tcons1_t getConditionFalseTcons(AbstractState & state);
 	virtual ap_constyp_t constraintConditionToAPConsType(
 			constraint_condition_t consCond);
 	virtual bool isConstraintConditionToAPNeedsReverse(
 			constraint_condition_t consCond);
-	virtual ap_tcons1_array_t getBBConstraintsConditional(
-			BasicBlock * basicBlock, llvm::BranchInst * branchInst);
-	virtual ap_tcons1_array_t getBBConstraintsUnconditional(
-			BasicBlock * basicBlock, llvm::BranchInst * branchInst);
+	virtual ap_tcons1_t getConditionForBasicBlock(BasicBlock * basicBlock,
+			AbstractState & state);
+	virtual bool isSuccessorByIndex(BasicBlock * basicBlock, int idx);
+	virtual bool isElseSuccessor(BasicBlock * basicBlock);
+	virtual bool isThenSuccessor(BasicBlock * basicBlock);
+
+	virtual void removeNullIfOtherIsProvablyNull(
+		std::set<std::string> & left, std::set<std::string> & right);
 public:
 	BranchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
-	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 };
 
+void BranchInstructionValue::removeNullIfOtherIsProvablyNull(
+		std::set<std::string> & left, std::set<std::string> & right) {
+	if ((right.size() == 1) && (right.count("null") == 1)) {
+		left.erase("null");
+	}
+}
+
+bool BranchInstructionValue::isSuccessorByIndex(BasicBlock * basicBlock, int idx) {
+	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
+	llvm::BasicBlock * llvmsuccessor = branchInst->getSuccessor(idx);
+	BasicBlockManager & manager = BasicBlockManager::getInstance();
+	BasicBlock * successor = manager.getBasicBlock(llvmsuccessor);
+	return (successor == basicBlock);
+}
+
+bool BranchInstructionValue::isThenSuccessor(BasicBlock * basicBlock) {
+	return isSuccessorByIndex(basicBlock, 0);
+}
+
+bool BranchInstructionValue::isElseSuccessor(BasicBlock * basicBlock) {
+	return isSuccessorByIndex(basicBlock, 1);
+}
+
+ap_tcons1_t BranchInstructionValue::getConditionForBasicBlock(BasicBlock * basicBlock,
+		AbstractState & state) {
+	if (isThenSuccessor(basicBlock)) {
+		return getConditionTrueTcons(state);
+	}
+
+	if (isElseSuccessor(basicBlock)) {
+		return getConditionFalseTcons(state);
+	}
+
+	abort();
+}
+
 void BranchInstructionValue::updateAssumptions(
 		BasicBlock * source, BasicBlock * dest, AbstractState & state) {
-	ap_tcons1_array_t array = getBasicBlockConstraints(dest);
-	state.m_apronAbstractState.meet(array);
-}
-
-ap_tcons1_array_t BranchInstructionValue::getBasicBlockConstraints(
-		BasicBlock * basicBlock) {
 	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
-	if (branchInst->isConditional()) {
-		return getBBConstraintsConditional(basicBlock, branchInst);
-	} else {
-		return getBBConstraintsUnconditional(basicBlock, branchInst);
-	}
-}
-
-ap_tcons1_array_t BranchInstructionValue::getBBConstraintsConditional(
-		BasicBlock* basicBlock, llvm::BranchInst * branchInst) {
-	BasicBlockManager & manager = BasicBlockManager::getInstance();
-	ap_environment_t * environment = 0;
-
-	llvm::BasicBlock * llvmTrueSuccessor = branchInst->getSuccessor(0);
-	BasicBlock * trueSuccessor = manager.getBasicBlock(llvmTrueSuccessor);
-	if (basicBlock == trueSuccessor) {
-		ap_tcons1_t conditionTrue = getConditionTrueTcons();
-		environment = getBasicBlock()->getEnvironment();
-		ap_tcons1_array_t trueConstraints = ap_tcons1_array_make(environment, 1);
-		ap_tcons1_array_set(&trueConstraints, 0, &conditionTrue);
-		return trueConstraints;
+	if (!branchInst->isConditional()) {
+		return;
 	}
 
-	// TODO(oanson) Repeated code?
-	llvm::BasicBlock * llvmFalseSuccessor = branchInst->getSuccessor(1);
-	BasicBlock * falseSuccessor = manager.getBasicBlock(llvmFalseSuccessor);
-	if (basicBlock == falseSuccessor) {
-		ap_tcons1_t conditionFalse = getConditionFalseTcons();
-		environment = getBasicBlock()->getEnvironment();
-		ap_tcons1_array_t falseConstraints = ap_tcons1_array_make(environment, 1);
-		ap_tcons1_array_set(&falseConstraints, 0, &conditionFalse);
-		return falseConstraints;
-	}
-	llvm::errs() << "Warning: Given basic block is not a successor\n";
-	return TerminatorInstructionValue::getBasicBlockConstraints(basicBlock);
-}
+	// 1. Update the APRON abstract value with the branch's condition
+	// 2. If the branch's condition is (in)equality between pointers:
+	// 2.a. Update the mpt of both pointers to be their intersection
+	// 1
+	ap_tcons1_t condition = getConditionForBasicBlock(dest, state);
+	state.m_apronAbstractState.meet(condition);
 
-ap_tcons1_array_t BranchInstructionValue::getBBConstraintsUnconditional(
-		BasicBlock* basicBlock, llvm::BranchInst * branchInst) {
-	llvm::BasicBlock * singleSuccessor = branchInst->getSuccessor(0);
-	BasicBlockManager & manager = BasicBlockManager::getInstance();
-	BasicBlock * succBasicBlock = manager.getBasicBlock(singleSuccessor);
-	if (basicBlock != succBasicBlock) {
-		llvm::errs() << "Warning: Given basic block is not a successor\n";
+	// 2
+	llvm::Value * llvmcondition = branchInst->getCondition();
+	if (llvm::ICmpInst * cmpInst = llvm::dyn_cast<llvm::ICmpInst>(llvmcondition)) {
+		ValueFactory * factory = ValueFactory::getInstance();
+		llvm::Value * condOperand0 = cmpInst->getOperand(0);
+		Value * condOperand0Value = factory->getValue(condOperand0);
+		if (!condOperand0Value->isPointer()) {
+			return;
+		}
+		// 2.a
+		llvm::Value * condOperand1 = cmpInst->getOperand(1);
+		Value * condOperand1Value = factory->getValue(condOperand1);
+		assert(condOperand1Value->isPointer() && "Pointer and non-pointer comparison");
+		CompareValue * cmpValue = static_cast<CompareValue*>(factory->getValue(cmpInst));
+		constraint_condition_t condType = cmpValue->getConditionType();
+		if (isThenSuccessor(dest)) {
+			condType = cmpValue->getConditionType();
+		} else {
+			condType = cmpValue->getNegatedConditionType();
+		}
+		std::set<std::string> & pt_left = state.m_mayPointsTo[condOperand0Value->getName()];
+		std::set<std::string> & pt_right = state.m_mayPointsTo[condOperand1Value->getName()];
+		// XXX(oanson) Check if one of the operands is null
+		switch (condType) {
+		cons_cond_eq: {
+			// Equality
+			updateToIntersection(pt_left, pt_right);
+			if (pt_left.empty()) {
+				state.makeBottom();
+			}
+			break;
+		}
+		default: {
+			// Inequality
+			// Remove null from each operand, if the other operand is provably null
+			if (!llvm::isa<llvm::ConstantPointerNull>(condOperand0)) {
+				removeNullIfOtherIsProvablyNull(pt_left, pt_right);
+				if (pt_left.empty()) {
+					state.makeBottom();
+					break;
+				}
+			}
+			if (!llvm::isa<llvm::ConstantPointerNull>(condOperand1)) {
+				removeNullIfOtherIsProvablyNull(pt_right, pt_left);
+				if (pt_right.empty()) {
+					state.makeBottom();
+					break;
+				}
+			}
+			break;
+		}
+		}
 	}
-	return TerminatorInstructionValue::getBasicBlockConstraints(basicBlock);
 }
 
 // TODO(oanson) Code copied from SelectValueInstruction
@@ -1626,7 +1679,7 @@ bool BranchInstructionValue::isConstraintConditionToAPNeedsReverse(
 	}
 }
 
-ap_tcons1_t BranchInstructionValue::getConditionTcons(
+ap_tcons1_t BranchInstructionValue::getConditionTcons(AbstractState & state,
 		constraint_condition_t consCond) {
 	// TODO definitely make into a global
 	ap_scalar_t* zero = ap_scalar_alloc ();
@@ -1635,12 +1688,11 @@ ap_tcons1_t BranchInstructionValue::getConditionTcons(
 	CompareValue * compareValue = static_cast<CompareValue*>(condition);
 	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
 	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
-	ap_texpr1_t * left = compareValue->createOperandTreeExpression(0);
-	ap_texpr1_t * right = compareValue->createOperandTreeExpression(1);
+	ap_texpr1_t * left = compareValue->createOperandTreeExpression(state, 0);
+	ap_texpr1_t * right = compareValue->createOperandTreeExpression(state, 1);
 	ap_texpr1_t * texpr ;
-	BasicBlock * basicBlock = getBasicBlock();
-	basicBlock->extendTexprEnvironment(left);
-	basicBlock->extendTexprEnvironment(right);
+	state.m_apronAbstractState.extendEnvironment(left);
+	state.m_apronAbstractState.extendEnvironment(right);
 	if (reverse) {
 		texpr = ap_texpr1_binop(
 				AP_TEXPR_SUB, right, left,
@@ -1654,16 +1706,16 @@ ap_tcons1_t BranchInstructionValue::getConditionTcons(
 	return result;
 }
 
-ap_tcons1_t BranchInstructionValue::getConditionTrueTcons() {
+ap_tcons1_t BranchInstructionValue::getConditionTrueTcons(AbstractState & state) {
 	Value * condition = getCondition();
 	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(compareValue->getConditionType());
+	return getConditionTcons(state, compareValue->getConditionType());
 }
 
-ap_tcons1_t BranchInstructionValue::getConditionFalseTcons() {
+ap_tcons1_t BranchInstructionValue::getConditionFalseTcons(AbstractState & state) {
 	Value * condition = getCondition();
 	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(compareValue->getNegatedConditionType());
+	return getConditionTcons(state, compareValue->getNegatedConditionType());
 }
 
 Value::Value(llvm::Value * value) : m_value(value),
@@ -1679,6 +1731,9 @@ std::string Value::llvmValueName(llvm::Value * value) {
 		llvm::ConstantInt & constant = llvm::cast<llvm::ConstantInt>(
 				*value);
 		return constant.getValue().toString(10, true);
+	}
+	if (llvm::isa<llvm::ConstantPointerNull>(value)) {
+		return "null";
 	}
 	std::ostringstream oss;
 	oss << "%" << valuesIndex++;

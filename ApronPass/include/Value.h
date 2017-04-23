@@ -77,7 +77,7 @@ public:
 	// @deprecated
 	virtual void populateTreeConstraints(
 			std::list<ap_tcons1_t> & constraints);
-	virtual ap_texpr1_t * createRHSTreeExpression();
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
 	virtual bool isSkip();
 	virtual void forget();
