@@ -100,6 +100,10 @@ all:
 	@echo "*******************"
 	@echo "\n"
 	cp $(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_7_OUTPUT/OutputInlined.bc ${inlinedbc}.bc
+	@echo "*************************************************************"
+	@echo "* Syscall function to Analyze and create a contract for ... *"
+	@echo "*************************************************************"
+	@echo ${SYSCALL} > $(BASEDIR)/SyscallName.txt
 	@echo "\n"
 	@echo "**********************"
 	@echo "* Run Apron Pass ... *"

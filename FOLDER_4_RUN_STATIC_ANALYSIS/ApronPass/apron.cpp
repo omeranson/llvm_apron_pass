@@ -208,13 +208,21 @@ namespace
             /***************************************************/
             for (llvm::CallGraphNode *CGN : SCC)
 			{
+				FILE *fl = fopen("/home/oren/GIT/llvm_apron_pass/SyscallName.txt","rt");
+				if (fl == NULL) exit(0);
+				
+				char temp[100];
+				char syscallName[100];
+				fscanf(fl,"%s",temp);
+				sprintf(syscallName,"SyS_%s",temp);
+								
                 /********************************************************************/
                 /* OREN ISH SHALOM added: extract the current function from the SCC */
                 /********************************************************************/
 				if (llvm::Function *F = CGN->getFunction())
 				{
 					Debug = 1;
-			        if (F->getName().equals("main"))
+			        if (!F->getName().equals(syscallName))
 			        {
 				        continue;
 			        }
@@ -226,22 +234,13 @@ namespace
 					
 					if (Debug)
 					{
-						llvm::errs() << '\n';
-						llvm::errs() << '\n';
-						llvm::errs() << '\n';
-						llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
-						llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
-						llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
-						llvm::errs() << '\n';
-						llvm::errs() << '\n';
-						llvm::errs() << '\n';
-
 						/****************************************************************/
 						/* OREN ISH SHALOM: From here downward, lots of F. to F-> stuff */
 						/****************************************************************/
 						llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
 						llvm::errs() << "Apron: Function: ";
 						llvm::errs().write_escaped(F->getName()) << '\n';
+						llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
 					}
 
 					// Analyze
@@ -253,9 +252,32 @@ namespace
 					first->setEnvironment(ap_environment);
 					CallGraph funcCallGraph(F->getName().str(), first);
 					ChaoticExecution chaoticExecution(funcCallGraph);
+
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
+					llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
+					llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					
 					chaoticExecution.execute();
+
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
+					llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
+					llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+
 					// Print
-					if (Debug) {
+					if (Debug)
+					{
 						chaoticExecution.print();
 					}
 
@@ -325,6 +347,17 @@ namespace
 					fl.close();
 				    std::string contract_path_filename;
 				    llvm::raw_string_ostream contract_path_filename_builder(contract_path_filename);
+
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
+					llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
+					llvm::errs() << "+++++++++++++++++++++++++++++++++++++++++++++++\n";
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+					llvm::errs() << '\n';
+				    
 				    contract_path_filename_builder << "/tmp/llvm_apron_pass/" << F->getName() << ".contract.c";
 					llvm::raw_fd_ostream fl2(contract_path_filename_builder.str().c_str(), EC);		    
 					fl2 << contract(function);
