@@ -905,6 +905,8 @@ void CallValue::populateTreeConstraintsForUserMemoryOperation(
 	ValueFactory * valueFactory = ValueFactory::getInstance();
 	AbstractState & abstractState = bb->getAbstractState();
 	std::set<std::string> & userBuffers = abstractState.m_mayPointsTo[ptrName];
+	userBuffers.erase("null");
+	userBuffers.erase("kernel");
 	for (auto & userBuffer : userBuffers) {
 		ap_texpr1_t * offset = bb->createUserPointerOffsetTreeExpression(
 				ptrName, userBuffer);
