@@ -692,7 +692,7 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 
 bool CallValue::isSkip() {
 	const std::string funcName = getCalledFunctionName();
-	if (isDebugFunction(funcName)) {
+	if (isKernelUserMemoryOperation(funcName)) {
 		return true;
 	}
 	return false;
