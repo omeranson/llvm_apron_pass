@@ -97,7 +97,7 @@ inline stream & operator<<(stream & s, Precondition<ImportIovecCall> p) {
 			") >= sizeof(struct iovec)*" << call.iovec_len_name <<
 			"))) {\n";
 	++depth;
-	s << "warn(\"Invalid iovec pointer " << call.iovec_name << "\");\n";
+	s << depth << "warn(\"Invalid iovec pointer " << call.iovec_name << "\");\n";
 	--depth;
 	s << depth << "}\n";
 // 	Verify each item within iovec
@@ -106,7 +106,7 @@ inline stream & operator<<(stream & s, Precondition<ImportIovecCall> p) {
 	s << depth << "i64 iovec_element_size = SE_size_obj(" << call.iovec_name << "[idx].iov_base);\n";
 	s << depth << "if (SE_SAT(!(iovec_element_size >= " << call.iovec_name << "[idx].iov_len))) {\n";
 	++depth;
-	s << "warn(\"Invalid iovec internal pointer " << call.iovec_name << "\");\n";
+	s << depth << "warn(\"Invalid iovec internal pointer " << call.iovec_name << "\");\n";
 	--depth;
 	s << depth << "}\n";
 	--depth;
@@ -182,7 +182,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "// Preamble\n"; // TODO(oanson) res type should be taken from signature
 	std::vector<std::string> userPointers = function->getUserPointers();
 	std::map<std::string, ap_abstract1_t> errorStates = function->generateErrorStates();
-	ap_abstract1_t asabstarct1 = function->trimmedLastASAbstractValue();
+	ap_abstract1_t & asabstarct1 = function->getReturnAbstractState().m_apronAbstractState.m_abstract1;
 	const std::vector<ImportIovecCall> & importIovecCalls = function->getImportIovecCalls();
 	const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls =
 			function->getCopyMsghdrFromUserCalls();
@@ -239,7 +239,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	}
 	// Postconditions
 	s << "\t// Postconditions\n";
-	ap_abstract1_t retvalAbstract1 = function->trimmedLastBBAbstractValue();
+	ap_abstract1_t retvalAbstract1 = function->trimmedLastASAbstractValue();
 	llvm::ReturnInst * returnInst = function->getReturnInstruction();
 	llvm::Value * returnValue = returnInst->getReturnValue();
 	ValueFactory * factory = ValueFactory::getInstance();

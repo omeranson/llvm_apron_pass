@@ -79,7 +79,9 @@ bool Function::isVarInOut(const char * varname) {
 ap_abstract1_t Function::trimmedLastASAbstractValue() {
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	AbstractState & as = returnBasicBlock->getAbstractState();
-	ap_abstract1_t & asAbstract1 = as.m_apronAbstractState.m_abstract1;
+	ApronAbstractState apronAbstractState = as.m_apronAbstractState;
+	apronAbstractState.renameVarsForC();
+	ap_abstract1_t & asAbstract1 = apronAbstractState.m_abstract1;
 	ap_manager_t * manager = apron_manager;
 	ap_environment_t * environment = ap_abstract1_environment(manager, &asAbstract1);
 
@@ -99,58 +101,10 @@ ap_abstract1_t Function::trimmedLastASAbstractValue() {
 	return result;
 }
 
-ap_abstract1_t Function::trimmedLastBBAbstractValue() {
-	BasicBlock * returnBasicBlock = getReturnBasicBlock();
-	ap_abstract1_t & abstract1 = returnBasicBlock->getAbstractValue();
-	ap_manager_t * manager = apron_manager;
-	ap_environment_t * environment = ap_abstract1_environment(manager, &abstract1);
-
-	// Forget all variables that are not arguments, 'last(*,*)', or the return value
-	std::vector<ap_var_t> forgetVars;
-	int env_size = environment->intdim;
-	for (int cnt = 0; cnt < env_size; cnt++) {
-		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
-		const char * varName = (const char*)var;
-		if (!isVarInOut(varName)) {
-			forgetVars.push_back(var);
-		}
-	}
-	ap_abstract1_t result = ap_abstract1_forget_array(manager, false, &abstract1,
-			forgetVars.data(), forgetVars.size(), false);
-	result = ap_abstract1_minimize_environment(manager, false, &result);
-	return result;
-}
-
-ap_abstract1_t Function::trimmedLastJoinedAbstractValue() {
+AbstractState & Function::getReturnAbstractState() {
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	AbstractState & as = returnBasicBlock->getAbstractState();
-	ap_manager_t * manager = apron_manager;
-	ap_environment_t * asEnv = ap_abstract1_environment(manager, &as.m_apronAbstractState.m_abstract1);
-	ap_environment_t * bbEnv = ap_abstract1_environment(manager, &returnBasicBlock->getAbstractValue());
-	ap_dimchange_t * dimchange1 = NULL;
-	ap_dimchange_t * dimchange2 = NULL;
-	ap_environment_t * environment = ap_environment_lce(
-			asEnv, bbEnv, &dimchange1, &dimchange2);
-	ap_abstract1_t asAbstract1 = ap_abstract1_change_environment(manager, false,
-			&as.m_apronAbstractState.m_abstract1, environment, true);
-	ap_abstract1_t bbAbstract1 = ap_abstract1_change_environment(manager, false,
-			&returnBasicBlock->getAbstractValue(), environment, true);
-	ap_abstract1_t abstract1 = ap_abstract1_join(manager, false, &asAbstract1, &bbAbstract1);
-
-	// Forget all variables that are not arguments, 'last(*,*)', or the return value
-	std::vector<ap_var_t> forgetVars;
-	int env_size = environment->intdim;
-	for (int cnt = 0; cnt < env_size; cnt++) {
-		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
-		const char * varName = (const char*)var;
-		if (!isVarInOut(varName)) {
-			forgetVars.push_back(var);
-		}
-	}
-	ap_abstract1_t result = ap_abstract1_forget_array(manager, false, &abstract1,
-			forgetVars.data(), forgetVars.size(), false);
-	result = ap_abstract1_minimize_environment(manager, false, &result);
-	return result;
+	return as;
 }
 
 std::vector<std::string> Function::getUserPointers() {
@@ -166,7 +120,12 @@ std::vector<std::string> Function::getUserPointers() {
 }
 
 std::map<std::string, ap_abstract1_t> Function::generateErrorStates() {
-	ap_abstract1_t trimmedASAbstract1 = trimmedLastASAbstractValue();
+	//ap_abstract1_t trimmedASAbstract1 = trimmedLastASAbstractValue();
+	BasicBlock * returnBasicBlock = getReturnBasicBlock();
+	AbstractState & as = returnBasicBlock->getAbstractState();
+	ApronAbstractState apronAbstractState = as.m_apronAbstractState;
+	apronAbstractState.renameVarsForC();
+	ap_abstract1_t & trimmedASAbstract1 = apronAbstractState.m_abstract1;
 	BasicBlock * basicBlock = getReturnBasicBlock();
 	ap_manager_t * manager = apron_manager;
 	ap_scalar_t* zero = ap_scalar_alloc ();

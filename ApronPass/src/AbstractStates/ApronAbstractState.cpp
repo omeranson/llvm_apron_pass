@@ -1,3 +1,5 @@
+#include <set>
+
 #include <AbstractStates/ApronAbstractState.h>
 #include <APStream.h>
 
@@ -84,7 +86,7 @@ void ApronAbstractState::extend(const std::string & var, bool isBottom) {
 		return;
 	}
 	ap_environment_t * environment = ap_abstract1_environment(apron_manager, &m_abstract1);
-	ap_var_t apvar = (ap_var_t)var.c_str();
+	ap_var_t apvar = (ap_var_t)strdup(var.c_str());
 	environment = ap_environment_add(environment, &apvar, 1, NULL, 0);
 	m_abstract1 = ap_abstract1_change_environment(apron_manager, false,
 			&m_abstract1, environment, isBottom);
@@ -146,6 +148,38 @@ void ApronAbstractState::makeTop() {
 void ApronAbstractState::makeBottom() {
 	*this = ApronAbstractState::bottom();
 	m_meetAggregates.clear();
+}
+
+std::map<std::string, std::string> ApronAbstractState::renameVarsForC() {
+	std::map<std::string, std::string> renameMap;
+	std::vector<ap_var_t> oldnames;
+	std::vector<ap_var_t> newnames;
+	std::set<std::string> newnamesSet;
+	ap_environment_t * environment = getEnvironment();
+	int env_size = environment->intdim;
+	for (int cnt = 0; cnt < env_size; cnt++) {
+		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
+		std::string varName = (char*)var;
+		std::string newName = varName;
+		if ((!isalpha(newName[0])) && (newName[0] != '_')) {
+			newName.insert(0, "_");
+		}
+		for (char & c : newName) {
+			if (isalnum(c) || (c == '_')) {
+				continue;
+			}
+			c = '_';
+		}
+		oldnames.push_back(var);
+		newnames.push_back((ap_var_t)strdup(newName.c_str()));
+		renameMap[varName] = newName;
+		bool collision = !newnamesSet.insert(newName).second;
+		assert(!collision);
+	}
+	m_abstract1 = ap_abstract1_rename_array(
+			apron_manager, false, &m_abstract1,
+			oldnames.data(), newnames.data(), env_size);
+	return renameMap;
 }
 
 void ApronAbstractState::meet(ap_tcons1_array_t & tconsarray) {

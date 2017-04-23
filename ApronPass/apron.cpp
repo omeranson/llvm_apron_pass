@@ -214,14 +214,6 @@ namespace
 				llvm::errs() << "Trimmed AS abstract value: " <<
 						std::make_pair(manager,
 								&trimmedAbstract1);
-				trimmedAbstract1 = function->trimmedLastBBAbstractValue();
-				llvm::errs() << "Trimmed BB abstract value: " <<
-						std::make_pair(manager,
-								&trimmedAbstract1);
-				trimmedAbstract1 = function->trimmedLastJoinedAbstractValue();
-				llvm::errs() << "Trimmed joined abstract value: " <<
-						std::make_pair(manager,
-								&trimmedAbstract1);
 				llvm::errs() << "Error states:\n";
 				std::map<std::string, ap_abstract1_t> errorStates = function->generateErrorStates();
 				for (auto & state : errorStates) {
@@ -272,6 +264,7 @@ namespace
                     llvm::raw_string_ostream contract_path_filename_builder(contract_path_filename);
                     contract_path_filename_builder << "/tmp/llvm_apron_pass/" << F->getName() << ".contract.c";
 		    llvm::raw_fd_ostream fl2(contract_path_filename_builder.str().c_str(), EC);
+		    function->getReturnAbstractState().m_apronAbstractState.renameVarsForC();
 		    fl2 << contract(function);
 		    fl2.close();
 			        return false;

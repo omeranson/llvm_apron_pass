@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 #include <ap_abstract1.h>
 #include <ap_tcons1.h>
@@ -43,6 +44,7 @@ public:
 	virtual void finish_meet_aggregate();
 	virtual void makeTop();
 	virtual void makeBottom();
+	virtual std::map<std::string, std::string> renameVarsForC();
 
 	// Getters
 	virtual bool isTop() const;
