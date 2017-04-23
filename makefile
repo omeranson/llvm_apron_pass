@@ -36,6 +36,7 @@ SYSCALL_NAME = "readv"
 #########
 # INPUT #
 #########
+SYSCALL?=read
 inputc =$(C_FILES_DIRECTORY)/Input
 inputbc=$(LLVM_BITCODE_FILES_DIRECTORY)/Input
 inlinedbc=$(LLVM_BITCODE_FILES_DIRECTORY)/OutputInlined
