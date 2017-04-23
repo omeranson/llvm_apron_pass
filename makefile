@@ -38,6 +38,7 @@ SYSCALL_NAME = "readv"
 #########
 inputc =$(C_FILES_DIRECTORY)/Input
 inputbc=$(LLVM_BITCODE_FILES_DIRECTORY)/Input
+inlinedbc=$(LLVM_BITCODE_FILES_DIRECTORY)/OutputInlined
 
 ###############
 # DIRECTORIES #
@@ -94,6 +95,12 @@ all:
 	@echo "\n"
 	cd $(INLINE_SELECTED_FUNCTIONS_DIR) && ${MAKE}
 	@echo "\n"
+	@echo "*******************"
+	@echo "* Copy Output ... *"
+	@echo "*******************"
+	@echo "\n"
+	cp $(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_7_OUTPUT/OutputInlined.bc ${inlinedbc}.bc
+	@echo "\n"
 	@echo "**********************"
 	@echo "* Run Apron Pass ... *"
 	@echo "**********************"
@@ -104,8 +111,7 @@ all:
 	-load ${APRON_PASS_DIR}/adaptors/lib${APRON_MANAGER}_adaptor.so \
 	-load ${APRON_PASS_DIR}/libapronpass.so                         \
 	-apron -d -update-count-max=11                                  \
-	${input}.O3.MergeReturn.InstNamer.bc                            \
-	1>/dev/null                                                
+	${inlinedbc}.bc
 	@echo "\n"
 	@echo "****************************************************************"
 	@echo "* Extract Static Analysis Results and Synthesize Contracts ... *"

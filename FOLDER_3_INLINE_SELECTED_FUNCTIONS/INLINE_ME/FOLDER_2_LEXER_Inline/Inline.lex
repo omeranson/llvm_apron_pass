@@ -120,7 +120,7 @@ ATTRIBUTES	"attributes #0 = { "[^\n]*
 									memset(funcname,0,sizeof(funcname));
 									strncpy(funcname,p+1,q-p);
 									funcname[q-p-1]=0;
-									sprintf(filename,"/home/oren/GIT/llvm_apron_pass/Examples/INLINE_ME/FOLDER_8_INLINE_GANG/%s",funcname);
+									sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
 									fl=fopen(filename,"rt");
 									if (fl == NULL)
 									{

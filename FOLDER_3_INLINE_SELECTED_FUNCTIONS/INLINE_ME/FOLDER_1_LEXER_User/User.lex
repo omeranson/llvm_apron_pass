@@ -95,9 +95,8 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 						char filename[100];
 						memset(funcname,0,sizeof(funcname));
 						strncpy(funcname,p,q-p);
-						User_ErrorMsg_Log("Please inline this mother fucker: %s",funcname);
-						sprintf(filename,"/home/oren/GIT/llvm_apron_pass/Examples/INLINE_ME/FOLDER_8_INLINE_GANG/%s",funcname);
-						fl = fopen("/home/oren/GIT/llvm_apron_pass/Examples/INLINE_ME/FOLDER_8_INLINE_GANG/funcname","w+t");
+						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
+						fl = fopen(filename,"w+t");
 						fprintf(fl,"INLINE ME BABY!!!\n");
 						fclose(fl);
 						continue;
@@ -110,8 +109,7 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 						char filename[100];
 						memset(funcname,0,sizeof(funcname));
 						strncpy(funcname,p,q-p);
-						User_ErrorMsg_Log("Please inline this mother fucker: %s",funcname);
-						sprintf(filename,"/home/oren/GIT/llvm_apron_pass/Examples/INLINE_ME/FOLDER_8_INLINE_GANG/%s",funcname);
+						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
 						fl = fopen(filename,"w+t");
 						fprintf(fl,"INLINE ME BABY!!!\n");
 						fclose(fl);
@@ -125,8 +123,7 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 						char filename[100];
 						memset(funcname,0,sizeof(funcname));
 						strncpy(funcname,p,q-p);
-						User_ErrorMsg_Log("Please inline this mother fucker: %s",funcname);
-						sprintf(filename,"/home/oren/GIT/llvm_apron_pass/Examples/INLINE_ME/FOLDER_8_INLINE_GANG/%s",funcname);
+						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
 						fl = fopen(filename,"w+t");
 						fprintf(fl,"INLINE ME BABY!!!\n");
 						fclose(fl);
