@@ -394,6 +394,14 @@ public:
 	MultiplicationOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 };
 
+class AndValue : public BinaryOperationValue {
+public:
+	virtual std::string getOperationSymbol()  { return "&&"; }
+	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MUL; }
+	AndValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	virtual bool isSkip(){return true;}
+};
+
 class DivisionOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return "/"; }
@@ -1754,7 +1762,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 		return new RemainderOperationValue(instruction);
 
 	// Logical operators...
-	//case llvm::BinaryOperator::And:
+	case llvm::BinaryOperator::And:
+		return new AndValue(instruction);
 	//case llvm::BinaryOperator::Or :
 	//case llvm::BinaryOperator::Xor:
 
