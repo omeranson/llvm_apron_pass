@@ -24,7 +24,6 @@ extern "C" {
 #include <pkeq.h>
 #include <ap_ppl.h>
 
-unsigned WideningThreshold = 11;
 extern bool Debug;
 // TODO This should go in apron lib
 void ap_tcons1_array_resize(ap_tcons1_array_t * array, size_t size) {

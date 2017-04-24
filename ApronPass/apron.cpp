@@ -55,6 +55,11 @@ llvm::cl::opt<unsigned> UpdateCountMax ("update-count-max",
 		llvm::cl::init(10),
 		llvm::cl::desc("Maximum number of times to update a basic block. 0 to disable. (10)"));
 
+unsigned WideningThreshold;
+llvm::cl::opt<unsigned, true> WideningThresholdOpt ("widening-threshold",
+		llvm::cl::desc("Widening threshold. (11)"),
+		llvm::cl::location(WideningThreshold),
+		llvm::cl::init(11));
 /**************************/
 /* NAMESPACE :: anonymous */
 /**************************/
