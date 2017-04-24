@@ -73,6 +73,23 @@ inline stream & operator<<(stream & s, ap_abstract1_t* value) {
 }
 
 template <class stream>
+inline stream & operator<<(stream & s, ap_texpr1_t * texpr) {
+	char * buffer;
+	size_t size;
+	FILE * bufferfp = open_memstream(&buffer, &size);
+	ap_texpr1_fprint(bufferfp, texpr);
+	fclose(bufferfp);
+	s << buffer;
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, ap_texpr1_t & texpr) {
+	return (s << &texpr);
+}
+
+
+template <class stream>
 inline stream & operator<<(stream & s, ap_tcons1_t * tcons) {
 	char * buffer;
 	size_t size;
