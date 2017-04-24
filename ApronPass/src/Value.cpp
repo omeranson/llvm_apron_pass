@@ -102,7 +102,7 @@ void LoadValue::update(AbstractState & state) {
 	if (isPointer()) {
 		std::set<std::string> & pt = state.m_mayPointsTo[getName()];
 		pt.clear();
-		// XXX(oanson) INCOMPLETE: Somehow remove "kernel"
+		pt.erase("kernel");
 	}
 	llvm::Value * src = asLoadInst()->getOperand(0);
 	ValueFactory * factory = ValueFactory::getInstance();
