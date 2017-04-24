@@ -677,10 +677,10 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("clear_user" == funcName) {
 		return true;
 	}
-	if ("copy_to_user" == funcName) {
+	if ("_copy_to_user" == funcName) {
 		return true;
 	}
-	if ("copy_from_user" == funcName) {
+	if ("_copy_from_user" == funcName) {
 		return true;
 	}
 	if ("strnlen_user" == funcName) {
@@ -766,18 +766,22 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	if (strncmp(s,"llvm.lifetime.start",strlen("llvm.lifetime.start")) == 0){return;}
 	if (strncmp(s,"llvm.lifetime.end"  ,strlen("llvm.lifetime.end"  )) == 0){return;}
 
+	if (callinst->isInlineAsm()){return;}
+
 	for (int arg=0;arg<numArgs;arg++)
 	{
 		llvm::Value * llvmVal = callinst->getArgOperand(arg);
 		ValueFactory * valueFactory = ValueFactory::getInstance();
 		Value * value = valueFactory->getValue(llvmVal);
 		std::string &name = value->getName();
+		llvm::errs() << callinst->getCalledValue()->getName();
 		
 		llvm::errs() << '\n' << '\n' << '\n';
 		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
 		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
-		llvm::errs() << "FUNC NAME   = " << getCalledFunctionName() << '\n';
-		llvm::errs() << "INPUT PARAM = " << name << '\n';
+		llvm::errs() << "RETURNED VALUE = " << callinst->getCalledValue()->getName() << '\n';
+		llvm::errs() << "FUNC NAME      = " << getCalledFunctionName() << '\n';
+		llvm::errs() << "INPUT PARAM    = " << name << '\n';
 		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
 		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
 	}
@@ -1833,6 +1837,10 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	case llvm::BinaryOperator::Select:
 		return new SelectValueInstruction(instruction);
 	case llvm::BinaryOperator::Call:
+		if (((llvm::CallInst *) instruction)->isInlineAsm())
+		{
+			return NULL;
+		}
 		return new CallValue(instruction);
 	case llvm::BinaryOperator::Shl:
 	case llvm::BinaryOperator::LShr:
