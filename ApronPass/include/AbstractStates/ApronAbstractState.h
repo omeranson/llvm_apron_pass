@@ -44,6 +44,7 @@ public:
 	virtual void finish_meet_aggregate();
 	virtual void makeTop();
 	virtual void makeBottom();
+	virtual std::string renameVarForC(const std::string & varName);
 	virtual std::map<std::string, std::string> renameVarsForC();
 
 	// Getters

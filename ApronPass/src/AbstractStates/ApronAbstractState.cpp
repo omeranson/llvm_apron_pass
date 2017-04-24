@@ -150,6 +150,20 @@ void ApronAbstractState::makeBottom() {
 	m_meetAggregates.clear();
 }
 
+std::string ApronAbstractState::renameVarForC(const std::string & varName) {
+	std::string newName = varName;
+	if ((!isalpha(newName[0])) && (newName[0] != '_')) {
+		newName.insert(0, "_");
+	}
+	for (char & c : newName) {
+		if (isalnum(c) || (c == '_')) {
+			continue;
+		}
+		c = '_';
+	}
+	return newName;
+}
+
 std::map<std::string, std::string> ApronAbstractState::renameVarsForC() {
 	std::map<std::string, std::string> renameMap;
 	std::vector<ap_var_t> oldnames;
@@ -160,16 +174,7 @@ std::map<std::string, std::string> ApronAbstractState::renameVarsForC() {
 	for (int cnt = 0; cnt < env_size; cnt++) {
 		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
 		std::string varName = (char*)var;
-		std::string newName = varName;
-		if ((!isalpha(newName[0])) && (newName[0] != '_')) {
-			newName.insert(0, "_");
-		}
-		for (char & c : newName) {
-			if (isalnum(c) || (c == '_')) {
-				continue;
-			}
-			c = '_';
-		}
+		std::string newName = renameVarForC(varName);
 		oldnames.push_back(var);
 		newnames.push_back((ap_var_t)strdup(newName.c_str()));
 		renameMap[varName] = newName;
