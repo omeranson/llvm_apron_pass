@@ -80,7 +80,6 @@ ap_abstract1_t Function::trimmedLastASAbstractValue() {
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	AbstractState & as = returnBasicBlock->getAbstractState();
 	ApronAbstractState apronAbstractState = as.m_apronAbstractState;
-	apronAbstractState.renameVarsForC();
 	ap_abstract1_t & asAbstract1 = apronAbstractState.m_abstract1;
 	ap_manager_t * manager = apron_manager;
 	ap_environment_t * environment = ap_abstract1_environment(manager, &asAbstract1);
@@ -124,7 +123,6 @@ std::map<std::string, ap_abstract1_t> Function::generateErrorStates() {
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	AbstractState & as = returnBasicBlock->getAbstractState();
 	ApronAbstractState apronAbstractState = as.m_apronAbstractState;
-	apronAbstractState.renameVarsForC();
 	ap_abstract1_t & trimmedASAbstract1 = apronAbstractState.m_abstract1;
 	BasicBlock * basicBlock = getReturnBasicBlock();
 	ap_manager_t * manager = apron_manager;
