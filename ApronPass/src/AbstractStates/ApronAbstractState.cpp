@@ -187,7 +187,7 @@ std::string ApronAbstractState::renameVarForC(const std::string & varName) {
 		newName.insert(0, "_");
 	}
 	for (char & c : newName) {
-		if (isalnum(c) || (c == '_')) {
+		if (isalnum(c) || (c == '_') || (c == '(') || (c == ')')) {
 			continue;
 		}
 		c = '_';
