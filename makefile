@@ -106,7 +106,7 @@ all:
 	@echo "*************************************************************"
 	@echo "* Syscall function to Analyze and create a contract for ... *"
 	@echo "*************************************************************"
-	@echo ${SYSCALL} > $(BASEDIR)/SyscallName.txt
+	@echo ${SYSCALL} > /tmp/llvm_apron_pass/SyscallName.txt
 	@echo "\n"
 	@echo "**********************"
 	@echo "* Run Apron Pass ... *"

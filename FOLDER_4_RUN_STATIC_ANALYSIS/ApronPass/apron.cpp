@@ -208,7 +208,7 @@ namespace
             /***************************************************/
             for (llvm::CallGraphNode *CGN : SCC)
 			{
-				FILE *fl = fopen("/home/oren/GIT/llvm_apron_pass/SyscallName.txt","rt");
+				FILE *fl = fopen("/tmp/llvm_apron_pass/SyscallName.txt","rt");
 				if (fl == NULL) exit(0);
 				
 				char temp[100];
@@ -225,6 +225,20 @@ namespace
 			        if (!F->getName().equals(syscallName))
 			        {
 				        continue;
+			        }
+			        int first_time=1;
+			        for (auto & it : F->getArgumentList())
+			        {
+			        	FILE *fl;
+			        	if (first_time)
+			        	{
+			        		first_time=0;
+			        		fl=fopen("/tmp/llvm_apron_pass/SyscallArguments.txt","w+t");
+			        		fclose(fl);
+			        	}
+			        	fl=fopen("/tmp/llvm_apron_pass/SyscallArguments.txt","at");
+			        	fprintf(fl,"%s\n",it.getName());
+			        	fclose(fl);
 			        }
 				
 					if (F->isDeclaration())

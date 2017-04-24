@@ -750,7 +750,39 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			return;
 		}
 	}
-	InstructionValue::populateTreeConstraints(constraints);
+	/*************************************************************/
+	/* OREN ISH SHALOM: added                                    */
+	/* look for functions with signature f( ... , int *, ... )   */
+	/* that are being called with the address of a local integer */
+	/* for example:                                              */
+	/* void f(int *i,char c){ ... }                              */
+	/* int size=80; f(&size,';');                                */
+	/*************************************************************/
+	llvm::CallInst *callinst = asCallInst();
+	int numArgs = callinst->getNumArgOperands();
+
+	const char *s=getCalledFunctionName().c_str();
+
+	if (strncmp(s,"llvm.lifetime.start",strlen("llvm.lifetime.start")) == 0){return;}
+	if (strncmp(s,"llvm.lifetime.end"  ,strlen("llvm.lifetime.end"  )) == 0){return;}
+
+	for (int arg=0;arg<numArgs;arg++)
+	{
+		llvm::Value * llvmVal = callinst->getArgOperand(arg);
+		ValueFactory * valueFactory = ValueFactory::getInstance();
+		Value * value = valueFactory->getValue(llvmVal);
+		std::string &name = value->getName();
+		
+		llvm::errs() << '\n' << '\n' << '\n';
+		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+		llvm::errs() << "FUNC NAME   = " << getCalledFunctionName() << '\n';
+		llvm::errs() << "INPUT PARAM = " << name << '\n';
+		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+	}
+
+	// InstructionValue::populateTreeConstraints(constraints);
 	return;
 }
 
