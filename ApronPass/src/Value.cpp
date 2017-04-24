@@ -908,11 +908,7 @@ void CallValue::populateTreeConstraintsForUserMemoryOperation(
 	userBuffers.erase("null");
 	userBuffers.erase("kernel");
 	for (auto & userBuffer : userBuffers) {
-		ap_texpr1_t * offset = bb->createUserPointerOffsetTreeExpression(
-				ptrName, userBuffer);
-		ap_texpr1_t * last = bb->createUserPointerLastTreeExpression(userBuffer, op);
-		ap_environment_t * env = bb->getEnvironment();
-		MemoryAccessAbstractValue maav(env, last, offset, ap_texpr1_copy(size));
+		MemoryAccessAbstractValue maav(ptrName, userBuffer, ap_texpr1_copy(size), op);
 		// Placed back in abstractState to be joined at end of BB
 		abstractState.memoryAccessAbstractValues.push_back(maav);
 	}

@@ -20,36 +20,10 @@ public:
 		return *inserted.first;
 	}
 };
-MemoryAccessAbstractValue::MemoryAccessAbstractValue(ap_environment_t * env,
-		ap_texpr1_t * last,
-		ap_texpr1_t * offset,
-		ap_texpr1_t * size) : m_environment(env) {
-	// TODO definitely make into a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
 
-	last = ap_texpr1_extend_environment(last, m_environment);
-	offset = ap_texpr1_extend_environment(offset, m_environment);
-	size = ap_texpr1_extend_environment(size, m_environment);
-	// last >= offset
-	ap_texpr1_t * startOffset = ap_texpr1_binop(
-			AP_TEXPR_SUB, ap_texpr1_copy(last), ap_texpr1_copy(offset),
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t lastGeqOffset = ap_tcons1_make(AP_CONS_SUPEQ, startOffset, zero);
-
-	// last <= offset + size
-	ap_texpr1_t * end = ap_texpr1_binop(
-			AP_TEXPR_ADD, offset, size,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_texpr1_t * endOffset = ap_texpr1_binop(
-			AP_TEXPR_SUB, end, last,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t lastLeqEnd = ap_tcons1_make(AP_CONS_SUPEQ, endOffset, zero);
-
-	m_constraints = ap_tcons1_array_make(m_environment, 2);
-	ap_tcons1_array_set(&m_constraints, 0, &lastGeqOffset);
-	ap_tcons1_array_set(&m_constraints, 1, &lastLeqEnd);
-}
+MemoryAccessAbstractValue::MemoryAccessAbstractValue(const std::string & pointer, const std::string & buffer,
+		ap_texpr1_t * size, user_pointer_operation_e operation)
+		: pointer(pointer), buffer(buffer), size(size), operation(operation) {}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -76,22 +50,51 @@ ap_manager_t * AbstractState::getManager() const {
 }
 
 void AbstractState::updateUserOperationAbstract1() {
+	// TODO definitely make into a global
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+
 	ap_manager_t * manager = getManager();
-	ap_abstract1_t & abstract1 = m_apronAbstractState.m_abstract1;
 	// Construct the environment
+	llvm::errs() << "updateUserOperationAbstract1: Before: " << &m_apronAbstractState.m_abstract1;
 	unsigned size = memoryAccessAbstractValues.size();
-	std::vector<ap_abstract1_t> values;
-	ap_environment_t * new_env = ap_abstract1_environment(manager, &abstract1);
+	std::vector<ApronAbstractState> values;
 	for (MemoryAccessAbstractValue & maav : memoryAccessAbstractValues) {
-		ap_tcons1_array_extend_environment_with(
-				&maav.m_constraints, new_env);
-		ap_abstract1_t abstract_value = ap_abstract1_meet_tcons_array(
-			manager, false, &abstract1, &maav.m_constraints);
-		values.push_back(abstract_value);
+		const std::string & offsetName = generateOffsetName(maav.pointer, maav.buffer);
+		const std::string & lastName = generateLastName(maav.buffer, maav.operation);
+		ApronAbstractState apronState = m_apronAbstractState;
+		apronState.extend(offsetName);
+		apronState.forget(lastName);
+		apronState.extend(lastName);
+		ap_texpr1_t * offset = apronState.asTexpr(offsetName);
+		ap_texpr1_t * last = apronState.asTexpr(lastName);
+
+		apronState.start_meet_aggregate();
+		// last >= offset
+		ap_texpr1_t * startOffset = ap_texpr1_binop(
+				AP_TEXPR_SUB, ap_texpr1_copy(last), ap_texpr1_copy(offset),
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t lastGeqOffset = ap_tcons1_make(AP_CONS_SUPEQ, startOffset, zero);
+		apronState.meet(lastGeqOffset);
+
+		// last <= offset + size
+		apronState.extendEnvironment(maav.size);
+		ap_texpr1_t * end = ap_texpr1_binop(
+				AP_TEXPR_ADD, offset, maav.size,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_texpr1_t * endOffset = ap_texpr1_binop(
+				AP_TEXPR_SUB, end, last,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t lastLeqEnd = ap_tcons1_make(AP_CONS_SUPEQ, endOffset, zero);
+		apronState.meet(lastLeqEnd);
+		apronState.finish_meet_aggregate();
+
+		llvm::errs() << "updateUserOperationAbstract1: abst: " << &apronState.m_abstract1;
+		values.push_back(apronState);
 	}
-	ap_abstract1_t abstract = join(values);
-	m_apronAbstractState.join(abstract);
-	//m_abstract1 = abstract;
+	memoryAccessAbstractValues.clear();
+	m_apronAbstractState.join(values);
+	llvm::errs() << "updateUserOperationAbstract1: After: " << &m_apronAbstractState.m_abstract1;
 }
 
 bool AbstractState::joinUserPointers(

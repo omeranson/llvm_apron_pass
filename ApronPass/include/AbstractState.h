@@ -9,6 +9,7 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <AbstractStates/ApronAbstractState.h>
+#include <APStream.h>
 
 typedef enum {
 	user_pointer_operation_read,
@@ -23,13 +24,13 @@ extern ap_manager_t * apron_manager;
 
 class MemoryAccessAbstractValue {
 public:
-	ap_environment_t * m_environment;
-	ap_tcons1_array_t m_constraints;
+	std::string pointer;
+	std::string buffer;
+	ap_texpr1_t * size;
+	user_pointer_operation_e operation;
 
-	MemoryAccessAbstractValue(ap_environment_t * env,
-			ap_texpr1_t * last,
-			ap_texpr1_t * offset,
-			ap_texpr1_t * size);
+	MemoryAccessAbstractValue(const std::string & pointer, const std::string & buffer,
+			ap_texpr1_t * size, user_pointer_operation_e operation);
 };
 
 struct ImportIovecCall {
@@ -209,6 +210,13 @@ inline stream & operator<<(stream & s, user_pointer_operation_e op) {
 		s << "<invalid user_pointer_operation_e>";
 		break;
 	}
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, MemoryAccessAbstractValue & maav) {
+	s << "maav(" << maav.pointer << ", " << maav.buffer << ", "
+			<< maav.size << ", " << maav.operation << ")";
 	return s;
 }
 
