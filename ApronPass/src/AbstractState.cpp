@@ -171,47 +171,6 @@ bool AbstractState::join(AbstractState &other)
 	return isChanged;
 }
 
-ap_abstract1_t AbstractState::join(ap_abstract1_t * val1, ap_abstract1_t * val2) {
-	ap_manager_t * manager = getManager();
-	ap_dimchange_t * dimchange1 = NULL;
-	ap_dimchange_t * dimchange2 = NULL;
-	ap_environment_t * environment = ap_environment_lce(
-			ap_abstract1_environment(manager, val1),
-			ap_abstract1_environment(manager, val2),
-			&dimchange1, &dimchange2);
-	ap_abstract1_t lcl_val1 = ap_abstract1_change_environment(
-			manager, false, val1, environment, true);
-	ap_abstract1_t lcl_val2 = ap_abstract1_change_environment(
-			manager, false, val2, environment, true);
-	ap_abstract1_t result = ap_abstract1_join(manager, false, &lcl_val1, &lcl_val2);
-	return result;
-}
-
-ap_abstract1_t AbstractState::join(std::vector<ap_abstract1_t> & a_values) {
-	unsigned size = a_values.size();
-	ap_manager_t * manager = getManager();
-	if (size == 0) {
-		ap_environment_t * env = ap_environment_alloc_empty();
-		return ap_abstract1_bottom(manager, env);
-	}
-	std::vector<ap_environment_t*> envs;
-	std::vector<ap_abstract1_t> values;
-	envs.reserve(size);
-	typedef ap_environment_t* ap_environment_t_p;
-	for (ap_abstract1_t & abs : a_values) {
-		envs.push_back(ap_abstract1_environment(manager, &abs));
-	}
-	ap_dimchange_t** ptdimchange;
-	ap_environment_t * environment = ap_environment_lce_array(
-			envs.data(), envs.size(), &ptdimchange);
-	values.reserve(size);
-	for (ap_abstract1_t & abs : a_values) {
-		values.push_back(ap_abstract1_change_environment(
-				manager, false, &abs, environment, true));
-	}
-	return ap_abstract1_join_array(manager, values.data(), values.size());
-}
-
 void AbstractState::makeTop() {
 	assert(0 && "TODO: Not yet implemented");
 }
