@@ -183,11 +183,21 @@ void ApronAbstractState::makeBottom() {
 
 std::string ApronAbstractState::renameVarForC(const std::string & varName) {
 	std::string newName = varName;
-	if ((!isalpha(newName[0])) && (newName[0] != '_')) {
-		newName.insert(0, "_");
-	}
-	for (char & c : newName) {
-		if (isalnum(c) || (c == '_') || (c == '(') || (c == ')')) {
+	bool startOfSym = true;
+	std::string::iterator it;
+	for (it = newName.begin(); it != newName.end(); it++) {
+		char & c = *it;
+		if (startOfSym && (!isalpha(c)) && (c != '_')) {
+			it = newName.insert(it, '_');
+			startOfSym = false;
+			continue;
+		}
+		startOfSym = false;
+		if (isalnum(c) || (c == '_')) {
+			continue;
+		}
+		if ((c == '(') || (c == ')') || (c == ',') || isspace(c)) {
+			startOfSym = true;
 			continue;
 		}
 		c = '_';
