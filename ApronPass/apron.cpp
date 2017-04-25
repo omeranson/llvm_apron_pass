@@ -220,10 +220,10 @@ namespace
 						std::make_pair(manager,
 								&trimmedAbstract1);
 				llvm::errs() << "Error states:\n";
-				std::map<std::string, ap_abstract1_t> errorStates = function->generateErrorStates();
+				std::map<std::string, ApronAbstractState> errorStates = function->generateErrorStates();
 				for (auto & state : errorStates) {
 					llvm::errs() << "// Error state for " << state.first << ":\n";
-					llvm::errs() << std::make_pair(manager, &state.second);
+					llvm::errs() << state.second;
 				}
 			}
 			llvm::ReturnInst * returnInst = function->getReturnInstruction();

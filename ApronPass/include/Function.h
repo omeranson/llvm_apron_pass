@@ -10,6 +10,7 @@
 #include <llvm/IR/Instructions.h>
 
 #include <APStream.h>
+#include <AbstractState.h>
 #include <BasicBlock.h>
 #include <Value.h>
 
@@ -34,7 +35,7 @@ public:
 	virtual BasicBlock * getReturnBasicBlock();
 	virtual bool isVarInOut(const char * varname);
 	virtual ApronAbstractState minimize(ApronAbstractState & state);
-	std::map<std::string, ap_abstract1_t> generateErrorStates();
+	std::map<std::string, ApronAbstractState> generateErrorStates();
 	std::string getName();
 	std::vector<std::pair<std::string, std::string> > getArgumentStrings();
 	std::string getSignature();

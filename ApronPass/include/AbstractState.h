@@ -220,4 +220,17 @@ inline stream & operator<<(stream & s, MemoryAccessAbstractValue & maav) {
 	return s;
 }
 
+
+template <class stream>
+inline stream & operator<<(stream & s, ApronAbstractState & aas) {
+	s << &aas.m_abstract1;
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, ApronAbstractState * aas) {
+	s << *aas;
+	return s;
+}
+
 #endif // ABSTRACT_STATE_H
