@@ -96,10 +96,6 @@ bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
 		values.push_back(ap_abstract1_change_environment(apron_manager,
 				false, &abstract1_copy, environment, true));
 	}
-	llvm::errs() << "Joining " << values.size() << " values:";
-	for (ap_abstract1_t & val : values) {
-		llvm::errs() << &val;
-	}
 	ap_abstract1_t abstract1 = ap_abstract1_join_array(apron_manager,
 			values.data(), values.size());
 	return join(abstract1);

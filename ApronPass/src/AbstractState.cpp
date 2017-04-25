@@ -50,13 +50,15 @@ ap_manager_t * AbstractState::getManager() const {
 }
 
 void AbstractState::updateUserOperationAbstract1() {
+	if (memoryAccessAbstractValues.empty()) {
+		return;
+	}
 	// TODO definitely make into a global
 	ap_scalar_t* zero = ap_scalar_alloc ();
 	ap_scalar_set_int(zero, 0);
 
 	ap_manager_t * manager = getManager();
 	// Construct the environment
-	llvm::errs() << "updateUserOperationAbstract1: Before: " << &m_apronAbstractState.m_abstract1;
 	unsigned size = memoryAccessAbstractValues.size();
 	std::vector<ApronAbstractState> values;
 	for (MemoryAccessAbstractValue & maav : memoryAccessAbstractValues) {
@@ -89,12 +91,12 @@ void AbstractState::updateUserOperationAbstract1() {
 		apronState.meet(lastLeqEnd);
 		apronState.finish_meet_aggregate();
 
-		llvm::errs() << "updateUserOperationAbstract1: abst: " << &apronState.m_abstract1;
 		values.push_back(apronState);
 	}
 	memoryAccessAbstractValues.clear();
-	m_apronAbstractState.join(values);
-	llvm::errs() << "updateUserOperationAbstract1: After: " << &m_apronAbstractState.m_abstract1;
+	ApronAbstractState aas = ApronAbstractState::bottom();
+	aas.join(values);
+	m_apronAbstractState = aas;
 }
 
 bool AbstractState::joinUserPointers(
