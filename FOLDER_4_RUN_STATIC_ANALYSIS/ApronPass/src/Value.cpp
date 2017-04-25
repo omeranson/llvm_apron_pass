@@ -774,12 +774,11 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 		ValueFactory * valueFactory = ValueFactory::getInstance();
 		Value * value = valueFactory->getValue(llvmVal);
 		std::string &name = value->getName();
-		llvm::errs() << callinst->getCalledValue()->getName();
 		
 		llvm::errs() << '\n' << '\n' << '\n';
 		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
 		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
-		llvm::errs() << "RETURNED VALUE = " << callinst->getCalledValue()->getName() << '\n';
+		llvm::errs() << "RETURNED VALUE = " << callinst->getCalledFunction()->getReturnType() << '\n';
 		llvm::errs() << "FUNC NAME      = " << getCalledFunctionName() << '\n';
 		llvm::errs() << "INPUT PARAM    = " << name << '\n';
 		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";

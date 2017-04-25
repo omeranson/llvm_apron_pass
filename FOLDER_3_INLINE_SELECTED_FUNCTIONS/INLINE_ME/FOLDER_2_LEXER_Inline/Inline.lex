@@ -75,7 +75,8 @@ FUNC_ATTRIBUTES	"; Function Attrs: "[^\n]*\n[\n\r" "]*
 /*****************/
 /* FUNCTION NAME */
 /*****************/
-FUNC_NAME	"define i64 @"[a-zA-Z_0-9]*"("	
+FUNC_NAME1	"define i64 @"[a-zA-Z_0-9]*"("	
+FUNC_NAME2	"define internal fastcc i64 @copy_msghdr_from_user("[^#]*"#"[^\n]*	
 
 /**************/
 /* ATTRIBUTES */
@@ -111,7 +112,24 @@ ATTRIBUTES	"attributes #0 = { "[^\n]*
 									Inline_ErrorMsg_Log("%s","alwaysinline ");
 									Inline_ErrorMsg_Log("%s",p);
 								}
-{FUNC_ATTRIBUTES}{FUNC_NAME}	{
+{FUNC_ATTRIBUTES}{FUNC_NAME2}	{
+									char *pp = strchr(bbtext,'#');
+									if (pp)
+									{
+										char temp[1024];
+										memset(temp,0,sizeof(temp));
+										strncpy(temp,bbtext,pp-bbtext);
+										Inline_ErrorMsg_Log("%s",temp);
+										Inline_ErrorMsg_Log("%s","#324");
+										Inline_ErrorMsg_Log("%s",pp+2);
+									}
+									else
+									{
+										Inline_ErrorMsg_Log("%s",bbtext);
+									}
+									continue;
+								}
+{FUNC_ATTRIBUTES}{FUNC_NAME1}	{
 									FILE *fl;
 									char *p = strchr(bbtext,'@');
 									char *q = strchr(p,'(');

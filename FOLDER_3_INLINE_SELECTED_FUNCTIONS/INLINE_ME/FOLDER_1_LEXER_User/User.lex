@@ -95,6 +95,7 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 						char filename[100];
 						memset(funcname,0,sizeof(funcname));
 						strncpy(funcname,p,q-p);
+						if (strcmp(funcname,"copy_msghdr_from_user") == 0) continue;
 						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
 						fl = fopen(filename,"w+t");
 						fprintf(fl,"INLINE ME BABY!!!\n");
@@ -109,6 +110,7 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 						char filename[100];
 						memset(funcname,0,sizeof(funcname));
 						strncpy(funcname,p,q-p);
+						if (strcmp(funcname,"copy_msghdr_from_user") == 0) continue;
 						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
 						fl = fopen(filename,"w+t");
 						fprintf(fl,"INLINE ME BABY!!!\n");
@@ -123,6 +125,7 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 						char filename[100];
 						memset(funcname,0,sizeof(funcname));
 						strncpy(funcname,p,q-p);
+						if (strcmp(funcname,"copy_msghdr_from_user") == 0) continue;
 						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
 						fl = fopen(filename,"w+t");
 						fprintf(fl,"INLINE ME BABY!!!\n");
