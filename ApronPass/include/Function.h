@@ -33,6 +33,7 @@ public:
 	virtual llvm::ReturnInst * getReturnInstruction();
 	virtual BasicBlock * getReturnBasicBlock();
 	virtual bool isVarInOut(const char * varname);
+	virtual ApronAbstractState minimize(ApronAbstractState & state);
 	std::map<std::string, ap_abstract1_t> generateErrorStates();
 	std::string getName();
 	std::vector<std::pair<std::string, std::string> > getArgumentStrings();

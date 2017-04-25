@@ -202,12 +202,17 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	// Standard variables
 	s << depth << "// Preconditions\n";
 	ap_manager_t * manager = apron_manager;
-	for (auto & errorState : errorStates) {
-		s << depth << "// Error state for " << errorState.first << ":\n";
-		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &errorState.second);
+	for (auto & errorStatePair : errorStates) {
+		s << depth << "// Error state for " << errorStatePair.first << ":\n";
+		ApronAbstractState errorState = errorStatePair.second;
+		ApronAbstractState minimizedErrorState = function->minimize(errorState);
+		ap_tcons1_array_t minimized_array = ap_abstract1_to_tcons_array(
+				manager, &minimizedErrorState.m_abstract1);
+		s << depth << "// " << Conjunction(&minimized_array) << "\n";
+		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &errorStatePair.second);
 		s << depth << "if(SE_SAT(" << Conjunction(&array) << ")) {\n";
 		++depth;
-		s << depth << "warn(\"Invalid pointer " << errorState.first << "\");\n";
+		s << depth << "warn(\"Invalid pointer " << errorStatePair.first << "\");\n";
 		--depth;
 		s << depth << "}\n";
 	}
