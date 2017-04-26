@@ -689,7 +689,7 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("strncpy_from_user" == funcName) {
 		return true;
 	}
-	if ("import_iovec" == funcName) {
+	if ("rw_copy_check_uvector" == funcName) {
 		return true;
 	}
 	if ("copy_msghdr_from_user" == funcName) {
@@ -741,7 +741,7 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			populateTreeConstraintsForStrncpyFromUser(constraints);
 			return;
 		}
-		if ("import_iovec" == funcName) {
+		if ("rw_copy_check_uvector" == funcName) {
 			populateTreeConstraintsForImportIovec(constraints);
 			return;
 		}
@@ -768,21 +768,31 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 
 	if (callinst->isInlineAsm()){return;}
 
+	// llvm::Value * llvmVal = callinst->getArgOperand(arg);
+	// ValueFactory * valueFactory = ValueFactory::getInstance();
+	// Value * value = valueFactory->getValue(llvmVal);
+	// std::string &name = value->getName();
+		
+	/******************************************/
+	/* %tmp3 = call i64 @__fdget(i32 %tmp) #5 */
+	/******************************************/
+	llvm::errs() << '\n' << '\n' << '\n';
+	llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+	llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+	llvm::errs() << "RETURNED VALUE = " << callinst->getName() << '\n';
+	llvm::errs() << "FUNC NAME      = " << getCalledFunctionName() << '\n';
+	// llvm::errs() << "INPUT PARAM    = " << name << '\n';
+	llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+	llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+
+	/****************************/
+	/* Havoc the value of %tmp3 */
+	/****************************/
+    ((InstructionValue *) callinst)->havoc();
+
 	for (int arg=0;arg<numArgs;arg++)
 	{
-		llvm::Value * llvmVal = callinst->getArgOperand(arg);
-		ValueFactory * valueFactory = ValueFactory::getInstance();
-		Value * value = valueFactory->getValue(llvmVal);
-		std::string &name = value->getName();
-		
-		llvm::errs() << '\n' << '\n' << '\n';
-		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
-		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
-		llvm::errs() << "RETURNED VALUE = " << callinst->getCalledFunction()->getReturnType() << '\n';
-		llvm::errs() << "FUNC NAME      = " << getCalledFunctionName() << '\n';
-		llvm::errs() << "INPUT PARAM    = " << name << '\n';
-		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
-		llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+	    
 	}
 
 	// InstructionValue::populateTreeConstraints(constraints);
