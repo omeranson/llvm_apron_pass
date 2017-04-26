@@ -788,7 +788,7 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	/****************************/
 	/* Havoc the value of %tmp3 */
 	/****************************/
-    ((InstructionValue *) callinst)->havoc();
+    havoc();
 
 	for (int arg=0;arg<numArgs;arg++)
 	{
