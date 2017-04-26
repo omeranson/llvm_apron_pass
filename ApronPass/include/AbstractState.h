@@ -9,6 +9,7 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <AbstractStates/ApronAbstractState.h>
+#include <AbstractStates/MPTAbstractState.h>
 #include <APStream.h>
 
 typedef enum {
@@ -72,56 +73,10 @@ struct CopyMsghdrFromUserCall {
  */
 class AbstractState {
 public:
-	/*******************************************************************/
-	/* pt is a mapping between pointers, and the buffers they *may*    */
-	/* point to. The buffers are either user buffers (passed e.g. via  */
-	/* arguments), "kernel" for any kernel pointer, "null" for the     */
-	/* null pointer, or "user" for any pointer to userspace that is    */
-	/* not recognised as a buffer (This shouldn't really happen).      */
-	/* Let us use this code for reference                              */
-	/*                                                                 */
-	/* int f9(__user char *buf1, __user char *buf2, int size)          */
-	/* {                                                               */
-	/*     char *p = NULL;                                             */
-	/*     if (size > 32)                                              */
-	/*     {                                                           */
-	/*         p = buf1 + 3; // this is (*)                            */
-	/*     }                                                           */
-	/*     else                                                        */
-	/*     {                                                           */
-	/*         p = buf2; // and this is (**)                           */
-	/*     }                                                           */
-	/* }                                                               */
-	/* --------------------------------------------------------------- */
-	/* the pointer p in line (*) is updated with                       */
-	/*                                                                 */
-	/* map[p] = {buf1}                                                 */
-	/* Additionally, and offset(p,buf1) <= 3 constraint should be      */
-	/* added to the numerical part of the AbstractState                */
-	/*                                                                 */
-	/* --------------------------------------------------------------- */
-	/*                                                                 */
-	/* the pointer p in line (**) is updated with                      */
-	/*                                                                 */
-	/* map[p] = buf2                                                   */
-	/* Additionally, and offset(p,buf2) <= 0 constraint should be      */
-	/* added to the numerical part of the AbstractState                */
-	/*                                                                 */
-	/* --------------------------------------------------------------- */
-	/*                                                                 */
-	/* the join between (*) and (**) should then be:                   */
-	/*                                                                 */
-	/* map[p] = {buf1,buf2}                                            */
-	/* The join also joins the constraints on offset(p,buf1) and       */
-	/* offset(p, buf2)                                                 */
-	/*                                                                 */
-	/*******************************************************************/
-	typedef std::map<std::string, std::set<std::string> > may_points_to_t;
 	
 protected:
 	/*************************************************/
-	/* OREN ISH SHALOM remarks:                      */
-	/* our abstract state is made of a cartesian     */
+	/* Abstract state is made of a cartesian         */
 	/* product of 2 abstract states:                 */
 	/*                                               */
 	/* [1] A May-Points-To entity                    */
@@ -137,16 +92,11 @@ protected:
 	/* }                                             */
 	/*                                               */
 	/*************************************************/
-	bool joinMayPointsTo(may_points_to_t &otherMayPointsTo);
-	bool joinUserPointers(
-		std::set<std::string> & dest,
-		std::set<std::string> & src);
-
 public:
 	AbstractState();
 
 	// May points to analysis
-	may_points_to_t m_mayPointsTo;
+	MPTAbstractState m_mayPointsTo;
 	// (Apron) analysis of integers
 	ApronAbstractState m_apronAbstractState;
 	// (Apron) analysis of (user) read/write/last0 pointers
@@ -177,7 +127,7 @@ public:
 template <class stream>
 inline stream & operator<<(stream & s, AbstractState & as) {
 	s << "{'mpt':{";
-	for (auto & mpt : as.m_mayPointsTo) {
+	for (auto & mpt : as.m_mayPointsTo.m_mayPointsTo) {
 		s << "'" << mpt.first << "':[";
 		for (auto & userPtr : mpt.second) {
 			s << "'" << userPtr << "',";

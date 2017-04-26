@@ -54,7 +54,7 @@ public:
 			BasicBlock * basicBlock);
 	virtual void havoc(AbstractState & state);
 
-	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
+	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 
 	virtual unsigned getBitSize();
@@ -78,7 +78,7 @@ public:
 	virtual void populateTreeConstraints(
 			std::list<ap_tcons1_t> & constraints);
 	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
-	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
+	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
 	virtual bool isSkip();
 	virtual void forget();
 };

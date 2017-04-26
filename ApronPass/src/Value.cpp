@@ -57,17 +57,6 @@ void appendValue(std::ostringstream & oss,
 	}
 }
 
-template <class T>
-void updateToIntersection(T & left, T & right) {
-	T intersection;
-	std::set_intersection(left.begin(), left.end(), right.begin(), right.end(),
-			std::inserter(intersection, intersection.end()));
-	left.clear();
-	right.clear();
-	left.insert(intersection.begin(), intersection.end());
-	right.insert(intersection.begin(), intersection.end());
-}
-
 class NopInstructionValue : public InstructionValue {
 public:
 	NopInstructionValue(llvm::Value * value) : InstructionValue(value) {}
@@ -81,7 +70,7 @@ public:
 };
 
 void AllocaValue::update(AbstractState & state) {
-	std::set<std::string> & pt = state.m_mayPointsTo[getName()];
+	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[getName()];
 	pt.clear();
 	pt.insert("kernel");
 }
@@ -100,14 +89,14 @@ llvm::LoadInst * LoadValue::asLoadInst() {
 
 void LoadValue::update(AbstractState & state) {
 	if (isPointer()) {
-		std::set<std::string> & pt = state.m_mayPointsTo[getName()];
+		MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[getName()];
 		pt.clear();
-		pt.erase("kernel");
+		pt.erase("kernel"); // XXX This is wrong
 	}
 	llvm::Value * src = asLoadInst()->getOperand(0);
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * srcValue = factory->getValue(src);
-	std::set<std::string> & pt = state.m_mayPointsTo[srcValue->getName()];
+	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[srcValue->getName()];
 	pt.erase("null");
 }
 
@@ -126,7 +115,7 @@ void StoreValue::update(AbstractState & state) {
 	llvm::Value * dest = asStoreInst()->getOperand(0);
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * destValue = factory->getValue(dest);
-	std::set<std::string> & pt = state.m_mayPointsTo[destValue->getName()];
+	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[destValue->getName()];
 	pt.erase("null");
 }
 
@@ -179,7 +168,7 @@ void GepValue::populateTreeConstraints(
 	Value * offset = factory->getValue(gepi->getOperand(1));
 
 	std::string pointerName = src->getName();
-	std::set<std::string> &dest = state.m_mayPointsTo[getName()];
+	MPTItemAbstractState & dest = state.m_mayPointsTo.m_mayPointsTo[getName()];
 	dest.clear();
 	const std::string & offsetName = state.generateOffsetName(getName(), pointerName);
 	state.m_apronAbstractState.forget(offsetName);
@@ -188,7 +177,7 @@ void GepValue::populateTreeConstraints(
 		dest.insert(pointerName);
 		addOffsetConstraint(constraints, offset_texpr, pointerName);
 	} else {
-		std::set<std::string> &srcUserPointers = state.m_mayPointsTo[pointerName];
+		MPTItemAbstractState & srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[pointerName];
 		for (auto & srcPtrName : srcUserPointers) {
 			dest.insert(srcPtrName);
 			ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
@@ -214,7 +203,7 @@ public:
 	VariableValue(llvm::Value * value) : Value(value) {}
 	virtual std::string getValueString();
 	virtual std::string toString() ;
-	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
+	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
 };
 std::string VariableValue::getValueString() {
 	return getName();
@@ -234,7 +223,7 @@ Function * VariableValue::getFunction() {
 	return manager.getFunction(function);
 }
 
-void VariableValue::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+void VariableValue::populateMayPointsToUserBuffers(MPTItemAbstractState & buffers) {
 	std::string & name = getName();
 	if (getFunction()->isUserPointer(name)) {
 		buffers.insert(name);
@@ -261,11 +250,11 @@ ap_texpr1_t * InstructionValue::createRHSTreeExpression(AbstractState & state) {
 }
 
 void InstructionValue::populateMayPointsToUserBuffers(
-		std::set<std::string> & buffers) {
+		MPTItemAbstractState & buffers) {
 	BasicBlock * basicBlock = getBasicBlock();
 	AbstractState & as = basicBlock->getAbstractState();
-	std::set<std::string> & asbuffers = as.m_mayPointsTo[getName()];
-	buffers.insert(asbuffers.begin(), asbuffers.end());
+	MPTItemAbstractState & asbuffers = as.m_mayPointsTo.m_mayPointsTo[getName()];
+	buffers.join(asbuffers);
 }
 
 bool InstructionValue::isSkip() {
@@ -434,11 +423,11 @@ void SubtractionOperationValue::update(AbstractState & state) {
 		Value * leftPtrVal = factory->getValue(leftPtr);
 		Value * rightPtrVal = factory->getValue(rightPtr);
 
-		std::set<std::string> & leftPT = state.m_mayPointsTo[leftPtrVal->getName()];
+		MPTItemAbstractState & leftPT = state.m_mayPointsTo.m_mayPointsTo[leftPtrVal->getName()];
 		leftPT.erase("null");
-		std::set<std::string> & rightPT = state.m_mayPointsTo[rightPtrVal->getName()];
+		MPTItemAbstractState & rightPT = state.m_mayPointsTo.m_mayPointsTo[rightPtrVal->getName()];
 
-		updateToIntersection(leftPT, rightPT);
+		MPTItemAbstractState::updateToIntersection(leftPT, rightPT);
 		return;
 	}
 	return BinaryOperationValue::update(state);
@@ -575,7 +564,7 @@ public:
 		llvm::errs() << "Null ptr: llvm name: " << value->getName() << " my name: " << getName() << "\n";
 	}
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
-	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
+	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
 };
 
 std::string ConstantNullValue::getConstantString() {
@@ -587,7 +576,7 @@ ap_texpr1_t * ConstantNullValue::createTreeExpression(AbstractState & state) {
 	return result;
 }
 
-void ConstantNullValue::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+void ConstantNullValue::populateMayPointsToUserBuffers(MPTItemAbstractState & buffers) {
 	buffers.insert("null");
 }
 
@@ -904,7 +893,7 @@ void CallValue::populateTreeConstraintsForUserMemoryOperation(
 	BasicBlock * bb = getBasicBlock();
 	ValueFactory * valueFactory = ValueFactory::getInstance();
 	AbstractState & abstractState = bb->getAbstractState();
-	std::set<std::string> & userBuffers = abstractState.m_mayPointsTo[ptrName];
+	MPTItemAbstractState & userBuffers = abstractState.m_mayPointsTo.m_mayPointsTo[ptrName];
 	userBuffers.erase("null");
 	userBuffers.erase("kernel");
 	for (auto & userBuffer : userBuffers) {
@@ -1233,12 +1222,12 @@ void PhiValue::updateAssumptions(BasicBlock * source, BasicBlock * dest, Abstrac
 			const std::string & offsetName = AbstractState::generateOffsetName(name, incomingName);
 			ap_texpr1_t * zeroExpr = state.m_apronAbstractState.asTexpr((int64_t)0);
 			state.m_apronAbstractState.assign(offsetName, zeroExpr);
-			std::set<std::string> & pt = state.m_mayPointsTo[name];
+			MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[name];
 			pt.clear();
 			pt.insert(incomingName);
 		} else {
-			std::set<std::string> &srcUserPointers = state.m_mayPointsTo[incomingName];
-			state.m_mayPointsTo[name] = srcUserPointers;
+			MPTItemAbstractState &srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[incomingName];
+			state.m_mayPointsTo.m_mayPointsTo[name] = srcUserPointers;
 			for (auto & srcPtrName : srcUserPointers) {
 				const std::string & offsetName = AbstractState::generateOffsetName(name, srcPtrName);
 				state.m_apronAbstractState.forget(offsetName);
@@ -1517,15 +1506,15 @@ protected:
 	virtual bool isThenSuccessor(BasicBlock * basicBlock);
 
 	virtual void removeNullIfOtherIsProvablyNull(
-		std::set<std::string> & left, std::set<std::string> & right);
+		MPTItemAbstractState & left, MPTItemAbstractState & right);
 public:
 	BranchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 };
 
 void BranchInstructionValue::removeNullIfOtherIsProvablyNull(
-		std::set<std::string> & left, std::set<std::string> & right) {
-	if ((right.size() == 1) && (right.count("null") == 1)) {
+		MPTItemAbstractState & left, MPTItemAbstractState & right) {
+	if (right.isProvablyNull()) {
 		left.erase("null");
 	}
 }
@@ -1593,13 +1582,13 @@ void BranchInstructionValue::updateAssumptions(
 		} else {
 			condType = cmpValue->getNegatedConditionType();
 		}
-		std::set<std::string> & pt_left = state.m_mayPointsTo[condOperand0Value->getName()];
-		std::set<std::string> & pt_right = state.m_mayPointsTo[condOperand1Value->getName()];
+		MPTItemAbstractState & pt_left = state.m_mayPointsTo.m_mayPointsTo[condOperand0Value->getName()];
+		MPTItemAbstractState & pt_right = state.m_mayPointsTo.m_mayPointsTo[condOperand1Value->getName()];
 		// XXX(oanson) Check if one of the operands is null
 		switch (condType) {
 		cons_cond_eq: {
 			// Equality
-			updateToIntersection(pt_left, pt_right);
+			MPTItemAbstractState::updateToIntersection(pt_left, pt_right);
 			if (pt_left.empty()) {
 				state.makeBottom();
 			}
@@ -1828,7 +1817,7 @@ void Value::havoc(AbstractState & state) {
 	state.m_apronAbstractState.forget(getName());
 }
 
-void Value::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+void Value::populateMayPointsToUserBuffers(MPTItemAbstractState & buffers) {
 	return;
 }
 

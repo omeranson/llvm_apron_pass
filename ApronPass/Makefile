@@ -1,4 +1,4 @@
-OBJS = apron.o src/Value.o src/BasicBlock.o src/CallGraph.o src/AbstractState.o src/Function.o src/AbstractStates/ApronAbstractState.o
+OBJS = apron.o src/Value.o src/BasicBlock.o src/CallGraph.o src/AbstractState.o src/Function.o src/AbstractStates/ApronAbstractState.o src/AbstractStates/MPTAbstractState.o
 HEADERS = $(shell find -name *.h)
 
 include Makefile.env

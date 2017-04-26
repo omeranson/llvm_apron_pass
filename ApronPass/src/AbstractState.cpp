@@ -28,7 +28,7 @@ MemoryAccessAbstractValue::MemoryAccessAbstractValue(const std::string & pointer
 ///////////////////////////////////////////////////////////////////////////////
 
 AbstractState::AbstractState() : m_apronAbstractState(ApronAbstractState::bottom()) {
-	m_mayPointsTo["null"].insert("null");
+	m_mayPointsTo.m_mayPointsTo["null"].insert("null");
 }
 
 const std::string & AbstractState::generateOffsetName(const std::string & valueName, const std::string & bufname) {
@@ -99,73 +99,11 @@ void AbstractState::updateUserOperationAbstract1() {
 	m_apronAbstractState = aas;
 }
 
-bool AbstractState::joinUserPointers(
-		std::set<std::string> & dest,
-		std::set<std::string>& src) {
-	bool isChanged = false;
-	for (const std::string & userPtr : src)
-	{
-		auto inserted = dest.insert(userPtr);
-		isChanged = isChanged || inserted.second;
-	}
-	return isChanged;
-}
-
-bool AbstractState::joinMayPointsTo(may_points_to_t &otherMayPointsTo)
-{
-	bool isChanged = false;
-
-	/***************************************/
-	/* Iterate over otherMayPointsTo       */
-	/* REMINDER:                           */
-	/* map[p] = {buf1,buf2}                */
-	/***************************************/
-	for (auto &allPointersIterator:otherMayPointsTo)
-	{
-		/************************/
-		/* [1] pointer name ... */
-		/************************/
-		std::string name = allPointersIterator.first;
-
-		/***************************************************/
-		/* [2] name does not appear in this->m_MayPointsTo */
-		/***************************************************/
-		/***************************************************/
-		/* This could happen for example in the join of    */
-		/* line 6                                          */
-		/*                                                 */
-		/* LINE 0: int f9(char *buf1) {                    */
-		/* LINE 1: char *p;                                */
-		/* LINE 2: if (?)                                  */
-		/* LINE 3: {                                       */
-		/* LINE 4:     p = buf1 + 3;                       */
-		/* LINE 5: }                                       */
-		/* LINE 6: ...                                     */
-		/* LINE 7: }                                       */
-		/*                                                 */
-		/***************************************************/
-		auto userPointerOffsetsIt = m_mayPointsTo.find(name);
-		if (userPointerOffsetsIt == m_mayPointsTo.end())
-		{
-			isChanged = true;
-			m_mayPointsTo[name] = allPointersIterator.second;
-		}
-		else
-		{
-			isChanged = joinUserPointers(
-					userPointerOffsetsIt->second,
-					allPointersIterator.second) || isChanged;
-
-		}
-	}
-	return isChanged;
-}
-
 bool AbstractState::join(AbstractState &other)
 {
 	bool isChanged = false;
 	// Join 'May' reference
-	isChanged = joinMayPointsTo(other.m_mayPointsTo) || isChanged;
+	isChanged = m_mayPointsTo.join(other.m_mayPointsTo) || isChanged;
 	// Join (Apron) analysis of integers
 	isChanged = m_apronAbstractState.join(other.m_apronAbstractState) || isChanged;
 	// Join (Apron) analysis of (user) read/write/last0 pointers
