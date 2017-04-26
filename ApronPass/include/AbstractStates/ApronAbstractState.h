@@ -59,6 +59,48 @@ public:
 	virtual ap_texpr1_t * asTexpr(const std::string & var);
 	virtual ap_texpr1_t * asTexpr(int64_t value);
 	virtual ap_texpr1_t * asTexpr(double value);
+
+	class Variables {
+		ap_environment_t * env;
+	public:
+		Variables(const ApronAbstractState & state) : env(state.getEnvironment()) {}
+		class VariableIterator {
+			int dim;
+			const ap_environment_t * env;
+		public:
+			VariableIterator(ap_environment_t * env, int dim = 0) :
+				env(env), dim(dim) {}
+
+			VariableIterator & operator++() {
+				++dim;
+				return *this;
+			}
+			VariableIterator & operator--() {
+				--dim;
+				return *this;
+			}
+			bool operator==(const VariableIterator & other) const {
+				return (other.env == env) && (other.dim == dim);
+			}
+
+			bool operator!=(const VariableIterator & other) const {
+				return !(*this == other);
+			}
+
+			std::string operator*() const {
+				ap_var_t var = ap_environment_var_of_dim(
+						(ap_environment_t*)env, dim);
+				std::string varName = (char*)var;
+				return varName;
+			}
+		};
+		VariableIterator begin() const {
+			return VariableIterator(env, 0);
+		}
+		VariableIterator end() const {
+			return VariableIterator(env, env->intdim);
+		}
+	};
 };
 
 #endif // APRON_ABSTRACT_STATE_H
