@@ -87,80 +87,90 @@ ATTRIBUTES	"attributes #0 = { "[^\n]*
 /* RULES */
 /*********/
 %%
-
+[^\n]*"tmp"[^\n]*"="[^\n]*"asm sideeffect \"\""[^\n]*	{
+										char *p=bbtext;
+										int d=0;
+										while ((*p) && (strncmp(p,"tmp",3) != 0)){p++;}
+										if (p)
+										{
+											d = atoi(p+3);
+											printf("\n\n\n\n\n\n\n%d\n\n\n\n\n\n\n",d);
+											Inline_ErrorMsg_Log("  %%tmp%d = sub i32 %d,%d\n",d,d,d);
+										}
+									}
 "attributes #0 = { "[^\r\n]*"\n"	{
 									char *p = bbtext+strlen("attributes #0 = { ");
 									Inline_ErrorMsg_Log("%s","attributes #0 = { ");
 									Inline_ErrorMsg_Log("%s","alwaysinline ");
 									Inline_ErrorMsg_Log("%s",p);
-								}
+									}
 "attributes #0 = { "[^\r\n]*"\n\r"	{
 									char *p = bbtext+strlen("attributes #0 = { ");
 									Inline_ErrorMsg_Log("%s","attributes #0 = { ");
 									Inline_ErrorMsg_Log("%s","alwaysinline ");
 									Inline_ErrorMsg_Log("%s",p);
-								}
+									}
 "attributes #0 = { "[^\r\n]*"\r\n"	{
 									char *p = bbtext+strlen("attributes #0 = { ");
 									Inline_ErrorMsg_Log("%s","attributes #0 = { ");
 									Inline_ErrorMsg_Log("%s","alwaysinline ");
 									Inline_ErrorMsg_Log("%s",p);
-								}
+									}
 "attributes #0 = { "[^\r\n]*"\r"	{
 									char *p = bbtext+strlen("attributes #0 = { ");
 									Inline_ErrorMsg_Log("%s","attributes #0 = { ");
 									Inline_ErrorMsg_Log("%s","alwaysinline ");
 									Inline_ErrorMsg_Log("%s",p);
-								}
-{FUNC_ATTRIBUTES}{FUNC_NAME2}	{
-									char *pp = strchr(bbtext,'#');
-									if (pp)
-									{
-										char temp[1024];
-										memset(temp,0,sizeof(temp));
-										strncpy(temp,bbtext,pp-bbtext);
-										Inline_ErrorMsg_Log("%s",temp);
-										Inline_ErrorMsg_Log("%s","#324");
-										Inline_ErrorMsg_Log("%s",pp+2);
 									}
-									else
-									{
-										Inline_ErrorMsg_Log("%s",bbtext);
-									}
-									continue;
-								}
-{FUNC_ATTRIBUTES}{FUNC_NAME1}	{
-									FILE *fl;
-									char *p = strchr(bbtext,'@');
-									char *q = strchr(p,'(');
-									char funcname[100];
-									char filename[100];
-									memset(funcname,0,sizeof(funcname));
-									strncpy(funcname,p+1,q-p);
-									funcname[q-p-1]=0;
-									sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-									fl=fopen(filename,"rt");
-									if (fl == NULL)
-									{
-										Inline_ErrorMsg_Log("%s", bbtext);
-									}
-									else
-									{
-										char temp[100]={0};
-										fscanf(fl,"%s",temp);
-										assert(strncmp(temp,"INLINE",6)==0);
+{FUNC_ATTRIBUTES}{FUNC_NAME2}		{
+										char *pp = strchr(bbtext,'#');
+										if (pp)
 										{
-											char *pp = bbtext+strlen("; Function Attrs: ");
-											Inline_ErrorMsg_Log("; Function Attrs: alwaysinline %s",pp);
+											char temp[1024];
+											memset(temp,0,sizeof(temp));
+											strncpy(temp,bbtext,pp-bbtext);
+											Inline_ErrorMsg_Log("%s",temp);
+											Inline_ErrorMsg_Log("%s","#324");
+											Inline_ErrorMsg_Log("%s",pp+2);
 										}
-										fclose(fl);
+										else
+										{
+											Inline_ErrorMsg_Log("%s",bbtext);
+										}
+										continue;
 									}
-									continue;
-								}
-[^\n]*							{Inline_ErrorMsg_Log("%s", bbtext); continue;}
-[^\r\n]*						{Inline_ErrorMsg_Log("%s", bbtext); continue;}
-"\r"							{Inline_ErrorMsg_Log("%s", bbtext); continue;}
-"\n"							{Inline_ErrorMsg_Log("%s", bbtext); continue;}
-"\r\n"							{Inline_ErrorMsg_Log("%s", bbtext); continue;}
-"\n\r"							{Inline_ErrorMsg_Log("%s", bbtext); continue;}
+{FUNC_ATTRIBUTES}{FUNC_NAME1}		{
+										FILE *fl;
+										char *p = strchr(bbtext,'@');
+										char *q = strchr(p,'(');
+										char funcname[100];
+										char filename[100];
+										memset(funcname,0,sizeof(funcname));
+										strncpy(funcname,p+1,q-p);
+										funcname[q-p-1]=0;
+										sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
+										fl=fopen(filename,"rt");
+										if (fl == NULL)
+										{
+											Inline_ErrorMsg_Log("%s", bbtext);
+										}
+										else
+										{
+											char temp[100]={0};
+											fscanf(fl,"%s",temp);
+											assert(strncmp(temp,"INLINE",6)==0);
+											{
+												char *pp = bbtext+strlen("; Function Attrs: ");
+												Inline_ErrorMsg_Log("; Function Attrs: alwaysinline %s",pp);
+											}
+											fclose(fl);
+										}
+										continue;
+									}
+[^\n]*								{Inline_ErrorMsg_Log("%s", bbtext); continue;}
+[^\r\n]*							{Inline_ErrorMsg_Log("%s", bbtext); continue;}
+"\r"								{Inline_ErrorMsg_Log("%s", bbtext); continue;}
+"\n"								{Inline_ErrorMsg_Log("%s", bbtext); continue;}
+"\r\n"								{Inline_ErrorMsg_Log("%s", bbtext); continue;}
+"\n\r"								{Inline_ErrorMsg_Log("%s", bbtext); continue;}
 
