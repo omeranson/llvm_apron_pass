@@ -43,10 +43,16 @@ bool ApronAbstractState::join(const ApronAbstractState & other) {
 	++joinCount;
 	if (other.isBottom()) {
 		return false;
-	} if (other.isTop()) {
+	}
+	if (other.isTop()) {
 		bool result = isTop();
-		*this = top();
+		m_abstract1 = other.m_abstract1;
 		return result;
+	}
+	if (isBottom()) {
+		// other is *not* bottom
+		m_abstract1 = other.m_abstract1;
+		return true;
 	}
 	ap_dimchange_t * dimchange1 = NULL;
 	ap_dimchange_t * dimchange2 = NULL;
@@ -71,7 +77,7 @@ bool ApronAbstractState::join(const ApronAbstractState & other) {
 		m_abstract1 = ap_abstract1_join(apron_manager, false,
 				&this_abst, &other_abst);
 	}
-	return ap_abstract1_is_eq(apron_manager, &prev, &m_abstract1);
+	return (*this != prev);
 }
 
 bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
@@ -130,8 +136,16 @@ void ApronAbstractState::forget(const std::string & varname, bool isBottom) {
 
 void ApronAbstractState::minimize(const std::string & var) {
 	forget(var);
+	minimize();
+}
+
+void ApronAbstractState::minimize() {
 	m_abstract1 = ap_abstract1_minimize_environment(apron_manager, false,
 			&m_abstract1);
+}
+
+void ApronAbstractState::canonicalize() {
+	ap_abstract1_canonicalize(apron_manager, &m_abstract1);
 }
 
 void ApronAbstractState::start_meet_aggregate() {
