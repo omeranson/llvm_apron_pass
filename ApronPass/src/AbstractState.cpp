@@ -128,6 +128,25 @@ bool AbstractState::join(AbstractState &other)
 	return isChanged;
 }
 
+bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
+	AbstractState prev = *this;
+	for (std::pair<const std::string, MPTItemAbstractState > & pt : m_mayPointsTo.m_mayPointsTo) {
+		if (pt.second.empty()) {
+			makeBottom();
+			return true;
+		}
+		for (const std::string & buffer : userBuffers) {
+			if (pt.second.contains(buffer)) {
+				continue;
+			}
+			const std::string & offsetName = generateOffsetName(
+					pt.first, buffer);
+			m_apronAbstractState.forget(offsetName, true);
+		}
+	}
+	return (prev.m_apronAbstractState != m_apronAbstractState);
+}
+
 void AbstractState::makeTop() {
 	assert(0 && "TODO: Not yet implemented");
 }

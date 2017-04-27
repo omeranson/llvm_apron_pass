@@ -61,6 +61,10 @@ bool MPTItemAbstractState::isWritable() const {
 	return m_isWritable;
 }
 
+bool MPTItemAbstractState::contains(const std::string & name) const {
+	return (m_buffers.count(name) == 1);
+}
+
 void MPTItemAbstractState::updateToIntersection(MPTItemAbstractState & left, MPTItemAbstractState & right) {
 	std::set<std::string> intersection;
 	std::set_intersection(left.begin(), left.end(), right.begin(), right.end(),

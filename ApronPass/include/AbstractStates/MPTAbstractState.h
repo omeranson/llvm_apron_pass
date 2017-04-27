@@ -22,6 +22,7 @@ public:
 	bool isProvablyNull() const;
 	bool empty() const;
 	bool isWritable() const;
+	bool contains(const std::string & name) const;
 
 	static void updateToIntersection(MPTItemAbstractState & left, MPTItemAbstractState & right);
 };

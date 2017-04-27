@@ -269,7 +269,8 @@ bool BasicBlock::update() {
 	/* Process the block. Return true if the block's context is modified.*/
 	std::list<ap_tcons1_t> constraints;
 
-	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
+	AbstractState & as = getAbstractState();
+	ApronAbstractState & aas = as.m_apronAbstractState;
 	ap_abstract1_t prev = aas.m_abstract1;
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
@@ -277,13 +278,15 @@ bool BasicBlock::update() {
 		processInstruction(constraints, inst);
 	}
 
-	ap_manager_t * manager = getManager();
-	ap_environment_t* env = getEnvironment();
-	ap_abstract1_t abs = applyConstraints(constraints);
-	m_abstractState.updateUserOperationAbstract1();
-
+	applyConstraints(constraints);
+	as.updateUserOperationAbstract1();
+	std::vector<std::string> userBuffers = getFunction()->getUserPointers();
 	if (Debug) {
-		llvm::errs() << getName() << ": Update: " <<std::make_pair(manager, &abs);
+		llvm::errs() << getName() << ": Update (before Reduce): " << as;
+	}
+	bool isReduceChanged = as.reduce(userBuffers);
+	if (Debug && isReduceChanged) {
+		llvm::errs() << getName() << ": Update (after Reduce): " << as;
 	}
 	bool markedForChanged = m_markedForChanged;
 	m_markedForChanged = false;
@@ -303,7 +306,7 @@ Value * BasicBlock::getTerminatorValue() {
 	return factory->getValue(terminator);
 }
 
-ap_abstract1_t BasicBlock::applyConstraints(
+void BasicBlock::applyConstraints(
 		std::list<ap_tcons1_t> & constraints) {
 	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
 	if (!constraints.empty()) {
@@ -312,7 +315,6 @@ ap_abstract1_t BasicBlock::applyConstraints(
 				getManager(), false, &aas.m_abstract1, &array);
 		aas.m_abstract1 = abs;
 	}
-	return aas.m_abstract1;
 }
 
 ap_abstract1_t BasicBlock::abstractOfTconsList(

@@ -114,6 +114,7 @@ public:
 	void updateUserOperationAbstract1();
 	// General commands
 	virtual bool join(AbstractState &);
+	virtual bool reduce(std::vector<std::string> & userBuffers);
 	// TODO(oanson) The following functions are missing
 	//virtual bool meet(AbstractState &);
 	//virtual bool unify(AbstractState &);

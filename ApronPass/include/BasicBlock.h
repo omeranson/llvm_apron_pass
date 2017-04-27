@@ -91,7 +91,7 @@ public:
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
 	virtual ap_abstract1_t abstractOfTconsList(
 			std::list<ap_tcons1_t> & constraints);
-	virtual ap_abstract1_t applyConstraints(
+	virtual void applyConstraints(
 			std::list<ap_tcons1_t> & constraints);
 	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
 		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);

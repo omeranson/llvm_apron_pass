@@ -67,7 +67,12 @@ class AllocaValue : public InstructionValue {
 public:
 	AllocaValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual void update(AbstractState & state);
+	virtual bool isSkip();
 };
+
+bool AllocaValue::isSkip() {
+	return false;
+}
 
 void AllocaValue::update(AbstractState & state) {
 	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[getName()];
