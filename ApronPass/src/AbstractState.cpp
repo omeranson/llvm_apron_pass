@@ -31,6 +31,11 @@ AbstractState::AbstractState() : m_apronAbstractState(ApronAbstractState::bottom
 	m_mayPointsTo.m_mayPointsTo["null"].insert("null");
 }
 
+AbstractState::AbstractState(std::vector<std::string> & userBuffers) :
+		m_apronAbstractState(ApronAbstractState::bottom()),
+		m_mayPointsTo(userBuffers) {
+}
+
 const std::string & AbstractState::generateOffsetName(const std::string & valueName, const std::string & bufname) {
 	static std::set<std::string> names;
 	raw_uniq_string_ostream rso(names);

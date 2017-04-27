@@ -76,15 +76,20 @@ void MPTItemAbstractState::updateToIntersection(MPTItemAbstractState & left, MPT
 }
 // MPTAbstractState
 
-MPTAbstractState::MPTAbstractState() {}
+MPTAbstractState::MPTAbstractState() {
+	m_mayPointsTo.insert(std::make_pair("null",
+			MPTItemAbstractState({"null"}, false)));
+}
 
-MPTAbstractState::MPTAbstractState(std::list<std::string> buffers) {
+MPTAbstractState::MPTAbstractState(std::vector<std::string> buffers) {
 	for (const std::string & buffer : buffers) {
 		std::set<std::string> identBuffers;
 		identBuffers.insert(buffer);
 		m_mayPointsTo.insert(std::make_pair(
 				buffer, MPTItemAbstractState(identBuffers, false)));
 	}
+	m_mayPointsTo.insert(std::make_pair("null",
+			MPTItemAbstractState({"null"}, false)));
 }
 
 bool MPTAbstractState::join(const MPTAbstractState & other) {

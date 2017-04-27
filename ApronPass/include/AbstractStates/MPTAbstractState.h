@@ -1,10 +1,10 @@
 #ifndef MPT_ABSTRACT_STATE_H
 #define MPT_ABSTRACT_STATE_H
 
-#include <list>
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 
 class MPTItemAbstractState {
 	std::set<std::string> m_buffers;
@@ -75,7 +75,7 @@ public:
 	std::map<std::string, MPTItemAbstractState > m_mayPointsTo;
 
 	MPTAbstractState();
-	MPTAbstractState(std::list<std::string> buffers);
+	MPTAbstractState(std::vector<std::string> buffers);
 
 	bool join(const MPTAbstractState & other);
 	void clear();

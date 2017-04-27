@@ -35,9 +35,9 @@ public:
 };
 
 struct ImportIovecCall {
-	const user_pointer_operation_e op;
-	const std::string iovec_name;
-	const std::string iovec_len_name;
+	user_pointer_operation_e op;
+	std::string iovec_name;
+	std::string iovec_len_name;
 	ImportIovecCall(user_pointer_operation_e op, const std::string & iovec_name, const std::string & iovec_len_name) :
 			op(op), iovec_name(iovec_name), iovec_len_name(iovec_len_name) {}
 	ImportIovecCall(user_pointer_operation_e op, const std::string * iovec_name, const std::string * iovec_len_name) :
@@ -45,8 +45,8 @@ struct ImportIovecCall {
 };
 
 struct CopyMsghdrFromUserCall {
-	const user_pointer_operation_e op;
-	const std::string msghdr_name;
+	user_pointer_operation_e op;
+	std::string msghdr_name;
 	CopyMsghdrFromUserCall(user_pointer_operation_e op, const std::string & msghdr_name) :
 			op(op), msghdr_name(msghdr_name) {}
 	CopyMsghdrFromUserCall(user_pointer_operation_e op, const std::string * msghdr_name) :
@@ -94,6 +94,7 @@ protected:
 	/*************************************************/
 public:
 	AbstractState();
+	AbstractState(std::vector<std::string> & userPointers);
 
 	// May points to analysis
 	MPTAbstractState m_mayPointsTo;
