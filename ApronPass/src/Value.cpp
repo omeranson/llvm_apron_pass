@@ -173,26 +173,21 @@ void GepValue::populateTreeConstraints(
 	const std::string & offsetName = state.generateOffsetName(getName(), pointerName);
 	state.m_apronAbstractState.forget(offsetName);
 	ap_texpr1_t * offset_texpr = offset->createTreeExpression(state);
-	if (function->isUserPointer(pointerName)) {
-		dest.insert(pointerName);
-		addOffsetConstraint(constraints, offset_texpr, pointerName);
-	} else {
-		MPTItemAbstractState & srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[pointerName];
-		for (auto & srcPtrName : srcUserPointers) {
-			dest.insert(srcPtrName);
-			ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
-					src, srcPtrName);
-			ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
-			ap_texpr1_extend_environment_with(offset_texpr_copy, basicBlock->getEnvironment());
-			ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
-			ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
-					offset_texpr_copy, offset_var_texpr,
-					AP_RTYPE_INT, AP_RDIR_ZERO);
-			assert(value_texpr);
-			addOffsetConstraint(constraints, value_texpr, srcPtrName);
-		}
-		ap_texpr1_free(offset_texpr);
+	MPTItemAbstractState & srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[pointerName];
+	for (auto & srcPtrName : srcUserPointers) {
+		dest.insert(srcPtrName);
+		ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
+				src, srcPtrName);
+		ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
+		ap_texpr1_extend_environment_with(offset_texpr_copy, basicBlock->getEnvironment());
+		ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
+		ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
+				offset_texpr_copy, offset_var_texpr,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		assert(value_texpr);
+		addOffsetConstraint(constraints, value_texpr, srcPtrName);
 	}
+	ap_texpr1_free(offset_texpr);
 }
 
 class VariableValue : public Value {
@@ -1218,23 +1213,14 @@ void PhiValue::updateAssumptions(BasicBlock * source, BasicBlock * dest, Abstrac
 		// Assign offsets of one to the other
 		// set pt
 		std::string incomingName = incomingValue->getName();
-		if (getFunction()->isUserPointer(incomingName)) {
-			const std::string & offsetName = AbstractState::generateOffsetName(name, incomingName);
-			ap_texpr1_t * zeroExpr = state.m_apronAbstractState.asTexpr((int64_t)0);
-			state.m_apronAbstractState.assign(offsetName, zeroExpr);
-			MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[name];
-			pt.clear();
-			pt.insert(incomingName);
-		} else {
-			MPTItemAbstractState &srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[incomingName];
-			state.m_mayPointsTo.m_mayPointsTo[name] = srcUserPointers;
-			for (auto & srcPtrName : srcUserPointers) {
-				const std::string & offsetName = AbstractState::generateOffsetName(name, srcPtrName);
-				state.m_apronAbstractState.forget(offsetName);
-				const std::string & incomingOffsetName = AbstractState::generateOffsetName(incomingName, srcPtrName);
-				ap_texpr1_t * incomingOffsetTexpr = state.m_apronAbstractState.asTexpr(incomingOffsetName);
-				state.m_apronAbstractState.assign(offsetName, incomingOffsetTexpr);
-			}
+		MPTItemAbstractState &srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[incomingName];
+		state.m_mayPointsTo.m_mayPointsTo[name] = srcUserPointers;
+		for (auto & srcPtrName : srcUserPointers) {
+			const std::string & offsetName = AbstractState::generateOffsetName(name, srcPtrName);
+			state.m_apronAbstractState.forget(offsetName);
+			const std::string & incomingOffsetName = AbstractState::generateOffsetName(incomingName, srcPtrName);
+			ap_texpr1_t * incomingOffsetTexpr = state.m_apronAbstractState.asTexpr(incomingOffsetName);
+			state.m_apronAbstractState.assign(offsetName, incomingOffsetTexpr);
 		}
 	}
 }

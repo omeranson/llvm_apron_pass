@@ -31,9 +31,21 @@ AbstractState::AbstractState() : m_apronAbstractState(ApronAbstractState::bottom
 	m_mayPointsTo.m_mayPointsTo["null"].insert("null");
 }
 
+// This is the constructor used for the root abstract state - which is Top,
+// and not Bottom
 AbstractState::AbstractState(std::vector<std::string> & userBuffers) :
-		m_apronAbstractState(ApronAbstractState::bottom()),
+		m_apronAbstractState(ApronAbstractState::top()),
 		m_mayPointsTo(userBuffers) {
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	m_apronAbstractState.start_meet_aggregate();
+	for (const std::string & buffer : userBuffers) {
+		const std::string & offsetName = generateOffsetName(buffer, buffer);
+		ap_texpr1_t * offsetTexpr = m_apronAbstractState.asTexpr(offsetName);
+		ap_tcons1_t offsetGeq0 = ap_tcons1_make(AP_CONS_SUPEQ, offsetTexpr, zero);
+		m_apronAbstractState.meet(offsetGeq0);
+	}
+	m_apronAbstractState.finish_meet_aggregate();
 }
 
 const std::string & AbstractState::generateOffsetName(const std::string & valueName, const std::string & bufname) {

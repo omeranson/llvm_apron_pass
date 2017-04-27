@@ -88,7 +88,6 @@ namespace
 			BasicBlock * root = callGraph.getRoot();
 			std::vector<std::string> userPointers = root->getFunction()->getUserPointers();
 			AbstractState state(userPointers);
-			state.m_apronAbstractState.makeTop();
 			root->getAbstractState() = state;
 			worklist.push_front(root);
 			while (!worklist.empty()) {
