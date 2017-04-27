@@ -20,6 +20,7 @@ public:
 	std::set<std::string>::const_iterator end() const;
 	bool join(const MPTItemAbstractState & other);
 	bool isProvablyNull() const;
+	bool isProvablyKernel() const;
 	bool empty() const;
 	bool isWritable() const;
 	bool contains(const std::string & name) const;

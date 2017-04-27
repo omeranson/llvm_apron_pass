@@ -86,6 +86,7 @@ protected:
 public:
 	LoadValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual void update(AbstractState & state);
+	virtual bool isSkip();
 };
 
 llvm::LoadInst * LoadValue::asLoadInst() {
@@ -93,16 +94,28 @@ llvm::LoadInst * LoadValue::asLoadInst() {
 }
 
 void LoadValue::update(AbstractState & state) {
-	if (isPointer()) {
-		MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[getName()];
-		pt.clear();
-		pt.erase("kernel"); // XXX This is wrong
-	}
 	llvm::Value * src = asLoadInst()->getOperand(0);
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * srcValue = factory->getValue(src);
 	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[srcValue->getName()];
 	pt.erase("null");
+	if (isPointer()) {
+		MPTItemAbstractState & destpt = state.m_mayPointsTo.m_mayPointsTo[getName()];
+		destpt.clear();
+		for (std::string & buffer : getFunction()->getUserPointers()) {
+			destpt.insert(buffer);
+		}
+		if (!pt.contains("kernel")) {
+			pt.erase("kernel");
+		}
+	}
+	if (!pt.isProvablyKernel()) {
+		llvm::errs() << "WARNING: Direct load from user pointer: " << srcValue->getName() << "\n";
+	}
+}
+
+bool LoadValue::isSkip() {
+	return false;
 }
 
 class StoreValue : public InstructionValue {
@@ -111,6 +124,7 @@ protected:
 public:
 	StoreValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual void update(AbstractState & state);
+	virtual bool isSkip();
 };
 
 llvm::StoreInst * StoreValue::asStoreInst() {
@@ -122,6 +136,13 @@ void StoreValue::update(AbstractState & state) {
 	Value * destValue = factory->getValue(dest);
 	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[destValue->getName()];
 	pt.erase("null");
+	if (!pt.isProvablyKernel()) {
+		llvm::errs() << "WARNING: Direct store to user pointer: " << destValue->getName() << "\n";
+	}
+}
+
+bool StoreValue::isSkip() {
+	return false;
 }
 
 class GepValue : public InstructionValue {
@@ -1440,10 +1461,19 @@ protected:
 	llvm::UnaryInstruction * asUnaryInstruction();
 public:
 	UnaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual Value * getOperandValue();
 };
 
 llvm::UnaryInstruction * UnaryOperationValue::asUnaryInstruction() {
 	return &llvm::cast<llvm::UnaryInstruction>(*m_value);
+}
+
+Value * UnaryOperationValue::getOperandValue() {
+	llvm::UnaryInstruction * inst = asUnaryInstruction();
+	llvm::Value * operand = inst->getOperand(0);
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * value = factory->getValue(operand);
+	return value;
 }
 
 class CastOperationValue : public UnaryOperationValue {
@@ -1453,13 +1483,11 @@ public:
 	CastOperationValue(llvm::Value * value) : UnaryOperationValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip();
+	virtual void update(AbstractState & state);
 };
 
 std::string CastOperationValue::getValueString() {
-	llvm::UnaryInstruction * inst = asUnaryInstruction();
-	llvm::Value * operand = inst->getOperand(0);
-	ValueFactory * factory = ValueFactory::getInstance();
-	Value * value = factory->getValue(operand);
+	Value * value = getOperandValue();
 	std::ostringstream oss;
 	oss << "cast(";
 	appendValueName(oss, value, "<value unknown>");
@@ -1472,11 +1500,17 @@ bool CastOperationValue::isSkip() {
 }
 
 ap_texpr1_t * CastOperationValue::createRHSTreeExpression(AbstractState & state) {
-	llvm::UnaryInstruction * inst = asUnaryInstruction();
-	llvm::Value * operand = inst->getOperand(0);
-	ValueFactory * factory = ValueFactory::getInstance();
-	Value * value = factory->getValue(operand);
+	Value * value = getOperandValue();
 	return value->createTreeExpression(getBasicBlock()->getAbstractState());
+}
+
+void CastOperationValue::update(AbstractState & state) {
+	if (isPointer()) {
+		MPTAbstractState & mpt = state.m_mayPointsTo;
+		Value * src = getOperandValue();
+		mpt.m_mayPointsTo[getName()] = mpt.m_mayPointsTo[src->getName()];
+	}
+	UnaryOperationValue::update(state);
 }
 
 class BranchInstructionValue : public TerminatorInstructionValue {

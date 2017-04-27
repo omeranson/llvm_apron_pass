@@ -53,6 +53,10 @@ bool MPTItemAbstractState::isProvablyNull() const {
 	return (m_buffers.size() == 1) && (m_buffers.count("null") == 1);
 }
 
+bool MPTItemAbstractState::isProvablyKernel() const {
+	return (m_buffers.size() == 1) && (m_buffers.count("kernel") == 1);
+}
+
 bool MPTItemAbstractState::empty() const {
 	return m_buffers.empty();
 }
