@@ -298,6 +298,14 @@ Function * InstructionValue::getFunction() {
 	return getBasicBlock()->getFunction();
 }
 
+Value * InstructionValue::getOperandValue(int idx) {
+	llvm::Instruction * inst = asInstruction();
+	llvm::Value * operand = inst->getOperand(idx);
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * value = factory->getValue(operand);
+	return value;
+}
+
 bool TerminatorInstructionValue::isSkip() {
 	return true;
 }
@@ -1461,19 +1469,10 @@ protected:
 	llvm::UnaryInstruction * asUnaryInstruction();
 public:
 	UnaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
-	virtual Value * getOperandValue();
 };
 
 llvm::UnaryInstruction * UnaryOperationValue::asUnaryInstruction() {
 	return &llvm::cast<llvm::UnaryInstruction>(*m_value);
-}
-
-Value * UnaryOperationValue::getOperandValue() {
-	llvm::UnaryInstruction * inst = asUnaryInstruction();
-	llvm::Value * operand = inst->getOperand(0);
-	ValueFactory * factory = ValueFactory::getInstance();
-	Value * value = factory->getValue(operand);
-	return value;
 }
 
 class CastOperationValue : public UnaryOperationValue {
@@ -1487,7 +1486,7 @@ public:
 };
 
 std::string CastOperationValue::getValueString() {
-	Value * value = getOperandValue();
+	Value * value = getOperandValue(0);
 	std::ostringstream oss;
 	oss << "cast(";
 	appendValueName(oss, value, "<value unknown>");
@@ -1500,14 +1499,14 @@ bool CastOperationValue::isSkip() {
 }
 
 ap_texpr1_t * CastOperationValue::createRHSTreeExpression(AbstractState & state) {
-	Value * value = getOperandValue();
+	Value * value = getOperandValue(0);
 	return value->createTreeExpression(getBasicBlock()->getAbstractState());
 }
 
 void CastOperationValue::update(AbstractState & state) {
 	if (isPointer()) {
 		MPTAbstractState & mpt = state.m_mayPointsTo;
-		Value * src = getOperandValue();
+		Value * src = getOperandValue(0);
 		mpt.m_mayPointsTo[getName()] = mpt.m_mayPointsTo[src->getName()];
 	}
 	UnaryOperationValue::update(state);
@@ -1532,6 +1531,13 @@ protected:
 
 	virtual void removeNullIfOtherIsProvablyNull(
 		MPTItemAbstractState & left, MPTItemAbstractState & right);
+
+	virtual constraint_condition_t getConditionTypeForBasicBlock(
+			CompareValue * cmpValue, BasicBlock * dest);
+	virtual void meetWithConditionForBasicBlock(
+			AbstractState & state, BasicBlock * dest);
+	virtual void meetMayPointsToByAssumption(AbstractState & state,
+			constraint_condition_t condType, Value * left, Value * right);
 public:
 	BranchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
@@ -1573,6 +1579,51 @@ ap_tcons1_t BranchInstructionValue::getConditionForBasicBlock(BasicBlock * basic
 	abort();
 }
 
+constraint_condition_t BranchInstructionValue::getConditionTypeForBasicBlock(CompareValue * cmpValue, BasicBlock * dest) {
+	if (isThenSuccessor(dest)) {
+		return cmpValue->getConditionType();
+	} else {
+		return cmpValue->getNegatedConditionType();
+	}
+}
+
+void BranchInstructionValue::meetWithConditionForBasicBlock(AbstractState & state, BasicBlock * dest) {
+	// Update the APRON abstract value with the branch's condition
+	ap_tcons1_t condition = getConditionForBasicBlock(dest, state);
+	state.m_apronAbstractState.meet(condition);
+}
+
+void BranchInstructionValue::meetMayPointsToByAssumption(AbstractState & state,
+		constraint_condition_t condType, Value * left, Value * right) {
+	MPTItemAbstractState & pt_left = state.m_mayPointsTo.m_mayPointsTo[left->getName()];
+	MPTItemAbstractState & pt_right = state.m_mayPointsTo.m_mayPointsTo[right->getName()];
+	switch (condType) {
+	cons_cond_eq: {
+		// Equality
+		MPTItemAbstractState::updateToIntersection(pt_left, pt_right);
+		if (pt_left.empty()) {
+			state.makeBottom();
+		}
+		break;
+	}
+	default: {
+		// Inequality
+		// Remove null from each operand, if the other operand is provably null
+		removeNullIfOtherIsProvablyNull(pt_left, pt_right);
+		if (pt_left.empty()) {
+			state.makeBottom();
+			break;
+		}
+		removeNullIfOtherIsProvablyNull(pt_right, pt_left);
+		if (pt_right.empty()) {
+			state.makeBottom();
+			break;
+		}
+		break;
+	}
+	}
+}
+
 void BranchInstructionValue::updateAssumptions(
 		BasicBlock * source, BasicBlock * dest, AbstractState & state) {
 	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
@@ -1584,62 +1635,25 @@ void BranchInstructionValue::updateAssumptions(
 	// 2. If the branch's condition is (in)equality between pointers:
 	// 2.a. Update the mpt of both pointers to be their intersection
 	// 1
-	ap_tcons1_t condition = getConditionForBasicBlock(dest, state);
-	state.m_apronAbstractState.meet(condition);
+	meetWithConditionForBasicBlock(state, dest);
 
 	// 2
 	llvm::Value * llvmcondition = branchInst->getCondition();
-	if (llvm::ICmpInst * cmpInst = llvm::dyn_cast<llvm::ICmpInst>(llvmcondition)) {
-		ValueFactory * factory = ValueFactory::getInstance();
-		llvm::Value * condOperand0 = cmpInst->getOperand(0);
-		Value * condOperand0Value = factory->getValue(condOperand0);
-		if (!condOperand0Value->isPointer()) {
-			return;
-		}
-		// 2.a
-		llvm::Value * condOperand1 = cmpInst->getOperand(1);
-		Value * condOperand1Value = factory->getValue(condOperand1);
-		assert(condOperand1Value->isPointer() && "Pointer and non-pointer comparison");
-		CompareValue * cmpValue = static_cast<CompareValue*>(factory->getValue(cmpInst));
-		constraint_condition_t condType = cmpValue->getConditionType();
-		if (isThenSuccessor(dest)) {
-			condType = cmpValue->getConditionType();
-		} else {
-			condType = cmpValue->getNegatedConditionType();
-		}
-		MPTItemAbstractState & pt_left = state.m_mayPointsTo.m_mayPointsTo[condOperand0Value->getName()];
-		MPTItemAbstractState & pt_right = state.m_mayPointsTo.m_mayPointsTo[condOperand1Value->getName()];
-		// XXX(oanson) Check if one of the operands is null
-		switch (condType) {
-		cons_cond_eq: {
-			// Equality
-			MPTItemAbstractState::updateToIntersection(pt_left, pt_right);
-			if (pt_left.empty()) {
-				state.makeBottom();
-			}
-			break;
-		}
-		default: {
-			// Inequality
-			// Remove null from each operand, if the other operand is provably null
-			if (!llvm::isa<llvm::ConstantPointerNull>(condOperand0)) {
-				removeNullIfOtherIsProvablyNull(pt_left, pt_right);
-				if (pt_left.empty()) {
-					state.makeBottom();
-					break;
-				}
-			}
-			if (!llvm::isa<llvm::ConstantPointerNull>(condOperand1)) {
-				removeNullIfOtherIsProvablyNull(pt_right, pt_left);
-				if (pt_right.empty()) {
-					state.makeBottom();
-					break;
-				}
-			}
-			break;
-		}
-		}
+	llvm::ICmpInst * cmpInst = llvm::dyn_cast<llvm::ICmpInst>(llvmcondition);
+	if (!cmpInst) {
+		return;
 	}
+	ValueFactory * factory = ValueFactory::getInstance();
+	CompareValue * cmpValue = static_cast<CompareValue*>(factory->getValue(cmpInst));
+	Value * condOperand0Value = cmpValue->getOperandValue(0);
+	if (!condOperand0Value->isPointer()) {
+		return;
+	}
+	Value * condOperand1Value = cmpValue->getOperandValue(0);
+	assert(condOperand1Value->isPointer() && "Pointer and non-pointer comparison");
+	// 2.a
+	constraint_condition_t condType = getConditionTypeForBasicBlock(cmpValue, dest);
+	meetMayPointsToByAssumption(state, condType, condOperand0Value, condOperand1Value);
 }
 
 // TODO(oanson) Code copied from SelectValueInstruction
