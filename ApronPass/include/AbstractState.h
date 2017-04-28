@@ -42,6 +42,14 @@ struct ImportIovecCall {
 			op(op), iovec_name(iovec_name), iovec_len_name(iovec_len_name) {}
 	ImportIovecCall(user_pointer_operation_e op, const std::string * iovec_name, const std::string * iovec_len_name) :
 			op(op), iovec_name(*iovec_name), iovec_len_name(*iovec_len_name) {}
+	bool operator==(const ImportIovecCall & other) const {
+		return ((op == other.op) &&
+				(iovec_name == other.iovec_name) &&
+				(iovec_len_name == other.iovec_len_name));
+	}
+	bool operator!=(const ImportIovecCall & other) const {
+		return !(*this == other);
+	}
 };
 
 struct CopyMsghdrFromUserCall {
@@ -51,6 +59,13 @@ struct CopyMsghdrFromUserCall {
 			op(op), msghdr_name(msghdr_name) {}
 	CopyMsghdrFromUserCall(user_pointer_operation_e op, const std::string * msghdr_name) :
 			op(op), msghdr_name(*msghdr_name) {}
+	bool operator==(const CopyMsghdrFromUserCall & other) const {
+		return ((op == other.op) &&
+				(msghdr_name == other.msghdr_name));
+	}
+	bool operator!=(const CopyMsghdrFromUserCall & other) const {
+		return !(*this == other);
+	}
 	ImportIovecCall asImportIovecCall() const {
 		std::string iovec_name;
 		llvm::raw_string_ostream iovec_name_rso(iovec_name);

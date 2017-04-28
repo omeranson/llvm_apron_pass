@@ -31,6 +31,28 @@ AbstractState::AbstractState() : m_apronAbstractState(ApronAbstractState::bottom
 	m_mayPointsTo.m_mayPointsTo["null"].insert("null");
 }
 
+template <class T>
+bool inVector(const std::vector<T> & v, const T & item) {
+	for (const T & t : v) {
+		if (t == item) {
+			return true;
+		}
+	}
+	return false;
+}
+
+template <class T>
+bool joinVectors(std::vector<T> & dest, const std::vector<T> & src) {
+	bool isChanged = false;
+	for (const T & item : src) {
+		if (!inVector(dest, item)) {
+			dest.push_back(item);
+			isChanged = true;
+		}
+	}
+	return isChanged;
+}
+
 // This is the constructor used for the root abstract state - which is Top,
 // and not Bottom
 AbstractState::AbstractState(std::vector<std::string> & userBuffers) :
@@ -124,7 +146,8 @@ bool AbstractState::join(AbstractState &other)
 	// Join (Apron) analysis of integers
 	isChanged = m_apronAbstractState.join(other.m_apronAbstractState) || isChanged;
 	// Join (Apron) analysis of (user) read/write/last0 pointers
-	// TODO(oanson) TBD
+	isChanged = joinVectors(m_importedIovecCalls, other.m_importedIovecCalls) || isChanged;
+	isChanged = joinVectors(m_copyMsghdrFromUserCalls, other.m_copyMsghdrFromUserCalls) || isChanged;
 	return isChanged;
 }
 
