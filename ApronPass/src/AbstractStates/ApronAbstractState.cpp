@@ -87,6 +87,21 @@ bool ApronAbstractState::join(const ApronAbstractState & other) {
 }
 
 bool ApronAbstractState::meet(const ApronAbstractState & other) {
+	if (isBottom()) {
+		return false;
+	}
+	if (other.isTop()) {
+		return false;
+	}
+	if (other.isBottom()) {
+		m_abstract1 = other.m_abstract1;
+		return true;
+	}
+	if (isTop()) {
+		// other is *not* top
+		m_abstract1 = other.m_abstract1;
+		return true;
+	}
 	ap_abstract1_t prev = m_abstract1;
 	ap_abstract1_t this_abst = m_abstract1;
 	ap_abstract1_t other_abst = other.m_abstract1;

@@ -9,6 +9,7 @@
 /*************************/
 /* PROJECT INCLUDE FILES */
 /*************************/
+#include <APStream.h>
 #include <AbstractState.h>
 #include <Function.h>
 #include <Value.h>
@@ -1022,6 +1023,7 @@ void CallValue::populateTreeConstraintsForStrncpyFromUser(std::list<ap_tcons1_t>
 
 class LogicalBinaryOperationValue : public BinaryOperationValue {
 protected:
+	virtual ap_texpr_op_t getTreeOperation() { abort(); /* Can't be done */ }
 public:
 	LogicalBinaryOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 	virtual bool isSkip();
@@ -1344,6 +1346,56 @@ void IntegerCompareValue::updateConditionalAssumptions(AbstractState & state, bo
 			isNegated ? getNegatedConditionType() : getConditionType();
 	updateNumericalAssumptions(state, consCond);
 	updateMayPointsToAssumptions(state, consCond);
+}
+
+class OrOperationValue : public LogicalBinaryOperationValue {
+protected:
+	virtual std::string getOperationSymbol() { return "or"; }
+	virtual void updateConditionalAssumptionsPositive(AbstractState & state);
+	virtual void updateConditionalAssumptionsNegative(AbstractState & state);
+public:
+	OrOperationValue(llvm::Value * value) : LogicalBinaryOperationValue(value) {}
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false);
+};
+
+void OrOperationValue::updateConditionalAssumptionsPositive(AbstractState & state) {
+	AbstractState joined; // = AbstractState::bottom();
+	for (int idx = 0; idx < asInstruction()->getNumOperands(); idx++) {
+		Value * operand = getOperandValue(idx);
+		LogicalBinaryOperationValue * lbov = static_cast<LogicalBinaryOperationValue*>(
+				operand);
+		AbstractState clone = state;
+		lbov->updateConditionalAssumptions(clone, false);
+		joined.join(clone);
+	}
+	// XXX Not implemented: state.meet(joined);
+	state.m_apronAbstractState.meet(joined.m_apronAbstractState);
+}
+
+void OrOperationValue::updateConditionalAssumptionsNegative(AbstractState & state) {
+	for (int idx = 0; idx < asInstruction()->getNumOperands(); idx++) {
+		Value * operand = getOperandValue(idx);
+		LogicalBinaryOperationValue * lbov = static_cast<LogicalBinaryOperationValue*>(
+				operand);
+		lbov->updateConditionalAssumptions(state, true);
+	}
+}
+
+void OrOperationValue::updateConditionalAssumptions(AbstractState & state, bool isNegated) {
+	// if isNegated is false:
+	// 	For each item in the or:
+	// 		Clone AbstractState
+	//		updateConditionalAssumptions(clone, false)
+	//	Join all clones
+	//	state.meet(result)
+	// else:
+	// 	For each item in the or:
+	//		updateConditionalAssumptions(state, true)
+	if (!isNegated) {
+		updateConditionalAssumptionsPositive(state);
+	} else {
+		updateConditionalAssumptionsNegative(state);
+	}
 }
 
 class PhiValue : public InstructionValue {
@@ -1809,8 +1861,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	// Logical operators...
 	//case llvm::BinaryOperator::And:
 	//	return new AndOperationValue(instruction);
-	//case llvm::BinaryOperator::Or :
-	//	return new OrOperationValue(instruction);
+	case llvm::BinaryOperator::Or :
+		return new OrOperationValue(instruction);
 	//case llvm::BinaryOperator::Xor:
 
 	// Memory instructions...
