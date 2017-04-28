@@ -1274,16 +1274,12 @@ protected:
 			constraint_condition_t consCond);
 	virtual ap_tcons1_t getConditionTrueTcons(AbstractState & state);
 	virtual ap_tcons1_t getConditionFalseTcons(AbstractState & state);
-	virtual ap_tcons1_t getSetValueTcons(Value * value);
-	virtual ap_tcons1_t getSetTrueValueTcons();
-	virtual ap_tcons1_t getSetFalseValueTcons();
 
 public:
 	SelectValueInstruction(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
-	virtual void populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints);
 	virtual bool isSkip();
+	virtual void update(AbstractState & state);
 };
 
 llvm::SelectInst * SelectValueInstruction::asSelectInst() {
@@ -1392,72 +1388,32 @@ ap_tcons1_t SelectValueInstruction::getConditionFalseTcons(AbstractState & state
 	return getConditionTcons(state, compareValue->getNegatedConditionType());
 }
 
-ap_tcons1_t SelectValueInstruction::getSetValueTcons(Value * value) {
-	BasicBlock * basicBlock = getBasicBlock();
-	return Value::getSetValueTcons(basicBlock, value);
-}
+void SelectValueInstruction::update(AbstractState & state) {
+	// Take original state.
+	// Clone it. (True case)
+	// 	Meet with true assume
+	// 	Assign True value
+	// Clone it. (False case)
+	// 	Meet with False assume
+	// 	Assign False value
+	// Join clones
+	// Meet original state with clones
+	ApronAbstractState trueState = state.m_apronAbstractState;
+	ap_tcons1_t trueCond = getConditionTrueTcons(state);
+	trueState.meet(trueCond);
+	trueState.finish_meet_aggregate();
+	ap_texpr1_t * trueTexpr = trueState.asTexpr(getTrueValue()->getName());
+	trueState.assign(getName(), trueTexpr);
 
-ap_tcons1_t SelectValueInstruction::getSetTrueValueTcons() {
-	return getSetValueTcons(getTrueValue());
-}
+	ApronAbstractState falseState = state.m_apronAbstractState;
+	ap_tcons1_t falseCond = getConditionFalseTcons(state);
+	falseState.meet(falseCond);
+	falseState.finish_meet_aggregate();
+	ap_texpr1_t * falseTexpr = falseState.asTexpr(getFalseValue()->getName());
+	falseState.assign(getName(), falseTexpr);
 
-ap_tcons1_t SelectValueInstruction::getSetFalseValueTcons() {
-	return getSetValueTcons(getFalseValue());
-}
-
-void SelectValueInstruction::populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints) {
-	/*
-	The command is %4 <- select %1, %2, %3
-	We have all the information (it is in the list<ap_tcons1_t>). What if we
-	do the following?:
-		arr1 <- Create a constraint array
-		arr2 <- clone it
-
-		arr1.append(%1)
-		arr1.append(%2 - %4 = 0)
-
-		arr2.append(!%1)
-		arr2.append(%3 - %4 = 0)
-
-		abst_val1 <- from arr 1
-		abst_val2 <- from arr 2
-		abst_val = join(abst_val1, abst_val2)
-		arr <- abst_val to list of constraints
-	*/
-	// Creates copies of the constraints.
-	std::list<ap_tcons1_t> constraintsTrue = constraints;
-	std::list<ap_tcons1_t> constraintsFalse = constraints;
-
-	BasicBlock * basicBlock = getBasicBlock();
-	AbstractState & state = basicBlock->getAbstractState();
-	ap_tcons1_t conditionTrue = getConditionTrueTcons(state);
-	ap_tcons1_t setTrueValue = getSetTrueValueTcons();
-	ap_tcons1_t conditionFalse = getConditionFalseTcons(state);
-	ap_tcons1_t setFalseValue = getSetFalseValueTcons();
-
-	constraintsTrue.push_back(conditionTrue);
-	constraintsTrue.push_back(setTrueValue);
-
-	constraintsFalse.push_back(conditionFalse);
-	constraintsFalse.push_back(setFalseValue);
-
-	ap_abstract1_t abstValueTrue =
-			basicBlock->abstractOfTconsList(constraintsTrue);
-	ap_abstract1_t abstValueFalse =
-			basicBlock->abstractOfTconsList(constraintsFalse);
-
-	ap_abstract1_t joinedValue = ap_abstract1_join(basicBlock->getManager(),
-			false, &abstValueTrue, &abstValueFalse);
-
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
-			basicBlock->getManager(), &joinedValue);
-
-	size_t arraySize = ap_tcons1_array_size(&array);
-	for (int idx = 0; idx < arraySize; idx++) {
-		ap_tcons1_t constraint = ap_tcons1_array_get(&array, idx);
-		constraints.push_back(constraint);
-	}
+	trueState.join(falseState);
+	state.m_apronAbstractState.meet(trueState);
 }
 
 bool SelectValueInstruction::isSkip() {
@@ -1825,22 +1781,6 @@ bool Value::isSkip() {
 
 ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
 	return state.m_apronAbstractState.asTexpr(getName());
-}
-
-ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	AbstractState & state = basicBlock->getAbstractState();
-	ap_texpr1_t * var_texpr = createTreeExpression(state);
-	ap_texpr1_t * value_texpr = other->createTreeExpression(state);
-	// Verify the environments are up-to-date
-	basicBlock->extendTexprEnvironment(var_texpr);
-	basicBlock->extendTexprEnvironment(value_texpr);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
-	return result;
 }
 
 ap_tcons1_t Value::getValueEq0Tcons(BasicBlock * basicBlock) {

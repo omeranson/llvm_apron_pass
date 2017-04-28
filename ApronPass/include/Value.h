@@ -48,8 +48,6 @@ public:
 	virtual bool isPointer();
 
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
-	virtual ap_tcons1_t getSetValueTcons(
-			BasicBlock * basicBlock, Value * other);
 	virtual ap_tcons1_t getValueEq0Tcons(
 			BasicBlock * basicBlock);
 	virtual void havoc(AbstractState & state);

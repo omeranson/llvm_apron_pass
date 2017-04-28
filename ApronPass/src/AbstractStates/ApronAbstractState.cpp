@@ -9,6 +9,22 @@
 
 extern ap_manager_t * apron_manager;
 
+// In place
+void changeToLeastCommonEnv(ap_abstract1_t & a1, ap_abstract1_t & a2, bool isBottom) {
+	ap_dimchange_t * dimchange1 = NULL;
+	ap_dimchange_t * dimchange2 = NULL;
+	ap_environment_t * environment = ap_environment_lce(
+			ap_abstract1_environment(apron_manager, &a1),
+			ap_abstract1_environment(apron_manager, &a2),
+			&dimchange1, &dimchange2);
+
+	a1 = ap_abstract1_change_environment(
+			apron_manager, false, &a1, environment, isBottom);
+	a2 = ap_abstract1_change_environment(
+			apron_manager, false, &a2, environment, isBottom);
+}
+
+
 ApronAbstractState::ApronAbstractState(const ap_abstract1_t & abst) :
 		m_abstract1(abst) {}
 
@@ -54,20 +70,10 @@ bool ApronAbstractState::join(const ApronAbstractState & other) {
 		m_abstract1 = other.m_abstract1;
 		return true;
 	}
-	ap_dimchange_t * dimchange1 = NULL;
-	ap_dimchange_t * dimchange2 = NULL;
 	ap_abstract1_t prev = m_abstract1;
-	ap_abstract1_t other_abstract1 = other.m_abstract1;
-	ap_environment_t * environment = ap_environment_lce(
-			ap_abstract1_environment(apron_manager, &m_abstract1),
-			ap_abstract1_environment(apron_manager, &other_abstract1),
-			&dimchange1, &dimchange2);
-	
-	ap_abstract1_t this_abst = ap_abstract1_change_environment(
-			apron_manager, false, &m_abstract1, environment, true);
-	ap_abstract1_t other_abst = ap_abstract1_change_environment(
-			apron_manager, false,
-			&other_abstract1, environment, true);
+	ap_abstract1_t this_abst = m_abstract1;
+	ap_abstract1_t other_abst = other.m_abstract1;
+	changeToLeastCommonEnv(this_abst, other_abst, true);
 
 	if ((joinCount % m_wideningThreshold) == 0) {
 		llvm::errs() << "Widening:\n";
@@ -77,6 +83,16 @@ bool ApronAbstractState::join(const ApronAbstractState & other) {
 		m_abstract1 = ap_abstract1_join(apron_manager, false,
 				&this_abst, &other_abst);
 	}
+	return (*this != prev);
+}
+
+bool ApronAbstractState::meet(const ApronAbstractState & other) {
+	ap_abstract1_t prev = m_abstract1;
+	ap_abstract1_t this_abst = m_abstract1;
+	ap_abstract1_t other_abst = other.m_abstract1;
+	changeToLeastCommonEnv(this_abst, other_abst, true);
+	m_abstract1 = ap_abstract1_meet(apron_manager, false,
+			&this_abst, &other_abst);
 	return (*this != prev);
 }
 

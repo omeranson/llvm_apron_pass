@@ -36,6 +36,7 @@ public:
 	// Modification
 	virtual bool join(const ApronAbstractState & other);
 	virtual bool join(const std::vector<ApronAbstractState> & others);
+	virtual bool meet(const ApronAbstractState & other);
 	virtual void assign(const std::string & var, ap_texpr1_t * value);
 	virtual void extend(const std::string & var, bool isBottom=false);
 	virtual void forget(const std::string & var, bool isBottom=false);
