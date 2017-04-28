@@ -1020,13 +1020,26 @@ void CallValue::populateTreeConstraintsForStrncpyFromUser(std::list<ap_tcons1_t>
 	populateTreeConstraintsForCopyFromUser(constraints);
 }
 
-class CompareValue : public BinaryOperationValue {
+class LogicalBinaryOperationValue : public BinaryOperationValue {
+protected:
 public:
-	CompareValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	LogicalBinaryOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	virtual bool isSkip();
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false) = 0;
+};
+
+bool LogicalBinaryOperationValue::isSkip() {
+	return true;
+}
+
+class CompareValue : public LogicalBinaryOperationValue {
+public:
+	CompareValue(llvm::Value * value) : LogicalBinaryOperationValue(value) {}
 	// TODO These probably work differently
 	virtual ap_texpr_op_t getTreeOperation()  { abort(); }
 	virtual constraint_condition_t getConditionType() = 0;
 	virtual constraint_condition_t getNegatedConditionType() = 0;
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false) = 0;
 };
 
 class IntegerCompareValue : public CompareValue {
@@ -1034,11 +1047,25 @@ protected:
 	virtual llvm::ICmpInst * asICmpInst();
 	virtual std::string getPredicateString();
 	virtual std::string getOperationSymbol();
+	virtual bool isConstraintConditionToAPNeedsReverse(
+			constraint_condition_t consCond);
+	virtual ap_constyp_t constraintConditionToAPConsType(
+			constraint_condition_t consCond);
+	virtual ap_tcons1_t getConditionTcons(AbstractState & state,
+			constraint_condition_t consCond);
+	virtual void updateNumericalAssumptions(AbstractState & state,
+			constraint_condition_t consCond);
+	virtual void updateMayPointsToAssumptions(AbstractState & state,
+			constraint_condition_t consCond);
+	virtual void removeNullIfOtherIsProvablyNull(
+			MPTItemAbstractState & left, MPTItemAbstractState & right);
+	virtual void meetMayPointsToByAssumption(AbstractState & state,
+		constraint_condition_t condType, Value * left, Value * right);
 public:
 	IntegerCompareValue(llvm::Value * value) : CompareValue(value) {}
-	virtual bool isSkip();
 	virtual constraint_condition_t getConditionType();
 	virtual constraint_condition_t getNegatedConditionType();
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false);
 };
 
 llvm::ICmpInst * IntegerCompareValue::asICmpInst() {
@@ -1187,8 +1214,136 @@ std::string IntegerCompareValue::getOperationSymbol() {
 	return getPredicateString();
 }
 
-bool IntegerCompareValue::isSkip() {
-	return true;
+bool IntegerCompareValue::isConstraintConditionToAPNeedsReverse(
+		constraint_condition_t consCond) {
+	switch (consCond) {
+	case cons_cond_lt:
+	case cons_cond_le:
+		return true;
+	default:
+		return false;
+	}
+}
+
+ap_constyp_t IntegerCompareValue::constraintConditionToAPConsType(
+		constraint_condition_t consCond) {
+	switch (consCond) {
+	case cons_cond_eq:
+		return AP_CONS_EQ;
+	case cons_cond_eqmod:
+		return AP_CONS_EQMOD;
+	case cons_cond_neq:
+		return AP_CONS_DISEQ;
+	case cons_cond_gt:
+		return AP_CONS_SUP;
+	case cons_cond_ge:
+		return AP_CONS_SUPEQ;
+	case cons_cond_lt:
+		return AP_CONS_SUP;
+	case cons_cond_le:
+		return AP_CONS_SUPEQ;
+	case cons_cond_true:
+		llvm::errs() << "IntegerCompareValue::constraintConditionToAPConsType: Constant condition true\n";
+		abort();
+	case cons_cond_false:
+		llvm::errs() << "IntegerCompareValue::constraintConditionToAPConsType: Constant condition false\n";
+		abort();
+	default:
+		llvm::errs() << "IntegerCompareValue::constraintConditionToAPConsType: Constant condition unknown: " << consCond << "\n";
+		abort();
+	}
+}
+
+ap_tcons1_t IntegerCompareValue::getConditionTcons(AbstractState & state,
+		constraint_condition_t consCond) {
+	// TODO definitely make into a global
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
+	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
+	ap_texpr1_t * left = createOperandTreeExpression(state, 0);
+	ap_texpr1_t * right = createOperandTreeExpression(state, 1);
+	ap_texpr1_t * texpr ;
+	state.m_apronAbstractState.extendEnvironment(left);
+	state.m_apronAbstractState.extendEnvironment(right);
+	if (reverse) {
+		texpr = ap_texpr1_binop(
+				AP_TEXPR_SUB, right, left,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	} else {
+		texpr = ap_texpr1_binop(
+				AP_TEXPR_SUB, left, right,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	}
+	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
+	return result;
+}
+
+void IntegerCompareValue::updateNumericalAssumptions(AbstractState & state,
+		constraint_condition_t consCond) {
+	ap_tcons1_t cons = getConditionTcons(state, consCond);
+	state.m_apronAbstractState.meet(cons);
+}
+
+void IntegerCompareValue::updateMayPointsToAssumptions(AbstractState & state,
+		constraint_condition_t consCond) {
+	Value * condOperand0Value = getOperandValue(0);
+	if (!condOperand0Value->isPointer()) {
+		return;
+	}
+	Value * condOperand1Value = getOperandValue(1);
+	assert(condOperand1Value->isPointer() && "Pointer and non-pointer comparison");
+
+	meetMayPointsToByAssumption(state, consCond, condOperand0Value, condOperand1Value);
+}
+
+void IntegerCompareValue::removeNullIfOtherIsProvablyNull(
+		MPTItemAbstractState & left, MPTItemAbstractState & right) {
+	if (right.isProvablyNull()) {
+		// TODO If left is provably null, make bottom
+		left.erase("null");
+	}
+}
+
+void IntegerCompareValue::meetMayPointsToByAssumption(AbstractState & state,
+		constraint_condition_t condType, Value * left, Value * right) {
+	MPTItemAbstractState & pt_left = state.m_mayPointsTo.m_mayPointsTo[left->getName()];
+	MPTItemAbstractState & pt_right = state.m_mayPointsTo.m_mayPointsTo[right->getName()];
+	switch (condType) {
+	cons_cond_eq: {
+		// Equality
+		MPTItemAbstractState::updateToIntersection(pt_left, pt_right);
+		if (pt_left.empty()) {
+			state.makeBottom();
+		}
+		break;
+	}
+	default: {
+		// Inequality
+		// Remove null from each operand, if the other operand is provably null
+		removeNullIfOtherIsProvablyNull(pt_left, pt_right);
+		if (pt_left.empty()) {
+			state.makeBottom();
+			break;
+		}
+		removeNullIfOtherIsProvablyNull(pt_right, pt_left);
+		if (pt_right.empty()) {
+			state.makeBottom();
+			break;
+		}
+		break;
+	}
+	}
+}
+
+void IntegerCompareValue::updateConditionalAssumptions(AbstractState & state, bool isNegated) {
+	// 1. Update the APRON abstract value with the branch's condition
+	// 2. If the branch's condition is (in)equality between pointers:
+	// 2.a. Update the mpt of both pointers to be their intersection
+	constraint_condition_t consCond =
+			isNegated ? getNegatedConditionType() : getConditionType();
+	updateNumericalAssumptions(state, consCond);
+	updateMayPointsToAssumptions(state, consCond);
 }
 
 class PhiValue : public InstructionValue {
@@ -1259,7 +1414,22 @@ void PhiValue::updateAssumptions(BasicBlock * source, BasicBlock * dest, Abstrac
 	}
 }
 
-class SelectValueInstruction : public InstructionValue {
+template <class ConditionalInst>
+class ConditionalMixin {
+public:
+	LogicalBinaryOperationValue & getCondition(llvm::Value * m_value) {
+		ConditionalInst * llvmConditional = llvm::dyn_cast<ConditionalInst>(m_value);
+		assert(llvmConditional);
+		llvm::Value * condition = llvmConditional->getCondition();
+		ValueFactory * factory = ValueFactory::getInstance();
+		Value * conditionValue = factory->getValue(condition);
+		LogicalBinaryOperationValue * result =
+				static_cast<LogicalBinaryOperationValue*>(conditionValue);
+		return *result;
+	}
+};
+
+class SelectValueInstruction : public InstructionValue, public ConditionalMixin<llvm::SelectInst> {
 protected:
 	virtual llvm::SelectInst * asSelectInst();
 	virtual Value * getCondition();
@@ -1468,43 +1638,16 @@ void CastOperationValue::update(AbstractState & state) {
 	UnaryOperationValue::update(state);
 }
 
-class BranchInstructionValue : public TerminatorInstructionValue {
+class BranchInstructionValue : public TerminatorInstructionValue, public ConditionalMixin<llvm::BranchInst> {
 protected:
-	virtual Value * getCondition();
-	virtual ap_tcons1_t getConditionTcons(AbstractState & state,
-			constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTrueTcons(AbstractState & state);
-	virtual ap_tcons1_t getConditionFalseTcons(AbstractState & state);
-	virtual ap_constyp_t constraintConditionToAPConsType(
-			constraint_condition_t consCond);
-	virtual bool isConstraintConditionToAPNeedsReverse(
-			constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionForBasicBlock(BasicBlock * basicBlock,
-			AbstractState & state);
 	virtual bool isSuccessorByIndex(BasicBlock * basicBlock, int idx);
 	virtual bool isElseSuccessor(BasicBlock * basicBlock);
 	virtual bool isThenSuccessor(BasicBlock * basicBlock);
 
-	virtual void removeNullIfOtherIsProvablyNull(
-		MPTItemAbstractState & left, MPTItemAbstractState & right);
-
-	virtual constraint_condition_t getConditionTypeForBasicBlock(
-			CompareValue * cmpValue, BasicBlock * dest);
-	virtual void meetWithConditionForBasicBlock(
-			AbstractState & state, BasicBlock * dest);
-	virtual void meetMayPointsToByAssumption(AbstractState & state,
-			constraint_condition_t condType, Value * left, Value * right);
 public:
 	BranchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 };
-
-void BranchInstructionValue::removeNullIfOtherIsProvablyNull(
-		MPTItemAbstractState & left, MPTItemAbstractState & right) {
-	if (right.isProvablyNull()) {
-		left.erase("null");
-	}
-}
 
 bool BranchInstructionValue::isSuccessorByIndex(BasicBlock * basicBlock, int idx) {
 	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
@@ -1522,64 +1665,6 @@ bool BranchInstructionValue::isElseSuccessor(BasicBlock * basicBlock) {
 	return isSuccessorByIndex(basicBlock, 1);
 }
 
-ap_tcons1_t BranchInstructionValue::getConditionForBasicBlock(BasicBlock * basicBlock,
-		AbstractState & state) {
-	if (isThenSuccessor(basicBlock)) {
-		return getConditionTrueTcons(state);
-	}
-
-	if (isElseSuccessor(basicBlock)) {
-		return getConditionFalseTcons(state);
-	}
-
-	abort();
-}
-
-constraint_condition_t BranchInstructionValue::getConditionTypeForBasicBlock(CompareValue * cmpValue, BasicBlock * dest) {
-	if (isThenSuccessor(dest)) {
-		return cmpValue->getConditionType();
-	} else {
-		return cmpValue->getNegatedConditionType();
-	}
-}
-
-void BranchInstructionValue::meetWithConditionForBasicBlock(AbstractState & state, BasicBlock * dest) {
-	// Update the APRON abstract value with the branch's condition
-	ap_tcons1_t condition = getConditionForBasicBlock(dest, state);
-	state.m_apronAbstractState.meet(condition);
-}
-
-void BranchInstructionValue::meetMayPointsToByAssumption(AbstractState & state,
-		constraint_condition_t condType, Value * left, Value * right) {
-	MPTItemAbstractState & pt_left = state.m_mayPointsTo.m_mayPointsTo[left->getName()];
-	MPTItemAbstractState & pt_right = state.m_mayPointsTo.m_mayPointsTo[right->getName()];
-	switch (condType) {
-	cons_cond_eq: {
-		// Equality
-		MPTItemAbstractState::updateToIntersection(pt_left, pt_right);
-		if (pt_left.empty()) {
-			state.makeBottom();
-		}
-		break;
-	}
-	default: {
-		// Inequality
-		// Remove null from each operand, if the other operand is provably null
-		removeNullIfOtherIsProvablyNull(pt_left, pt_right);
-		if (pt_left.empty()) {
-			state.makeBottom();
-			break;
-		}
-		removeNullIfOtherIsProvablyNull(pt_right, pt_left);
-		if (pt_right.empty()) {
-			state.makeBottom();
-			break;
-		}
-		break;
-	}
-	}
-}
-
 void BranchInstructionValue::updateAssumptions(
 		BasicBlock * source, BasicBlock * dest, AbstractState & state) {
 	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
@@ -1587,117 +1672,18 @@ void BranchInstructionValue::updateAssumptions(
 		return;
 	}
 
-	// 1. Update the APRON abstract value with the branch's condition
-	// 2. If the branch's condition is (in)equality between pointers:
-	// 2.a. Update the mpt of both pointers to be their intersection
-	// 1
-	meetWithConditionForBasicBlock(state, dest);
-
-	// 2
-	llvm::Value * llvmcondition = branchInst->getCondition();
-	llvm::ICmpInst * cmpInst = llvm::dyn_cast<llvm::ICmpInst>(llvmcondition);
-	if (!cmpInst) {
-		return;
-	}
-	ValueFactory * factory = ValueFactory::getInstance();
-	CompareValue * cmpValue = static_cast<CompareValue*>(factory->getValue(cmpInst));
-	Value * condOperand0Value = cmpValue->getOperandValue(0);
-	if (!condOperand0Value->isPointer()) {
-		return;
-	}
-	Value * condOperand1Value = cmpValue->getOperandValue(0);
-	assert(condOperand1Value->isPointer() && "Pointer and non-pointer comparison");
-	// 2.a
-	constraint_condition_t condType = getConditionTypeForBasicBlock(cmpValue, dest);
-	meetMayPointsToByAssumption(state, condType, condOperand0Value, condOperand1Value);
-}
-
-// TODO(oanson) Code copied from SelectValueInstruction
-Value * BranchInstructionValue::getCondition() {
-	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
-	ValueFactory * factory = ValueFactory::getInstance();
-	llvm::Value * condition = branchInst->getCondition();
-	Value * result = factory->getValue(condition);
-	return result;
-}
-
-ap_constyp_t BranchInstructionValue::constraintConditionToAPConsType(
-		constraint_condition_t consCond) {
-	switch (consCond) {
-	case cons_cond_eq:
-		return AP_CONS_EQ;
-	case cons_cond_eqmod:
-		return AP_CONS_EQMOD;
-	case cons_cond_neq:
-		return AP_CONS_DISEQ;
-	case cons_cond_gt:
-		return AP_CONS_SUP;
-	case cons_cond_ge:
-		return AP_CONS_SUPEQ;
-	case cons_cond_lt:
-		return AP_CONS_SUP;
-	case cons_cond_le:
-		return AP_CONS_SUPEQ;
-	case cons_cond_true:
-		llvm::errs() << "BranchInstructionValue::constraintConditionToAPConsType: Constant condition true\n";
-		abort();
-	case cons_cond_false:
-		llvm::errs() << "BranchInstructionValue::constraintConditionToAPConsType: Constant condition false\n";
-		abort();
-	default:
-		llvm::errs() << "BranchInstructionValue::constraintConditionToAPConsType: Constant condition unknown: " << consCond << "\n";
-		abort();
-	}
-}
-
-bool BranchInstructionValue::isConstraintConditionToAPNeedsReverse(
-		constraint_condition_t consCond) {
-	switch (consCond) {
-	case cons_cond_lt:
-	case cons_cond_le:
-		return true;
-	default:
-		return false;
-	}
-}
-
-ap_tcons1_t BranchInstructionValue::getConditionTcons(AbstractState & state,
-		constraint_condition_t consCond) {
-	// TODO definitely make into a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
-	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
-	ap_texpr1_t * left = compareValue->createOperandTreeExpression(state, 0);
-	ap_texpr1_t * right = compareValue->createOperandTreeExpression(state, 1);
-	ap_texpr1_t * texpr ;
-	state.m_apronAbstractState.extendEnvironment(left);
-	state.m_apronAbstractState.extendEnvironment(right);
-	if (reverse) {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, right, left,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
+	LogicalBinaryOperationValue & condition = getCondition(m_value);
+	bool isNegated;
+	if (isThenSuccessor(dest)) {
+		assert(!isElseSuccessor(dest));
+		isNegated = false;
+	} else if (isElseSuccessor(dest)) {
+		assert(!isThenSuccessor(dest));
+		isNegated = true;
 	} else {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, left, right,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
+		abort();
 	}
-	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
-	return result;
-}
-
-ap_tcons1_t BranchInstructionValue::getConditionTrueTcons(AbstractState & state) {
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(state, compareValue->getConditionType());
-}
-
-ap_tcons1_t BranchInstructionValue::getConditionFalseTcons(AbstractState & state) {
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(state, compareValue->getNegatedConditionType());
+	condition.updateConditionalAssumptions(state, isNegated);
 }
 
 Value::Value(llvm::Value * value) : m_value(value),
@@ -1911,7 +1897,9 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 
 	// Logical operators...
 	//case llvm::BinaryOperator::And:
+	//	return new AndOperationValue(instruction);
 	//case llvm::BinaryOperator::Or :
+	//	return new OrOperationValue(instruction);
 	//case llvm::BinaryOperator::Xor:
 
 	// Memory instructions...
