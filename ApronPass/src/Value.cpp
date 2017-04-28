@@ -1368,8 +1368,7 @@ void OrOperationValue::updateConditionalAssumptionsPositive(AbstractState & stat
 		lbov->updateConditionalAssumptions(clone, false);
 		joined.join(clone);
 	}
-	// XXX Not implemented: state.meet(joined);
-	state.m_apronAbstractState.meet(joined.m_apronAbstractState);
+	state.meet(joined);
 }
 
 void OrOperationValue::updateConditionalAssumptionsNegative(AbstractState & state) {
@@ -1427,8 +1426,7 @@ void AndOperationValue::updateConditionalAssumptionsNegative(AbstractState & sta
 		lbov->updateConditionalAssumptions(clone, true);
 		joined.join(clone);
 	}
-	// XXX Not implemented: state.meet(joined);
-	state.m_apronAbstractState.meet(joined.m_apronAbstractState);
+	state.meet(joined);
 }
 
 void AndOperationValue::updateConditionalAssumptions(AbstractState & state, bool isNegated) {
@@ -1585,9 +1583,7 @@ void SelectValueInstruction::update(AbstractState & state) {
 	AbstractState trueState = updateJoinMember(state, getTrueValue(), false);
 	AbstractState falseState = updateJoinMember(state, getFalseValue(), true);
 	trueState.join(falseState);
-	ApronAbstractState & aas = state.m_apronAbstractState;
-	// XXX Because we don't have meet on AbstractState
-	aas.meet(trueState.m_apronAbstractState);
+	state.meet(trueState);
 }
 
 bool SelectValueInstruction::isSkip() {

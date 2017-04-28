@@ -19,6 +19,7 @@ public:
 	std::set<std::string>::const_iterator begin() const;
 	std::set<std::string>::const_iterator end() const;
 	bool join(const MPTItemAbstractState & other);
+	bool meet(const MPTItemAbstractState & other);
 	bool isProvablyNull() const;
 	bool isProvablyKernel() const;
 	bool empty() const;
@@ -80,6 +81,7 @@ public:
 	MPTAbstractState(std::vector<std::string> buffers);
 
 	bool join(const MPTAbstractState & other);
+	bool meet(const MPTAbstractState & other);
 	void clear();
 };
 
