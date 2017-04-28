@@ -517,9 +517,9 @@ class ConstantValue : public Value {
 protected:
 	virtual std::string getValueString() ;
 	virtual std::string getConstantString()  = 0;
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state)=0;
 public:
 	ConstantValue(llvm::Value * value) : Value(value) {}
-	virtual ap_texpr1_t* createTreeExpression(AbstractState & state) = 0;
 };
 
 std::string ConstantValue::getValueString()  {
@@ -529,9 +529,9 @@ std::string ConstantValue::getValueString()  {
 class ConstantIntValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
 public:
 	ConstantIntValue(llvm::Value * value) : ConstantValue(value) {}
-	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 	virtual unsigned getBitSize();
 };
 
@@ -542,11 +542,11 @@ std::string ConstantIntValue::getConstantString()  {
 }
 
 ap_texpr1_t * ConstantIntValue::createTreeExpression(
-		AbstractState & state) {
+		ApronAbstractState & state) {
 	llvm::ConstantInt & intValue = llvm::cast<llvm::ConstantInt>(*m_value);
 	const llvm::APInt & apint = intValue.getValue();
 	int64_t svalue = apint.getSExtValue();
-	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr(svalue);
+	ap_texpr1_t * result = state.asTexpr(svalue);
 	return result;
 }
 
@@ -557,9 +557,9 @@ unsigned ConstantIntValue::getBitSize() {
 class ConstantFloatValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
 public:
 	ConstantFloatValue(llvm::Value * value) : ConstantValue(value) {}
-	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 };
 
 std::string ConstantFloatValue::getConstantString()  {
@@ -577,22 +577,22 @@ std::string ConstantFloatValue::getConstantString()  {
 }
 
 ap_texpr1_t * ConstantFloatValue::createTreeExpression(
-		AbstractState & state) {
+		ApronAbstractState & state) {
 	llvm::ConstantFP & fpValue = llvm::cast<llvm::ConstantFP>(*m_value);
 	const llvm::APFloat & apfloat = fpValue.getValueAPF();
 	double value = apfloat.convertToDouble();
-	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr(value);
+	ap_texpr1_t * result = state.asTexpr(value);
 	return result;
 }
 
 class ConstantNullValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
 public:
 	ConstantNullValue(llvm::Value * value) : ConstantValue(value) {
 		llvm::errs() << "Null ptr: llvm name: " << value->getName() << " my name: " << getName() << "\n";
 	}
-	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
 };
 
@@ -600,8 +600,8 @@ std::string ConstantNullValue::getConstantString() {
 	return "null";
 }
 
-ap_texpr1_t * ConstantNullValue::createTreeExpression(AbstractState & state) {
-	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr((int64_t)0);
+ap_texpr1_t * ConstantNullValue::createTreeExpression(ApronAbstractState & state) {
+	ap_texpr1_t * result = state.asTexpr((int64_t)0);
 	return result;
 }
 
@@ -1402,14 +1402,14 @@ void SelectValueInstruction::update(AbstractState & state) {
 	ap_tcons1_t trueCond = getConditionTrueTcons(state);
 	trueState.meet(trueCond);
 	trueState.finish_meet_aggregate();
-	ap_texpr1_t * trueTexpr = trueState.asTexpr(getTrueValue()->getName());
+	ap_texpr1_t * trueTexpr = getTrueValue()->createTreeExpression(trueState);
 	trueState.assign(getName(), trueTexpr);
 
 	ApronAbstractState falseState = state.m_apronAbstractState;
 	ap_tcons1_t falseCond = getConditionFalseTcons(state);
 	falseState.meet(falseCond);
 	falseState.finish_meet_aggregate();
-	ap_texpr1_t * falseTexpr = falseState.asTexpr(getFalseValue()->getName());
+	ap_texpr1_t * falseTexpr = getFalseValue()->createTreeExpression(falseState);
 	falseState.assign(getName(), falseTexpr);
 
 	trueState.join(falseState);
@@ -1779,8 +1779,12 @@ bool Value::isSkip() {
 	return false;
 }
 
+ap_texpr1_t * Value::createTreeExpression(ApronAbstractState & state) {
+	return state.asTexpr(getName());
+}
+
 ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
-	return state.m_apronAbstractState.asTexpr(getName());
+	return createTreeExpression(state.m_apronAbstractState);
 }
 
 ap_tcons1_t Value::getValueEq0Tcons(BasicBlock * basicBlock) {
