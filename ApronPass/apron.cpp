@@ -201,10 +201,9 @@ namespace
 				llvm::errs().write_escaped(F->getName()) << '\n';
 			}
 			// Analyze
-			llvm::BasicBlock * llvmfirst =  &F->getEntryBlock();
-			BasicBlock * first = BasicBlockManager::getInstance().getBasicBlock(
-					llvmfirst);
-			CallGraph funcCallGraph(F->getName().str(), first);
+			FunctionManager & functionManager = FunctionManager::getInstance();
+			Function * function = functionManager.getFunction(F);
+			CallGraph funcCallGraph(function);
 			ChaoticExecution chaoticExecution(funcCallGraph);
 			chaoticExecution.execute();
 			// Print
@@ -213,8 +212,6 @@ namespace
 			}
 
 			// Get 'return' instruction
-			FunctionManager & functionManager = FunctionManager::getInstance();
-			Function * function = functionManager.getFunction(F);
 			if (Debug) {
 				ap_manager_t * manager = apron_manager;
 				ap_abstract1_t trimmedAbstract1 = function->trimmedLastASAbstractValue();

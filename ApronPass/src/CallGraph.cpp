@@ -6,8 +6,15 @@
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/Support/raw_ostream.h>
 
-CallGraph::CallGraph(std::string name, BasicBlock * root) :
-		m_root(root), m_name(name) {
+CallGraph::CallGraph(Function * function) : m_function(function), m_root(function->getRoot()), m_name(function->getName()) {
+	constructGraph();
+}
+
+CallGraph::CallGraph(const std::string & name, BasicBlock * root) : m_function(0), m_root(root), m_name(name) {
+	constructGraph();
+}
+
+void CallGraph::constructGraph() {
 	BasicBlockManager & factory = BasicBlockManager::getInstance();
 	std::list<llvm::BasicBlock *> worklist;
 	std::set<llvm::BasicBlock *> seen;
@@ -37,7 +44,7 @@ BasicBlock * CallGraph::getRoot() {
 	return m_root;
 }
 
-std::string & CallGraph::getName() {
+const std::string & CallGraph::getName() const {
 	return m_name;
 }
 

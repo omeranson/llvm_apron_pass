@@ -26,6 +26,7 @@ Function * FunctionManager::getFunction(llvm::Function * function) {
 	return result;
 }
 
+Function::Function(llvm::Function * function) : m_function(function), m_name(function->getName()) {}
 bool Function::isUserPointer(std::string & ptrname) {
 	return ptrname.find("buf") == 0;
 }
@@ -202,8 +203,8 @@ ApronAbstractState Function::minimize(ApronAbstractState & state) {
 	return result;
 }
 
-std::string Function::getName() {
-	return m_function->getName();
+const std::string & Function::getName() const {
+	return m_name;
 }
 
 std::string Function::getTypeString(llvm::Type * type) {
@@ -265,4 +266,11 @@ const std::vector<CopyMsghdrFromUserCall> & Function::getCopyMsghdrFromUserCalls
 	BasicBlock * returnBasicBlock = getReturnBasicBlock();
 	AbstractState & as = returnBasicBlock->getAbstractState();
 	return as.m_copyMsghdrFromUserCalls;
+}
+
+BasicBlock * Function::getRoot() const {
+	BasicBlockManager & factory = BasicBlockManager::getInstance();
+	llvm::BasicBlock & llvmEntry = m_function->getEntryBlock();
+	BasicBlock * root = factory.getBasicBlock(&llvmEntry);
+	return root;
 }

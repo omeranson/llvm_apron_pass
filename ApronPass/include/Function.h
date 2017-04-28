@@ -24,8 +24,9 @@ class BasicBlock;
 class Function {
 protected:
 	llvm::Function * m_function;
+	std::string m_name;
 public:
-	Function(llvm::Function * function) : m_function(function) {};
+	Function(llvm::Function * function);
 	bool isUserPointer(std::string & ptrname);
 	std::vector<std::string> getUserPointers();
 	// Kept for debug purposes only
@@ -36,13 +37,14 @@ public:
 	virtual bool isVarInOut(const char * varname);
 	virtual ApronAbstractState minimize(ApronAbstractState & state);
 	std::map<std::string, ApronAbstractState> generateErrorStates();
-	std::string getName();
+	const std::string & getName() const;
 	std::vector<std::pair<std::string, std::string> > getArgumentStrings();
 	std::string getSignature();
 	std::string getTypeString(llvm::Type * type);
 	std::string getReturnTypeString();
 	const std::vector<ImportIovecCall> & getImportIovecCalls();
 	const std::vector<CopyMsghdrFromUserCall> & getCopyMsghdrFromUserCalls();
+	BasicBlock * getRoot() const;
 };
 
 class FunctionManager{
