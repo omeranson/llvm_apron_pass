@@ -1432,19 +1432,10 @@ public:
 class SelectValueInstruction : public InstructionValue, public ConditionalMixin<llvm::SelectInst> {
 protected:
 	virtual llvm::SelectInst * asSelectInst();
-	virtual Value * getCondition();
 	virtual Value * getTrueValue();
 	virtual Value * getFalseValue();
-
-	virtual ap_constyp_t constraintConditionToAPConsType(
-			constraint_condition_t consCond);
-	virtual bool isConstraintConditionToAPNeedsReverse(
-			constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTcons(AbstractState & state,
-			constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTrueTcons(AbstractState & state);
-	virtual ap_tcons1_t getConditionFalseTcons(AbstractState & state);
-
+	virtual AbstractState updateJoinMember(AbstractState state,
+		Value * value, bool isNegate);
 public:
 	SelectValueInstruction(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
@@ -1454,13 +1445,6 @@ public:
 
 llvm::SelectInst * SelectValueInstruction::asSelectInst() {
 	return &llvm::cast<llvm::SelectInst>(*m_value);
-}
-
-Value * SelectValueInstruction::getCondition() {
-	ValueFactory * factory = ValueFactory::getInstance();
-	llvm::Value * condition = asSelectInst()->getCondition();
-	Value * result = factory->getValue(condition);
-	return result;
 }
 
 Value * SelectValueInstruction::getTrueValue() {
@@ -1476,7 +1460,7 @@ Value * SelectValueInstruction::getFalseValue() {
 std::string SelectValueInstruction::getValueString() {
 	std::ostringstream oss;
 	oss << "(";
-	appendValue(oss, getCondition(), "<unknown condition>") ;
+	appendValue(oss, &getCondition(m_value), "<unknown condition>") ;
 	oss << " ? ";
 	appendValue(oss, getTrueValue(), "<unknown value>") ;
 	oss << " : ";
@@ -1485,77 +1469,14 @@ std::string SelectValueInstruction::getValueString() {
 	return oss.str();
 }
 
-ap_constyp_t SelectValueInstruction::constraintConditionToAPConsType(
-		constraint_condition_t consCond) {
-	switch (consCond) {
-	case cons_cond_eq:
-		return AP_CONS_EQ;
-	case cons_cond_eqmod:
-		return AP_CONS_EQMOD;
-	case cons_cond_neq:
-		return AP_CONS_DISEQ;
-	case cons_cond_gt:
-		return AP_CONS_SUP;
-	case cons_cond_ge:
-		return AP_CONS_SUPEQ;
-	case cons_cond_lt:
-		return AP_CONS_SUP;
-	case cons_cond_le:
-		return AP_CONS_SUPEQ;
-	case cons_cond_true:
-		abort();
-	case cons_cond_false:
-		abort();
-	default:
-		abort();
-	}
-}
-bool SelectValueInstruction::isConstraintConditionToAPNeedsReverse(
-		constraint_condition_t consCond) {
-	switch (consCond) {
-	case cons_cond_lt:
-	case cons_cond_le:
-		return true;
-	default:
-		return false;
-	}
-}
-
-ap_tcons1_t SelectValueInstruction::getConditionTcons(AbstractState & state,
-		constraint_condition_t consCond) {
-	// TODO definitely make into a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
-	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
-	ap_texpr1_t * left = compareValue->createOperandTreeExpression(state, 0);
-	ap_texpr1_t * right = compareValue->createOperandTreeExpression(state, 1);
-	ap_texpr1_t * texpr ;
-	if (reverse) {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, right, left,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-	} else {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, left, right,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-	}
-	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
-	return result;
-}
-
-ap_tcons1_t SelectValueInstruction::getConditionTrueTcons(AbstractState & state) {
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(state, compareValue->getConditionType());
-}
-
-ap_tcons1_t SelectValueInstruction::getConditionFalseTcons(AbstractState & state) {
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(state, compareValue->getNegatedConditionType());
+AbstractState SelectValueInstruction::updateJoinMember(AbstractState state,
+		Value * value, bool isNegated) {
+	LogicalBinaryOperationValue & condition = getCondition(m_value);
+	condition.updateConditionalAssumptions(state, isNegated);
+	state.m_apronAbstractState.finish_meet_aggregate();
+	ap_texpr1_t * texpr = value->createTreeExpression(state);
+	state.m_apronAbstractState.assign(getName(), texpr);
+	return state;
 }
 
 void SelectValueInstruction::update(AbstractState & state) {
@@ -1568,22 +1489,12 @@ void SelectValueInstruction::update(AbstractState & state) {
 	// 	Assign False value
 	// Join clones
 	// Meet original state with clones
-	ApronAbstractState trueState = state.m_apronAbstractState;
-	ap_tcons1_t trueCond = getConditionTrueTcons(state);
-	trueState.meet(trueCond);
-	trueState.finish_meet_aggregate();
-	ap_texpr1_t * trueTexpr = getTrueValue()->createTreeExpression(trueState);
-	trueState.assign(getName(), trueTexpr);
-
-	ApronAbstractState falseState = state.m_apronAbstractState;
-	ap_tcons1_t falseCond = getConditionFalseTcons(state);
-	falseState.meet(falseCond);
-	falseState.finish_meet_aggregate();
-	ap_texpr1_t * falseTexpr = getFalseValue()->createTreeExpression(falseState);
-	falseState.assign(getName(), falseTexpr);
-
+	AbstractState trueState = updateJoinMember(state, getTrueValue(), false);
+	AbstractState falseState = updateJoinMember(state, getFalseValue(), true);
 	trueState.join(falseState);
-	state.m_apronAbstractState.meet(trueState);
+	ApronAbstractState & aas = state.m_apronAbstractState;
+	// XXX Because we don't have meet on AbstractState
+	aas.meet(trueState.m_apronAbstractState);
 }
 
 bool SelectValueInstruction::isSkip() {
