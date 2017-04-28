@@ -627,8 +627,15 @@ std::string CallValue::getCalledFunctionName() {
 			return user->getOperand(0)->getName().str();
 
 		}
-		llvm::errs() << "Function is null: " << *value << "\n";
-		abort();
+        
+        if (callInst->isInlineAsm())
+        {
+    		// llvm::errs() << "Function is null: " << *value << "\n";
+            // llvm::errs() << "[][][][][][]\n";
+            return "InlineAsm(...)";
+        }
+        
+		// abort();
 	}
 	return function->getName().str();
 }
@@ -766,34 +773,33 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	if (strncmp(s,"llvm.lifetime.start",strlen("llvm.lifetime.start")) == 0){return;}
 	if (strncmp(s,"llvm.lifetime.end"  ,strlen("llvm.lifetime.end"  )) == 0){return;}
 
-	if (callinst->isInlineAsm()){return;}
-
 	// llvm::Value * llvmVal = callinst->getArgOperand(arg);
 	// ValueFactory * valueFactory = ValueFactory::getInstance();
 	// Value * value = valueFactory->getValue(llvmVal);
 	// std::string &name = value->getName();
 		
+	if (callinst->isInlineAsm())
+	{
+        llvm::errs() << "\n\n\n";
+        llvm::errs() << "Instead of: " << callinst->getName() << " = InlineAsm(...)\n";
+        llvm::errs() << "Do: "         << callinst->getName() << " = havoc()       \n";
+        llvm::errs() << "\n\n\n";
+	}
+	else
+	{
 	/******************************************/
 	/* %tmp3 = call i64 @__fdget(i32 %tmp) #5 */
 	/******************************************/
-	llvm::errs() << '\n' << '\n' << '\n';
-	llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
-	llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
-	llvm::errs() << "RETURNED VALUE = " << callinst->getName() << '\n';
-	llvm::errs() << "FUNC NAME      = " << getCalledFunctionName() << '\n';
-	// llvm::errs() << "INPUT PARAM    = " << name << '\n';
-	llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
-	llvm::errs() << "$$$$$$$$$$$$$$$$$$\n";
+	    llvm::errs() << "\n\n\n";
+	    llvm::errs() << "Instead of: " << callinst->getName() << " = " << getCalledFunctionName() << "(...)\n";
+	    llvm::errs() << "Do: "         << callinst->getName() << " = havoc()                               \n";
+	    llvm::errs() << "\n\n\n";
+    }
 
 	/****************************/
 	/* Havoc the value of %tmp3 */
 	/****************************/
     havoc();
-
-	for (int arg=0;arg<numArgs;arg++)
-	{
-	    
-	}
 
 	// InstructionValue::populateTreeConstraints(constraints);
 	return;
@@ -1846,10 +1852,6 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	case llvm::BinaryOperator::Select:
 		return new SelectValueInstruction(instruction);
 	case llvm::BinaryOperator::Call:
-		if (((llvm::CallInst *) instruction)->isInlineAsm())
-		{
-			return NULL;
-		}
 		return new CallValue(instruction);
 	case llvm::BinaryOperator::Shl:
 	case llvm::BinaryOperator::LShr:

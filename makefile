@@ -15,6 +15,7 @@ LLVM_BITCODE_FILES_DIRECTORY =$(BASEDIR)/FOLDER_2_LLVM_BITCODE_FILES
 INLINE_SELECTED_FUNCTIONS_DIR=$(BASEDIR)/FOLDER_3_INLINE_SELECTED_FUNCTIONS/INLINE_ME
 RUN_ANALYSIS_DIR             =$(BASEDIR)/FOLDER_4_RUN_STATIC_ANALYSIS/ApronPass
 APRON_PASS_DIR               =$(BASEDIR)/FOLDER_4_RUN_STATIC_ANALYSIS/ApronPass
+IGNORE_EXTRACT_VALUE_DIR     =$(BASEDIR)/FOLDER_4_IGNORE_EXTRACT_VALUE/INLINE_ME
 
 #######################
 # APRON CONFIGURATION #
@@ -103,6 +104,19 @@ all:
 	cp $(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_7_OUTPUT/OutputInlined.bc ${inlinedbc}.bc
 	cp $(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_7_OUTPUT/OutputInlined.ll ${inlinedbc}.ll
 	@echo "\n"
+	@echo "*******************"
+	@echo "* Copy Output ... *"
+	@echo "*******************"
+	@echo "\n"
+	echo $(IGNORE_EXTRACT_VALUE_DIR)
+	cp ${inlinedbc}.ll /home/oren/Input.ll
+	cp /home/oren/Input.ll $(IGNORE_EXTRACT_VALUE_DIR)/FOLDER_6_INPUT/Input.ll
+	@echo "\n"
+	cd $(IGNORE_EXTRACT_VALUE_DIR) && ${MAKE}
+	@echo "\n"
+	cp $(IGNORE_EXTRACT_VALUE_DIR)/FOLDER_7_OUTPUT/Output.bc ${inlinedbc}.bc
+	cp $(IGNORE_EXTRACT_VALUE_DIR)/FOLDER_7_OUTPUT/OrenOutput.ll ${inlinedbc}.ll
+	@echo "\n"	
 	@echo "*************************************************************"
 	@echo "* Syscall function to Analyze and create a contract for ... *"
 	@echo "*************************************************************"
