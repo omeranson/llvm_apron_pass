@@ -47,11 +47,14 @@
 #include <CallGraph.h>
 #include <Function.h>
 #include <Contract.h>
+#include <ChaoticExecution.h>
 
 bool Debug;
 llvm::cl::opt<bool, true> DebugOpt ("d", llvm::cl::desc("Enable additional debug output"), llvm::cl::location(Debug));
 
-llvm::cl::opt<unsigned> UpdateCountMax ("update-count-max",
+unsigned UpdateCountMax;
+llvm::cl::opt<unsigned, true> UpdateCountMaxOpt ("update-count-max",
+		llvm::cl::location(UpdateCountMax),
 		llvm::cl::init(10),
 		llvm::cl::desc("Maximum number of times to update a basic block. 0 to disable. (10)"));
 
@@ -65,68 +68,6 @@ llvm::cl::opt<unsigned, true> WideningThresholdOpt ("widening-threshold",
 /**************************/
 namespace
 {
-	class ChaoticExecution {
-	private:
-		CallGraph & callGraph;
-		std::list<BasicBlock *> worklist;
-		std::set<BasicBlock *> seen;
-	public:
-		ChaoticExecution(CallGraph & callGraph) :
-				callGraph(callGraph) {
-		}
-
-		bool isSeen(BasicBlock * block) {
-			return !(seen.find(block) == seen.end());
-		}
-
-		void see(BasicBlock * block) {
-			seen.insert(block);
-		}
-
-		void execute() {
-			worklist.clear();
-			BasicBlock * root = callGraph.getRoot();
-			std::vector<std::string> userPointers = root->getFunction()->getUserPointers();
-			AbstractState state(userPointers);
-			root->getAbstractState() = state;
-			worklist.push_front(root);
-			while (!worklist.empty()) {
-				BasicBlock * block = worklist.front();
-				worklist.pop_front();
-				bool wasSeen = isSeen(block);
-				see(block);
-				if (UpdateCountMax != 0) {
-					llvm::errs() << "Skip block " << block->getName() << "? " << block->updateCount << " ? " << UpdateCountMax << " and " << wasSeen << "\n";
-					if (wasSeen && (block->updateCount >= UpdateCountMax)) {
-						llvm::errs() << "Skipping " << block->getName()
-								<< ": Updated more than " << block->updateCount << "\n";
-						continue;
-					}
-				}
-				bool isModified = block->update();
-				//llvm::errs() << block->toString() <<
-						//": isModified: " <<
-						//isModified  << "\n";
-				if (!wasSeen || isModified) {
-					callGraph.populateWithSuccessors(
-							worklist, block);
-				}
-			}
-		}
-
-		void print() {
-			llvm::errs() << "Apron: Library " <<
-					apron_manager->library <<
-					", version " <<
-					apron_manager->version << "\n";
-			callGraph.printAsDot();
-			std::set<BasicBlock *>::iterator it;
-			for (it = seen.begin(); it != seen.end(); it++) {
-				llvm::errs() << (*it)->toString() << "\n";
-			}
-		}
-	};
-
     /****************************************************/
     /*                                                  */
     /* OREN ISH SHALOM:                                 */
