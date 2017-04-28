@@ -1441,6 +1441,8 @@ class PhiValue : public InstructionValue {
 protected:
 	virtual llvm::PHINode * asPHINode();
 	virtual Value * getIncomingValue(BasicBlock * source);
+	virtual void updateMayPointsToAssumptions(AbstractState & state, Value * incomingValue);
+	virtual void updateNumericalAssumptions(AbstractState & state, Value * incomingValue);
 public:
 	PhiValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
@@ -1481,27 +1483,35 @@ Value * PhiValue::getIncomingValue(BasicBlock * source) {
 	return factory->getValue(incoming);
 }
 
+void PhiValue::updateMayPointsToAssumptions(AbstractState & state, Value * incomingValue) {
+	// Assign offsets of one to the other
+	// set pt
+	std::string & name = getName();
+	std::string incomingName = incomingValue->getName();
+	MPTItemAbstractState &srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[incomingName];
+	state.m_mayPointsTo.m_mayPointsTo[name] = srcUserPointers;
+	for (auto & srcPtrName : srcUserPointers) {
+		const std::string & offsetName = AbstractState::generateOffsetName(name, srcPtrName);
+		state.m_apronAbstractState.forget(offsetName);
+		const std::string & incomingOffsetName = AbstractState::generateOffsetName(incomingName, srcPtrName);
+		ap_texpr1_t * incomingOffsetTexpr = state.m_apronAbstractState.asTexpr(incomingOffsetName);
+		state.m_apronAbstractState.assign(offsetName, incomingOffsetTexpr);
+	}
+}
+
+void PhiValue::updateNumericalAssumptions(AbstractState & state, Value * incomingValue) {
+	std::string & name = getName();
+	ap_texpr1_t * value_texpr = incomingValue->createTreeExpression(state);
+	state.m_apronAbstractState.forget(name);
+	state.m_apronAbstractState.assign(name, value_texpr);
+}
+
 void PhiValue::updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
 	Value * incomingValue = getIncomingValue(source);
-	std::string & name = getName();
 	if (!isPointer()) {
-		ap_texpr1_t * value_texpr =
-				incomingValue->createTreeExpression(state);
-		state.m_apronAbstractState.forget(name);
-		state.m_apronAbstractState.assign(name, value_texpr);
+		updateNumericalAssumptions(state, incomingValue);
 	} else {
-		// Assign offsets of one to the other
-		// set pt
-		std::string incomingName = incomingValue->getName();
-		MPTItemAbstractState &srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[incomingName];
-		state.m_mayPointsTo.m_mayPointsTo[name] = srcUserPointers;
-		for (auto & srcPtrName : srcUserPointers) {
-			const std::string & offsetName = AbstractState::generateOffsetName(name, srcPtrName);
-			state.m_apronAbstractState.forget(offsetName);
-			const std::string & incomingOffsetName = AbstractState::generateOffsetName(incomingName, srcPtrName);
-			ap_texpr1_t * incomingOffsetTexpr = state.m_apronAbstractState.asTexpr(incomingOffsetName);
-			state.m_apronAbstractState.assign(offsetName, incomingOffsetTexpr);
-		}
+		updateMayPointsToAssumptions(state, incomingValue);
 	}
 }
 
