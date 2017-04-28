@@ -1,8 +1,6 @@
 #ifndef VALUE_H
 #define VALUE_H
 
-#include <BasicBlock.h>
-
 #include <map>
 #include <string>
 #include <ostream>
@@ -14,10 +12,9 @@
 #include <ap_global0.h>
 #include <ap_global1.h>
 #include <ap_abstract1.h>
-#include <box.h>
-#include <oct.h>
-#include <pk.h>
-#include <pkeq.h>
+
+#include <AbstractState.h>
+#include <BasicBlock.h>
 
 class Value;
 
@@ -43,23 +40,21 @@ protected:
 
 	Value(llvm::Value * value);
 	virtual std::string llvmValueName(llvm::Value * value);
-	/* TODO Let's wait till we actually need it and it's too late */
-	// virtual BasicBlock & getBasicBlock();
 public:
 	virtual std::string & getName();
 	virtual std::string getValueString();
 	virtual std::string toString();
 	virtual bool isSkip();
+	virtual bool isPointer();
 
-	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
-	virtual ap_tcons1_t getSetValueTcons(
-			BasicBlock * basicBlock, Value * other);
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
 	virtual ap_tcons1_t getValueEq0Tcons(
 			BasicBlock * basicBlock);
-	virtual void havoc();
-	virtual void havoc(BasicBlock * bb);
+	virtual void havoc(AbstractState & state);
 
-	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
+	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
+	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 
 	virtual unsigned getBitSize();
 	virtual unsigned getByteSize();
@@ -74,15 +69,18 @@ class InstructionValue : public Value {
 protected:
 	virtual llvm::Instruction * asInstruction();
 	virtual BasicBlock * getBasicBlock();
+	virtual Function * getFunction();
 public:
 	InstructionValue(llvm::Value * value) : Value(value) {}
+	virtual void update(AbstractState & state);
+	// @deprecated
 	virtual void populateTreeConstraints(
 			std::list<ap_tcons1_t> & constraints);
-	virtual ap_texpr1_t * createRHSTreeExpression();
-	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
+	virtual Value * getOperandValue(int idx);
+	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
 	virtual bool isSkip();
 	virtual void forget();
-	virtual void havoc();
 };
 
 class TerminatorInstructionValue : public InstructionValue {

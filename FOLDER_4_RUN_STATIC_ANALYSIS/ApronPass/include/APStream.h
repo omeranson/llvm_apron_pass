@@ -8,6 +8,8 @@
 #include <ap_environment.h>
 #include <ap_interval.h>
 
+extern ap_manager_t * apron_manager;
+
 template <class stream>
 inline stream & operator<<(stream & s, ap_interval_t & interval) {
 	char * buffer;
@@ -63,6 +65,29 @@ inline stream & operator<<(stream & s, std::pair<ap_manager_t*, ap_abstract1_t*>
 	}
 	return s;
 }
+
+template <class stream>
+inline stream & operator<<(stream & s, ap_abstract1_t* value) {
+	s << std::make_pair(apron_manager, value);
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, ap_texpr1_t * texpr) {
+	char * buffer;
+	size_t size;
+	FILE * bufferfp = open_memstream(&buffer, &size);
+	ap_texpr1_fprint(bufferfp, texpr);
+	fclose(bufferfp);
+	s << buffer;
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, ap_texpr1_t & texpr) {
+	return (s << &texpr);
+}
+
 
 template <class stream>
 inline stream & operator<<(stream & s, ap_tcons1_t * tcons) {

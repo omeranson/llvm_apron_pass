@@ -6,12 +6,11 @@
 #include <string>
 #include <vector>
 
-#include <ap_abstract1.h>
 #include <llvm/Support/raw_ostream.h>
 
-namespace llvm {
-	class Value;
-}
+#include <AbstractStates/ApronAbstractState.h>
+#include <AbstractStates/MPTAbstractState.h>
+#include <APStream.h>
 
 typedef enum {
 	user_pointer_operation_read,
@@ -22,21 +21,23 @@ typedef enum {
 	user_pointer_operation_count
 } user_pointer_operation_e;
 
+extern ap_manager_t * apron_manager;
+
 class MemoryAccessAbstractValue {
 public:
-	ap_environment_t * m_environment;
-	ap_tcons1_array_t m_constraints;
+	std::string pointer;
+	std::string buffer;
+	ap_texpr1_t * size;
+	user_pointer_operation_e operation;
 
-	MemoryAccessAbstractValue(ap_environment_t * env,
-			ap_texpr1_t * last,
-			ap_texpr1_t * offset,
-			ap_texpr1_t * size);
+	MemoryAccessAbstractValue(const std::string & pointer, const std::string & buffer,
+			ap_texpr1_t * size, user_pointer_operation_e operation);
 };
 
 struct ImportIovecCall {
-	const user_pointer_operation_e op;
-	const std::string iovec_name;
-	const std::string iovec_len_name;
+	user_pointer_operation_e op;
+	std::string iovec_name;
+	std::string iovec_len_name;
 	ImportIovecCall(user_pointer_operation_e op, const std::string & iovec_name, const std::string & iovec_len_name) :
 			op(op), iovec_name(iovec_name), iovec_len_name(iovec_len_name) {}
 	ImportIovecCall(user_pointer_operation_e op, const std::string * iovec_name, const std::string * iovec_len_name) :
@@ -44,8 +45,8 @@ struct ImportIovecCall {
 };
 
 struct CopyMsghdrFromUserCall {
-	const user_pointer_operation_e op;
-	const std::string msghdr_name;
+	user_pointer_operation_e op;
+	std::string msghdr_name;
 	CopyMsghdrFromUserCall(user_pointer_operation_e op, const std::string & msghdr_name) :
 			op(op), msghdr_name(msghdr_name) {}
 	CopyMsghdrFromUserCall(user_pointer_operation_e op, const std::string * msghdr_name) :
@@ -72,49 +73,10 @@ struct CopyMsghdrFromUserCall {
  */
 class AbstractState {
 public:
-	/*******************************************************************/
-	/* OREN ISH SHALOM edited: let us use this code for reference      */
-	/*                                                                 */
-	/* int f9(__user char *buf1, __user char *buf2, int size)          */
-	/* {                                                               */
-	/*     char *p = NULL;                                             */
-	/*     if (size > 32)                                              */
-	/*     {                                                           */
-	/*         p = buf1 + 3; // this is (*)                            */
-	/*     }                                                           */
-	/*     else                                                        */
-	/*     {                                                           */
-	/*         p = buf2; // and this is (**)                           */
-	/*     }                                                           */
-	/* }                                                               */
-	/*******************************************************************/
-	/*******************************************************************/
-	/* OREN ISH SHALOM edited:                                         */
-	/* --------------------------------------------------------------- */
-	/* the pointer p in line (*) is updated with                       */
-	/*                                                                 */
-	/* map[p] = {pair(buf1,OFFSET_LINE(*)_BUF1)}                       */
-	/*                                                                 */
-	/* --------------------------------------------------------------- */
-	/*                                                                 */
-	/* the pointer p in line (**) is updated with                      */
-	/*                                                                 */
-	/* map[p] = {pair(buf2,OFFSET_LINE(**)_BUF2)}                      */
-	/*                                                                 */
-	/* --------------------------------------------------------------- */
-	/*                                                                 */
-	/* the join between (*) and (**) should then be:                   */
-	/*                                                                 */
-	/* map[p] = {pair(buf1,OFFSET_LINE(*)_BUF1),                       */
-	/*           pair(buf2,OFFSET_LINE(**)_BUF2)}                      */
-	/*                                                                 */
-	/*******************************************************************/
-	typedef std::map<std::string, std::set<std::string> > may_points_to_t;
 	
 protected:
 	/*************************************************/
-	/* OREN ISH SHALOM remarks:                      */
-	/* our abstract state is made of a cartesian     */
+	/* Abstract state is made of a cartesian         */
 	/* product of 2 abstract states:                 */
 	/*                                               */
 	/* [1] A May-Points-To entity                    */
@@ -130,41 +92,29 @@ protected:
 	/* }                                             */
 	/*                                               */
 	/*************************************************/
-	bool joinMayPointsTo(may_points_to_t &otherMayPointsTo);
-	bool joinUserPointers(
-		std::set<std::string> & dest,
-		std::set<std::string> & src);
-	bool joinAbstract1(ap_abstract1_t * abstract1);
-
 public:
-
 	AbstractState();
+	AbstractState(std::vector<std::string> & userPointers);
 
-	/************************************************/
-	/* OREN ISH SHALOM remarks:                     */
-	/* I've changed this name to be more consistent */
-	/* with its Apron counterpart                   */
-	/************************************************/
-	may_points_to_t m_mayPointsTo;
-	
-	/************************************************/
-	/* OREN ISH SHALOM remarks:                     */
-	/* I've changed this name to be more consistent */
-	/* with its Apron counterpart                   */
-	/************************************************/
-	ap_abstract1_t m_abstract1;
+	// May points to analysis
+	MPTAbstractState m_mayPointsTo;
+	// (Apron) analysis of integers
+	ApronAbstractState m_apronAbstractState;
+	// (Apron) analysis of (user) read/write/last0 pointers
+	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
+	static const std::string & generateOffsetName(
+			const std::string & valueName, const std::string & bufname);
+	static const std::string & generateLastName(
+			const std::string & bufname, user_pointer_operation_e op);
+
 	std::vector<ImportIovecCall> m_importedIovecCalls;
 	std::vector<CopyMsghdrFromUserCall> m_copyMsghdrFromUserCalls;
 
-	// (Apron) analysis of integers
-	// TODO(oanson) TBD
-	// (Apron) analysis of (user) read/write/last0 pointers
-	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
-
 	ap_manager_t * getManager() const;
-	void updateUserOperationAbstract1(ap_abstract1_t & abstract1);
+	void updateUserOperationAbstract1();
 	// General commands
 	virtual bool join(AbstractState &);
+	virtual bool reduce(std::vector<std::string> & userBuffers);
 	// TODO(oanson) The following functions are missing
 	//virtual bool meet(AbstractState &);
 	//virtual bool unify(AbstractState &);
@@ -172,21 +122,21 @@ public:
 	//virtual bool isBottom();
 	//virtual bool operator==(AbstractState &);
 
-	ap_abstract1_t join(ap_abstract1_t * val1, ap_abstract1_t * val2);
-	ap_abstract1_t join(std::vector<ap_abstract1_t> & values);
+	virtual void makeTop();
+	virtual void makeBottom();
 };
 
 template <class stream>
 inline stream & operator<<(stream & s, AbstractState & as) {
 	s << "{'mpt':{";
-	for (auto & mpt : as.m_mayPointsTo) {
+	for (auto & mpt : as.m_mayPointsTo.m_mayPointsTo) {
 		s << "'" << mpt.first << "':[";
 		for (auto & userPtr : mpt.second) {
 			s << "'" << userPtr << "',";
 		}
 		s << "],";
 	}
-	s << "},abstract1:{" << std::make_pair(as.getManager(), &as.m_abstract1) << "}";
+	s << "},abstract1:{" << &as.m_apronAbstractState.m_abstract1 << "}";
 	return s;
 }
 
@@ -202,10 +152,33 @@ inline stream & operator<<(stream & s, user_pointer_operation_e op) {
 	case user_pointer_operation_first0:
 		s << "first0";
 		break;
+	case user_pointer_operation_count:
+		s << (unsigned)op;
+		break;
 	default:
 		s << "<invalid user_pointer_operation_e>";
 		break;
 	}
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, MemoryAccessAbstractValue & maav) {
+	s << "maav(" << maav.pointer << ", " << maav.buffer << ", "
+			<< maav.size << ", " << maav.operation << ")";
+	return s;
+}
+
+
+template <class stream>
+inline stream & operator<<(stream & s, ApronAbstractState & aas) {
+	s << &aas.m_abstract1;
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, ApronAbstractState * aas) {
+	s << *aas;
 	return s;
 }
 

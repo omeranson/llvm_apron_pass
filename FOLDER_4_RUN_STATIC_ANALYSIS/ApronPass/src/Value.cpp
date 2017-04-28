@@ -9,6 +9,7 @@
 /*************************/
 /* PROJECT INCLUDE FILES */
 /*************************/
+#include <APStream.h>
 #include <AbstractState.h>
 #include <Function.h>
 #include <Value.h>
@@ -63,20 +64,87 @@ public:
 	virtual bool isSkip() { return true; }
 };
 
-class AllocaValue : public NopInstructionValue {
+class AllocaValue : public InstructionValue {
 public:
-	AllocaValue(llvm::Value * value) : NopInstructionValue(value) {}
+	AllocaValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual void update(AbstractState & state);
+	virtual bool isSkip();
 };
 
-class LoadValue : public NopInstructionValue {
+bool AllocaValue::isSkip() {
+	return false;
+}
+
+void AllocaValue::update(AbstractState & state) {
+	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[getName()];
+	pt.clear();
+	pt.insert("kernel");
+}
+
+class LoadValue : public InstructionValue {
+protected:
+	llvm::LoadInst * asLoadInst();
 public:
-	LoadValue(llvm::Value * value) : NopInstructionValue(value) {}
+	LoadValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual void update(AbstractState & state);
+	virtual bool isSkip();
 };
 
-class StoreValue : public NopInstructionValue {
+llvm::LoadInst * LoadValue::asLoadInst() {
+	return &llvm::cast<llvm::LoadInst>(*m_value);
+}
+
+void LoadValue::update(AbstractState & state) {
+	llvm::Value * src = asLoadInst()->getOperand(0);
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * srcValue = factory->getValue(src);
+	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[srcValue->getName()];
+	pt.erase("null");
+	if (isPointer()) {
+		MPTItemAbstractState & destpt = state.m_mayPointsTo.m_mayPointsTo[getName()];
+		destpt.clear();
+		for (std::string & buffer : getFunction()->getUserPointers()) {
+			destpt.insert(buffer);
+		}
+		if (!pt.contains("kernel")) {
+			pt.erase("kernel");
+		}
+	}
+	if (!pt.isProvablyKernel()) {
+		llvm::errs() << "WARNING: Direct load from user pointer: " << srcValue->getName() << "\n";
+	}
+}
+
+bool LoadValue::isSkip() {
+	return false;
+}
+
+class StoreValue : public InstructionValue {
+protected:
+	virtual llvm::StoreInst * asStoreInst();
 public:
-	StoreValue(llvm::Value * value) : NopInstructionValue(value) {}
+	StoreValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual void update(AbstractState & state);
+	virtual bool isSkip();
 };
+
+llvm::StoreInst * StoreValue::asStoreInst() {
+	return &llvm::cast<llvm::StoreInst>(*m_value);
+}
+void StoreValue::update(AbstractState & state) {
+	llvm::Value * dest = asStoreInst()->getOperand(0);
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * destValue = factory->getValue(dest);
+	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[destValue->getName()];
+	pt.erase("null");
+	if (!pt.isProvablyKernel()) {
+		llvm::errs() << "WARNING: Direct store to user pointer: " << destValue->getName() << "\n";
+	}
+}
+
+bool StoreValue::isSkip() {
+	return false;
+}
 
 class GepValue : public InstructionValue {
 public:
@@ -87,7 +155,8 @@ public:
 	GepValue (llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip() { return false; }
-	virtual void populateTreeConstraints(std::list<ap_tcons1_t> & constraints);
+	virtual void populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints);
 };
 
 llvm::GetElementPtrInst * GepValue::asGetElementPtrInst() {
@@ -112,12 +181,11 @@ void GepValue::addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
 	constraints.insert(constraints.end(), tconss.begin(), tconss.end());
 }
 
-void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
+void GepValue::populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints) {
 	BasicBlock * basicBlock = getBasicBlock();
-	Function * function = basicBlock->getFunction();
-	AbstractState & abstractState = basicBlock->getAbstractState();
+	AbstractState & state = basicBlock->getAbstractState();
+	Function * function = getFunction();
 	ValueFactory * factory = ValueFactory::getInstance();
 	llvm::GetElementPtrInst * gepi = asGetElementPtrInst();
 
@@ -127,30 +195,26 @@ void GepValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 	Value * offset = factory->getValue(gepi->getOperand(1));
 
 	std::string pointerName = src->getName();
-	std::set<std::string> &dest = abstractState.m_mayPointsTo[getName()];
+	MPTItemAbstractState & dest = state.m_mayPointsTo.m_mayPointsTo[getName()];
 	dest.clear();
-	basicBlock->forget(basicBlock->generateOffsetName(this, pointerName).c_str());
-	ap_texpr1_t * offset_texpr = offset->createTreeExpression(basicBlock);
-	if (function->isUserPointer(pointerName)) {
-		dest.insert(pointerName);
-		addOffsetConstraint(constraints, offset_texpr, pointerName);
-	} else {
-		std::set<std::string> &srcUserPointers = abstractState.m_mayPointsTo[pointerName];
-		for (auto & srcPtrName : srcUserPointers) {
-			dest.insert(srcPtrName);
-			ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
-					src, srcPtrName);
-			ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
-			ap_texpr1_extend_environment_with(offset_texpr_copy, basicBlock->getEnvironment());
-			ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
-			ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
-					offset_texpr_copy, offset_var_texpr,
-					AP_RTYPE_INT, AP_RDIR_ZERO);
-			assert(value_texpr);
-			addOffsetConstraint(constraints, value_texpr, srcPtrName);
-		}
-		ap_texpr1_free(offset_texpr);
+	const std::string & offsetName = state.generateOffsetName(getName(), pointerName);
+	state.m_apronAbstractState.forget(offsetName);
+	ap_texpr1_t * offset_texpr = offset->createTreeExpression(state);
+	MPTItemAbstractState & srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[pointerName];
+	for (auto & srcPtrName : srcUserPointers) {
+		dest.insert(srcPtrName);
+		ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
+				src, srcPtrName);
+		ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
+		ap_texpr1_extend_environment_with(offset_texpr_copy, basicBlock->getEnvironment());
+		ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
+		ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
+				offset_texpr_copy, offset_var_texpr,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		assert(value_texpr);
+		addOffsetConstraint(constraints, value_texpr, srcPtrName);
 	}
+	ap_texpr1_free(offset_texpr);
 }
 
 class VariableValue : public Value {
@@ -161,7 +225,7 @@ public:
 	VariableValue(llvm::Value * value) : Value(value) {}
 	virtual std::string getValueString();
 	virtual std::string toString() ;
-	virtual void populateMayPointsToUserBuffers(std::set<std::string> & buffers);
+	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
 };
 std::string VariableValue::getValueString() {
 	return getName();
@@ -181,7 +245,7 @@ Function * VariableValue::getFunction() {
 	return manager.getFunction(function);
 }
 
-void VariableValue::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+void VariableValue::populateMayPointsToUserBuffers(MPTItemAbstractState & buffers) {
 	std::string & name = getName();
 	if (getFunction()->isUserPointer(name)) {
 		buffers.insert(name);
@@ -192,38 +256,27 @@ llvm::Instruction * InstructionValue::asInstruction() {
 	return &llvm::cast<llvm::Instruction>(*m_value);
 }
 
-void InstructionValue::populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints) {
-	// TODO consider making a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-
-	BasicBlock * basicBlock = getBasicBlock();
-	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
-	assert(var_texpr && "Tree expression is NULL");
-	ap_texpr1_t * value_texpr = createRHSTreeExpression();
+void InstructionValue::update(AbstractState & state) {
+	ap_texpr1_t * value_texpr = createRHSTreeExpression(state);
 	assert(value_texpr && "RHS Tree expression is NULL");
-
-	basicBlock->extendTexprEnvironment(var_texpr);
-	basicBlock->extendTexprEnvironment(value_texpr);
-
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
-	constraints.push_back(result);
+	state.m_apronAbstractState.assign(getName(), value_texpr);
 }
 
-ap_texpr1_t * InstructionValue::createRHSTreeExpression() {
+void InstructionValue::populateTreeConstraints(
+			std::list<ap_tcons1_t> & constraints) {
+	update(getBasicBlock()->getAbstractState());
+}
+
+ap_texpr1_t * InstructionValue::createRHSTreeExpression(AbstractState & state) {
 	abort();
 }
 
 void InstructionValue::populateMayPointsToUserBuffers(
-		std::set<std::string> & buffers) {
+		MPTItemAbstractState & buffers) {
 	BasicBlock * basicBlock = getBasicBlock();
 	AbstractState & as = basicBlock->getAbstractState();
-	std::set<std::string> & asbuffers = as.m_mayPointsTo[getName()];
-	buffers.insert(asbuffers.begin(), asbuffers.end());
+	MPTItemAbstractState & asbuffers = as.m_mayPointsTo.m_mayPointsTo[getName()];
+	buffers.join(asbuffers);
 }
 
 bool InstructionValue::isSkip() {
@@ -242,8 +295,16 @@ BasicBlock * InstructionValue::getBasicBlock() {
 	return result;
 }
 
-void InstructionValue::havoc() {
-	Value::havoc(getBasicBlock());
+Function * InstructionValue::getFunction() {
+	return getBasicBlock()->getFunction();
+}
+
+Value * InstructionValue::getOperandValue(int idx) {
+	llvm::Instruction * inst = asInstruction();
+	llvm::Value * operand = inst->getOperand(idx);
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * value = factory->getValue(operand);
+	return value;
 }
 
 bool TerminatorInstructionValue::isSkip() {
@@ -294,10 +355,10 @@ protected:
 	virtual std::string getOperationSymbol()  = 0;
 	virtual ap_texpr_op_t getTreeOperation()  = 0;
 	virtual std::string getValueString() ;
-	virtual ap_texpr1_t * createRHSTreeExpression();
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 public:
 	BinaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
-	virtual ap_texpr1_t * createOperandTreeExpression(int idx);
+	virtual ap_texpr1_t * createOperandTreeExpression(AbstractState & state, int idx);
 	virtual bool isSkip();
 };
 
@@ -340,30 +401,21 @@ bool BinaryOperationValue::isSkip() {
 	return false;
 }
 
-ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(int idx) {
+ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(AbstractState & state, int idx) {
 	ValueFactory * factory = ValueFactory::getInstance();
 	llvm::Value * llvmOperand = asUser()->getOperand(idx);
 	Value * operand = factory->getValue(llvmOperand);
-	if (!operand) {
-		//llvm::errs() << "Unknown value:";
-		//llvmOperand->print(llvm::errs());
-		//llvm::errs() << "\n";
-		abort();
-	}
-	return operand->createTreeExpression(getBasicBlock());
+	return operand->createTreeExpression(state);
 }
 
-ap_texpr1_t * BinaryOperationValue::createRHSTreeExpression() {
-
-	ap_texpr1_t * op0_texpr = createOperandTreeExpression(0);
-	ap_texpr1_t * op1_texpr = createOperandTreeExpression(1);
-	// TODO They don't have logical ops in #ap_texpr_op_t
+ap_texpr1_t * BinaryOperationValue::createRHSTreeExpression(AbstractState & state) {
+	ap_texpr1_t * op0_texpr = createOperandTreeExpression(state, 0);
+	ap_texpr1_t * op1_texpr = createOperandTreeExpression(state, 1);
 	ap_texpr_op_t operation = getTreeOperation();
 	// TODO Handle reals
 	// Align environments
-	BasicBlock * basicBlock = getBasicBlock();
-	basicBlock->extendTexprEnvironment(op0_texpr);
-	basicBlock->extendTexprEnvironment(op1_texpr);
+	state.m_apronAbstractState.extendEnvironment(op0_texpr);
+	state.m_apronAbstractState.extendEnvironment(op1_texpr);
 	ap_texpr1_t * texpr = ap_texpr1_binop(
 			operation, op0_texpr, op1_texpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
@@ -384,7 +436,32 @@ protected:
 	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_SUB; }
 public:
 	SubtractionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	virtual void update(AbstractState & state);
 };
+
+void SubtractionOperationValue::update(AbstractState & state) {
+	ValueFactory * factory = ValueFactory::getInstance();
+	llvm::Value * left = asUser()->getOperand(0);
+	llvm::Value * right = asUser()->getOperand(1);
+	if (llvm::isa<llvm::PtrToIntInst>(left) && llvm::isa<llvm::PtrToIntInst>(right)) {
+		llvm::Value * leftPtr = llvm::cast<llvm::PtrToIntInst>(
+				*left).getPointerOperand();
+		llvm::Value * rightPtr = llvm::cast<llvm::PtrToIntInst>(
+				*right).getPointerOperand();
+
+		ValueFactory * factory = ValueFactory::getInstance();
+		Value * leftPtrVal = factory->getValue(leftPtr);
+		Value * rightPtrVal = factory->getValue(rightPtr);
+
+		MPTItemAbstractState & leftPT = state.m_mayPointsTo.m_mayPointsTo[leftPtrVal->getName()];
+		leftPT.erase("null");
+		MPTItemAbstractState & rightPT = state.m_mayPointsTo.m_mayPointsTo[rightPtrVal->getName()];
+
+		MPTItemAbstractState::updateToIntersection(leftPT, rightPT);
+		return;
+	}
+	return BinaryOperationValue::update(state);
+}
 
 class MultiplicationOperationValue : public BinaryOperationValue {
 protected:
@@ -392,14 +469,6 @@ protected:
 	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MUL; }
 public:
 	MultiplicationOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
-};
-
-class AndValue : public BinaryOperationValue {
-public:
-	virtual std::string getOperationSymbol()  { return "&&"; }
-	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MUL; }
-	AndValue(llvm::Value * value) : BinaryOperationValue(value) {}
-	virtual bool isSkip(){return true;}
 };
 
 class DivisionOperationValue : public BinaryOperationValue {
@@ -423,21 +492,19 @@ class SHLOperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return " << "; }
 	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MOD; }
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 public:
 	SHLOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
-	ap_texpr1_t * createRHSTreeExpression();
 };
 
-ap_texpr1_t * SHLOperationValue::createRHSTreeExpression() {
-	ap_texpr1_t * op0_texpr = createOperandTreeExpression(0);
-	ap_texpr1_t * op1_texpr = createOperandTreeExpression(1);
+ap_texpr1_t * SHLOperationValue::createRHSTreeExpression(AbstractState & state) {
+	ap_texpr1_t * op0_texpr = createOperandTreeExpression(state, 0);
+	ap_texpr1_t * op1_texpr = createOperandTreeExpression(state, 1);
 	// TODO Handle reals
 	// Align environments
-	BasicBlock * basicBlock = getBasicBlock();
-	basicBlock->extendTexprEnvironment(op0_texpr);
-	basicBlock->extendTexprEnvironment(op1_texpr);
-	ap_texpr1_t * two = ap_texpr1_cst_scalar_int(
-			getBasicBlock()->getEnvironment(), 2);
+	state.m_apronAbstractState.extendEnvironment(op0_texpr);
+	state.m_apronAbstractState.extendEnvironment(op1_texpr);
+	ap_texpr1_t * two = state.m_apronAbstractState.asTexpr((int64_t)2);
 	ap_texpr1_t * op1_shl = ap_texpr1_binop(
 			AP_TEXPR_POW, two, op1_texpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
@@ -451,9 +518,9 @@ class ConstantValue : public Value {
 protected:
 	virtual std::string getValueString() ;
 	virtual std::string getConstantString()  = 0;
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state)=0;
 public:
 	ConstantValue(llvm::Value * value) : Value(value) {}
-	virtual ap_texpr1_t* createTreeExpression(BasicBlock* basicBlock) = 0;
 };
 
 std::string ConstantValue::getValueString()  {
@@ -463,9 +530,9 @@ std::string ConstantValue::getValueString()  {
 class ConstantIntValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
 public:
 	ConstantIntValue(llvm::Value * value) : ConstantValue(value) {}
-	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
 	virtual unsigned getBitSize();
 };
 
@@ -476,12 +543,11 @@ std::string ConstantIntValue::getConstantString()  {
 }
 
 ap_texpr1_t * ConstantIntValue::createTreeExpression(
-		BasicBlock * basicBlock) {
+		ApronAbstractState & state) {
 	llvm::ConstantInt & intValue = llvm::cast<llvm::ConstantInt>(*m_value);
 	const llvm::APInt & apint = intValue.getValue();
 	int64_t svalue = apint.getSExtValue();
-	ap_texpr1_t * result = ap_texpr1_cst_scalar_int(
-			basicBlock->getEnvironment(), svalue);
+	ap_texpr1_t * result = state.asTexpr(svalue);
 	return result;
 }
 
@@ -492,9 +558,9 @@ unsigned ConstantIntValue::getBitSize() {
 class ConstantFloatValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
 public:
 	ConstantFloatValue(llvm::Value * value) : ConstantValue(value) {}
-	virtual ap_texpr1_t * createTreeExpression(BasicBlock * basicBlock);
 };
 
 std::string ConstantFloatValue::getConstantString()  {
@@ -512,13 +578,36 @@ std::string ConstantFloatValue::getConstantString()  {
 }
 
 ap_texpr1_t * ConstantFloatValue::createTreeExpression(
-		BasicBlock * basicBlock) {
+		ApronAbstractState & state) {
 	llvm::ConstantFP & fpValue = llvm::cast<llvm::ConstantFP>(*m_value);
 	const llvm::APFloat & apfloat = fpValue.getValueAPF();
 	double value = apfloat.convertToDouble();
-	ap_texpr1_t * result = ap_texpr1_cst_scalar_double(
-			basicBlock->getEnvironment(), value);
+	ap_texpr1_t * result = state.asTexpr(value);
 	return result;
+}
+
+class ConstantNullValue : public ConstantValue {
+protected:
+	virtual std::string getConstantString() ;
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
+public:
+	ConstantNullValue(llvm::Value * value) : ConstantValue(value) {
+		llvm::errs() << "Null ptr: llvm name: " << value->getName() << " my name: " << getName() << "\n";
+	}
+	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
+};
+
+std::string ConstantNullValue::getConstantString() {
+	return "null";
+}
+
+ap_texpr1_t * ConstantNullValue::createTreeExpression(ApronAbstractState & state) {
+	ap_texpr1_t * result = state.asTexpr((int64_t)0);
+	return result;
+}
+
+void ConstantNullValue::populateMayPointsToUserBuffers(MPTItemAbstractState & buffers) {
+	buffers.insert("null");
 }
 
 class CallValue : public InstructionValue {
@@ -570,12 +659,12 @@ public:
     /**************************/
     /* OREN ISH SHALOM added: */
     /**************************/
-    virtual ap_texpr1_t *createRHSTreeExpression();
+    virtual ap_texpr1_t *createRHSTreeExpression(AbstractState & state);
 	virtual void populateTreeConstraints(
 			std::list<ap_tcons1_t> & constraints);
 };
 
-ap_texpr1_t *CallValue::createRHSTreeExpression()
+ap_texpr1_t *CallValue::createRHSTreeExpression(AbstractState & state)
 {
     int inf_value = 0;
     int sup_value = 0;
@@ -603,10 +692,7 @@ ap_texpr1_t *CallValue::createRHSTreeExpression()
     } else {
         llvm::errs() << "Couldn't open summary for " << funcname << "\n";
     }
-	ap_texpr1_t *inf =
-	    ap_texpr1_cst_scalar_int(
-	        getBasicBlock()->getEnvironment(),
-	        inf_value);
+	ap_texpr1_t *inf = state.m_apronAbstractState.asTexpr((int64_t)inf_value);
 
 	return inf;
 }
@@ -627,15 +713,8 @@ std::string CallValue::getCalledFunctionName() {
 			return user->getOperand(0)->getName().str();
 
 		}
-        
-        if (callInst->isInlineAsm())
-        {
-    		// llvm::errs() << "Function is null: " << *value << "\n";
-            // llvm::errs() << "[][][][][][]\n";
-            return "InlineAsm(...)";
-        }
-        
-		// abort();
+		llvm::errs() << "Function is null: " << *value << "\n";
+		abort();
 	}
 	return function->getName().str();
 }
@@ -684,10 +763,10 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("clear_user" == funcName) {
 		return true;
 	}
-	if ("_copy_to_user" == funcName) {
+	if ("copy_to_user" == funcName) {
 		return true;
 	}
-	if ("_copy_from_user" == funcName) {
+	if ("copy_from_user" == funcName) {
 		return true;
 	}
 	if ("strnlen_user" == funcName) {
@@ -696,7 +775,7 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("strncpy_from_user" == funcName) {
 		return true;
 	}
-	if ("rw_copy_check_uvector" == funcName) {
+	if ("import_iovec" == funcName) {
 		return true;
 	}
 	if ("copy_msghdr_from_user" == funcName) {
@@ -707,7 +786,7 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 
 bool CallValue::isSkip() {
 	const std::string funcName = getCalledFunctionName();
-	if (isKernelUserMemoryOperation(funcName)) {
+	if (isDebugFunction(funcName)) {
 		return true;
 	}
 	return false;
@@ -748,7 +827,7 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			populateTreeConstraintsForStrncpyFromUser(constraints);
 			return;
 		}
-		if ("rw_copy_check_uvector" == funcName) {
+		if ("import_iovec" == funcName) {
 			populateTreeConstraintsForImportIovec(constraints);
 			return;
 		}
@@ -757,51 +836,7 @@ void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
 			return;
 		}
 	}
-	/*************************************************************/
-	/* OREN ISH SHALOM: added                                    */
-	/* look for functions with signature f( ... , int *, ... )   */
-	/* that are being called with the address of a local integer */
-	/* for example:                                              */
-	/* void f(int *i,char c){ ... }                              */
-	/* int size=80; f(&size,';');                                */
-	/*************************************************************/
-	llvm::CallInst *callinst = asCallInst();
-	int numArgs = callinst->getNumArgOperands();
-
-	const char *s=getCalledFunctionName().c_str();
-
-	if (strncmp(s,"llvm.lifetime.start",strlen("llvm.lifetime.start")) == 0){return;}
-	if (strncmp(s,"llvm.lifetime.end"  ,strlen("llvm.lifetime.end"  )) == 0){return;}
-
-	// llvm::Value * llvmVal = callinst->getArgOperand(arg);
-	// ValueFactory * valueFactory = ValueFactory::getInstance();
-	// Value * value = valueFactory->getValue(llvmVal);
-	// std::string &name = value->getName();
-		
-	if (callinst->isInlineAsm())
-	{
-        llvm::errs() << "\n\n\n";
-        llvm::errs() << "Instead of: " << callinst->getName() << " = InlineAsm(...)\n";
-        llvm::errs() << "Do: "         << callinst->getName() << " = havoc()       \n";
-        llvm::errs() << "\n\n\n";
-	}
-	else
-	{
-	/******************************************/
-	/* %tmp3 = call i64 @__fdget(i32 %tmp) #5 */
-	/******************************************/
-	    llvm::errs() << "\n\n\n";
-	    llvm::errs() << "Instead of: " << callinst->getName() << " = " << getCalledFunctionName() << "(...)\n";
-	    llvm::errs() << "Do: "         << callinst->getName() << " = havoc()                               \n";
-	    llvm::errs() << "\n\n\n";
-    }
-
-	/****************************/
-	/* Havoc the value of %tmp3 */
-	/****************************/
-    havoc();
-
-	// InstructionValue::populateTreeConstraints(constraints);
+	InstructionValue::populateTreeConstraints(constraints);
 	return;
 }
 
@@ -888,13 +923,11 @@ void CallValue::populateTreeConstraintsForUserMemoryOperation(
 	BasicBlock * bb = getBasicBlock();
 	ValueFactory * valueFactory = ValueFactory::getInstance();
 	AbstractState & abstractState = bb->getAbstractState();
-	std::set<std::string> & userBuffers = abstractState.m_mayPointsTo[ptrName];
+	MPTItemAbstractState & userBuffers = abstractState.m_mayPointsTo.m_mayPointsTo[ptrName];
+	userBuffers.erase("null");
+	userBuffers.erase("kernel");
 	for (auto & userBuffer : userBuffers) {
-		ap_texpr1_t * offset = bb->createUserPointerOffsetTreeExpression(
-				ptrName, userBuffer);
-		ap_texpr1_t * last = bb->createUserPointerLastTreeExpression(userBuffer, op);
-		ap_environment_t * env = bb->getEnvironment();
-		MemoryAccessAbstractValue maav(env, last, offset, ap_texpr1_copy(size));
+		MemoryAccessAbstractValue maav(ptrName, userBuffer, ap_texpr1_copy(size), op);
 		// Placed back in abstractState to be joined at end of BB
 		abstractState.memoryAccessAbstractValues.push_back(maav);
 	}
@@ -945,7 +978,7 @@ void CallValue::populateTreeConstraintsForLiteralSize(llvm::Value * ptr,
 		llvm::Value * llvmsize, user_pointer_operation_e op) {
 	ValueFactory * valueFactory = ValueFactory::getInstance();
 	Value * sizeValue = valueFactory->getValue(llvmsize);
-	ap_texpr1_t * size = sizeValue->createTreeExpression(getBasicBlock());
+	ap_texpr1_t * size = sizeValue->createTreeExpression(getBasicBlock()->getAbstractState());
 
 	populateTreeConstraintsForUserMemoryOperation(ptr, size, op);
 }
@@ -988,13 +1021,27 @@ void CallValue::populateTreeConstraintsForStrncpyFromUser(std::list<ap_tcons1_t>
 	populateTreeConstraintsForCopyFromUser(constraints);
 }
 
-class CompareValue : public BinaryOperationValue {
+class LogicalBinaryOperationValue : public BinaryOperationValue {
+protected:
+	virtual ap_texpr_op_t getTreeOperation() { abort(); /* Can't be done */ }
 public:
-	CompareValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	LogicalBinaryOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	virtual bool isSkip();
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false) = 0;
+};
+
+bool LogicalBinaryOperationValue::isSkip() {
+	return true;
+}
+
+class CompareValue : public LogicalBinaryOperationValue {
+public:
+	CompareValue(llvm::Value * value) : LogicalBinaryOperationValue(value) {}
 	// TODO These probably work differently
 	virtual ap_texpr_op_t getTreeOperation()  { abort(); }
 	virtual constraint_condition_t getConditionType() = 0;
 	virtual constraint_condition_t getNegatedConditionType() = 0;
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false) = 0;
 };
 
 class IntegerCompareValue : public CompareValue {
@@ -1002,11 +1049,25 @@ protected:
 	virtual llvm::ICmpInst * asICmpInst();
 	virtual std::string getPredicateString();
 	virtual std::string getOperationSymbol();
+	virtual bool isConstraintConditionToAPNeedsReverse(
+			constraint_condition_t consCond);
+	virtual ap_constyp_t constraintConditionToAPConsType(
+			constraint_condition_t consCond);
+	virtual ap_tcons1_t getConditionTcons(AbstractState & state,
+			constraint_condition_t consCond);
+	virtual void updateNumericalAssumptions(AbstractState & state,
+			constraint_condition_t consCond);
+	virtual void updateMayPointsToAssumptions(AbstractState & state,
+			constraint_condition_t consCond);
+	virtual void removeNullIfOtherIsProvablyNull(
+			MPTItemAbstractState & left, MPTItemAbstractState & right);
+	virtual void meetMayPointsToByAssumption(AbstractState & state,
+		constraint_condition_t condType, Value * left, Value * right);
 public:
 	IntegerCompareValue(llvm::Value * value) : CompareValue(value) {}
-	virtual bool isSkip();
 	virtual constraint_condition_t getConditionType();
 	virtual constraint_condition_t getNegatedConditionType();
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false);
 };
 
 llvm::ICmpInst * IntegerCompareValue::asICmpInst() {
@@ -1051,11 +1112,10 @@ std::string IntegerCompareValue::getPredicateString() {
 	case llvm::CmpInst::ICMP_ULE:
 	case llvm::CmpInst::ICMP_SLE:
 		return "<=";
-		return ">";
 	case llvm::CmpInst::BAD_FCMP_PREDICATE:
 	case llvm::CmpInst::BAD_ICMP_PREDICATE:
 	deafult:
-		return "???";
+		break;
 	}
 	return "???";
 }
@@ -1156,17 +1216,238 @@ std::string IntegerCompareValue::getOperationSymbol() {
 	return getPredicateString();
 }
 
-bool IntegerCompareValue::isSkip() {
-	return true;
+bool IntegerCompareValue::isConstraintConditionToAPNeedsReverse(
+		constraint_condition_t consCond) {
+	switch (consCond) {
+	case cons_cond_lt:
+	case cons_cond_le:
+		return true;
+	default:
+		return false;
+	}
+}
+
+ap_constyp_t IntegerCompareValue::constraintConditionToAPConsType(
+		constraint_condition_t consCond) {
+	switch (consCond) {
+	case cons_cond_eq:
+		return AP_CONS_EQ;
+	case cons_cond_eqmod:
+		return AP_CONS_EQMOD;
+	case cons_cond_neq:
+		return AP_CONS_DISEQ;
+	case cons_cond_gt:
+		return AP_CONS_SUP;
+	case cons_cond_ge:
+		return AP_CONS_SUPEQ;
+	case cons_cond_lt:
+		return AP_CONS_SUP;
+	case cons_cond_le:
+		return AP_CONS_SUPEQ;
+	case cons_cond_true:
+		llvm::errs() << "IntegerCompareValue::constraintConditionToAPConsType: Constant condition true\n";
+		abort();
+	case cons_cond_false:
+		llvm::errs() << "IntegerCompareValue::constraintConditionToAPConsType: Constant condition false\n";
+		abort();
+	default:
+		llvm::errs() << "IntegerCompareValue::constraintConditionToAPConsType: Constant condition unknown: " << consCond << "\n";
+		abort();
+	}
+}
+
+ap_tcons1_t IntegerCompareValue::getConditionTcons(AbstractState & state,
+		constraint_condition_t consCond) {
+	// TODO definitely make into a global
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
+	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
+	ap_texpr1_t * left = createOperandTreeExpression(state, 0);
+	ap_texpr1_t * right = createOperandTreeExpression(state, 1);
+	ap_texpr1_t * texpr ;
+	state.m_apronAbstractState.extendEnvironment(left);
+	state.m_apronAbstractState.extendEnvironment(right);
+	if (reverse) {
+		texpr = ap_texpr1_binop(
+				AP_TEXPR_SUB, right, left,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	} else {
+		texpr = ap_texpr1_binop(
+				AP_TEXPR_SUB, left, right,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	}
+	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
+	return result;
+}
+
+void IntegerCompareValue::updateNumericalAssumptions(AbstractState & state,
+		constraint_condition_t consCond) {
+	ap_tcons1_t cons = getConditionTcons(state, consCond);
+	state.m_apronAbstractState.meet(cons);
+}
+
+void IntegerCompareValue::updateMayPointsToAssumptions(AbstractState & state,
+		constraint_condition_t consCond) {
+	Value * condOperand0Value = getOperandValue(0);
+	if (!condOperand0Value->isPointer()) {
+		return;
+	}
+	Value * condOperand1Value = getOperandValue(1);
+	assert(condOperand1Value->isPointer() && "Pointer and non-pointer comparison");
+
+	meetMayPointsToByAssumption(state, consCond, condOperand0Value, condOperand1Value);
+}
+
+void IntegerCompareValue::removeNullIfOtherIsProvablyNull(
+		MPTItemAbstractState & left, MPTItemAbstractState & right) {
+	if (right.isProvablyNull()) {
+		// TODO If left is provably null, make bottom
+		left.erase("null");
+	}
+}
+
+void IntegerCompareValue::meetMayPointsToByAssumption(AbstractState & state,
+		constraint_condition_t condType, Value * left, Value * right) {
+	MPTItemAbstractState & pt_left = state.m_mayPointsTo.m_mayPointsTo[left->getName()];
+	MPTItemAbstractState & pt_right = state.m_mayPointsTo.m_mayPointsTo[right->getName()];
+	switch (condType) {
+	cons_cond_eq: {
+		// Equality
+		MPTItemAbstractState::updateToIntersection(pt_left, pt_right);
+		if (pt_left.empty()) {
+			state.makeBottom();
+		}
+		break;
+	}
+	default: {
+		// Inequality
+		// Remove null from each operand, if the other operand is provably null
+		removeNullIfOtherIsProvablyNull(pt_left, pt_right);
+		if (pt_left.empty()) {
+			state.makeBottom();
+			break;
+		}
+		removeNullIfOtherIsProvablyNull(pt_right, pt_left);
+		if (pt_right.empty()) {
+			state.makeBottom();
+			break;
+		}
+		break;
+	}
+	}
+}
+
+void IntegerCompareValue::updateConditionalAssumptions(AbstractState & state, bool isNegated) {
+	// 1. Update the APRON abstract value with the branch's condition
+	// 2. If the branch's condition is (in)equality between pointers:
+	// 2.a. Update the mpt of both pointers to be their intersection
+	constraint_condition_t consCond =
+			isNegated ? getNegatedConditionType() : getConditionType();
+	updateNumericalAssumptions(state, consCond);
+	updateMayPointsToAssumptions(state, consCond);
+}
+
+class OrOperationValue : public LogicalBinaryOperationValue {
+protected:
+	virtual std::string getOperationSymbol() { return "or"; }
+	virtual void updateConditionalAssumptionsPositive(AbstractState & state);
+	virtual void updateConditionalAssumptionsNegative(AbstractState & state);
+public:
+	OrOperationValue(llvm::Value * value) : LogicalBinaryOperationValue(value) {}
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false);
+};
+
+void OrOperationValue::updateConditionalAssumptionsPositive(AbstractState & state) {
+	AbstractState joined; // = AbstractState::bottom();
+	for (int idx = 0; idx < asInstruction()->getNumOperands(); idx++) {
+		Value * operand = getOperandValue(idx);
+		LogicalBinaryOperationValue * lbov = static_cast<LogicalBinaryOperationValue*>(
+				operand);
+		AbstractState clone = state;
+		lbov->updateConditionalAssumptions(clone, false);
+		joined.join(clone);
+	}
+	// XXX Not implemented: state.meet(joined);
+	state.m_apronAbstractState.meet(joined.m_apronAbstractState);
+}
+
+void OrOperationValue::updateConditionalAssumptionsNegative(AbstractState & state) {
+	for (int idx = 0; idx < asInstruction()->getNumOperands(); idx++) {
+		Value * operand = getOperandValue(idx);
+		LogicalBinaryOperationValue * lbov = static_cast<LogicalBinaryOperationValue*>(
+				operand);
+		lbov->updateConditionalAssumptions(state, true);
+	}
+}
+
+void OrOperationValue::updateConditionalAssumptions(AbstractState & state, bool isNegated) {
+	// if isNegated is false:
+	// 	For each item in the or:
+	// 		Clone AbstractState
+	//		updateConditionalAssumptions(clone, false)
+	//	Join all clones
+	//	state.meet(result)
+	// else:
+	// 	For each item in the or:
+	//		updateConditionalAssumptions(state, true)
+	if (!isNegated) {
+		updateConditionalAssumptionsPositive(state);
+	} else {
+		updateConditionalAssumptionsNegative(state);
+	}
+}
+
+class AndOperationValue : public LogicalBinaryOperationValue {
+protected:
+	virtual std::string getOperationSymbol() { return "and"; }
+	virtual void updateConditionalAssumptionsPositive(AbstractState & state);
+	virtual void updateConditionalAssumptionsNegative(AbstractState & state);
+public:
+	AndOperationValue(llvm::Value * value) : LogicalBinaryOperationValue(value) {}
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false);
+};
+
+void AndOperationValue::updateConditionalAssumptionsPositive(AbstractState & state) {
+	for (int idx = 0; idx < asInstruction()->getNumOperands(); idx++) {
+		Value * operand = getOperandValue(idx);
+		LogicalBinaryOperationValue * lbov = static_cast<LogicalBinaryOperationValue*>(
+				operand);
+		lbov->updateConditionalAssumptions(state, false);
+	}
+}
+
+void AndOperationValue::updateConditionalAssumptionsNegative(AbstractState & state) {
+	AbstractState joined; // = AbstractState::bottom();
+	for (int idx = 0; idx < asInstruction()->getNumOperands(); idx++) {
+		Value * operand = getOperandValue(idx);
+		LogicalBinaryOperationValue * lbov = static_cast<LogicalBinaryOperationValue*>(
+				operand);
+		AbstractState clone = state;
+		lbov->updateConditionalAssumptions(clone, true);
+		joined.join(clone);
+	}
+	// XXX Not implemented: state.meet(joined);
+	state.m_apronAbstractState.meet(joined.m_apronAbstractState);
+}
+
+void AndOperationValue::updateConditionalAssumptions(AbstractState & state, bool isNegated) {
+	if (!isNegated) {
+		updateConditionalAssumptionsPositive(state);
+	} else {
+		updateConditionalAssumptionsNegative(state);
+	}
 }
 
 class PhiValue : public InstructionValue {
 protected:
 	virtual llvm::PHINode * asPHINode();
+	virtual Value * getIncomingValue(BasicBlock * source);
 public:
 	PhiValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip();
+	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 };
 
 llvm::PHINode * PhiValue::asPHINode() {
@@ -1194,41 +1475,69 @@ bool PhiValue::isSkip() {
 	return true;
 }
 
-class SelectValueInstruction : public InstructionValue {
+Value * PhiValue::getIncomingValue(BasicBlock * source) {
+	llvm::PHINode * phi = asPHINode();
+	llvm::BasicBlock * llvmsource = source->getLLVMBasicBlock();
+	llvm::Value * incoming = phi->getIncomingValueForBlock(llvmsource);
+	ValueFactory * factory = ValueFactory::getInstance();
+	return factory->getValue(incoming);
+}
+
+void PhiValue::updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
+	Value * incomingValue = getIncomingValue(source);
+	std::string & name = getName();
+	if (!isPointer()) {
+		ap_texpr1_t * value_texpr =
+				incomingValue->createTreeExpression(state);
+		state.m_apronAbstractState.forget(name);
+		state.m_apronAbstractState.assign(name, value_texpr);
+	} else {
+		// Assign offsets of one to the other
+		// set pt
+		std::string incomingName = incomingValue->getName();
+		MPTItemAbstractState &srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[incomingName];
+		state.m_mayPointsTo.m_mayPointsTo[name] = srcUserPointers;
+		for (auto & srcPtrName : srcUserPointers) {
+			const std::string & offsetName = AbstractState::generateOffsetName(name, srcPtrName);
+			state.m_apronAbstractState.forget(offsetName);
+			const std::string & incomingOffsetName = AbstractState::generateOffsetName(incomingName, srcPtrName);
+			ap_texpr1_t * incomingOffsetTexpr = state.m_apronAbstractState.asTexpr(incomingOffsetName);
+			state.m_apronAbstractState.assign(offsetName, incomingOffsetTexpr);
+		}
+	}
+}
+
+template <class ConditionalInst>
+class ConditionalMixin {
+public:
+	LogicalBinaryOperationValue & getCondition(llvm::Value * m_value) {
+		ConditionalInst * llvmConditional = llvm::dyn_cast<ConditionalInst>(m_value);
+		assert(llvmConditional);
+		llvm::Value * condition = llvmConditional->getCondition();
+		ValueFactory * factory = ValueFactory::getInstance();
+		Value * conditionValue = factory->getValue(condition);
+		LogicalBinaryOperationValue * result =
+				static_cast<LogicalBinaryOperationValue*>(conditionValue);
+		return *result;
+	}
+};
+
+class SelectValueInstruction : public InstructionValue, public ConditionalMixin<llvm::SelectInst> {
 protected:
 	virtual llvm::SelectInst * asSelectInst();
-	virtual Value * getCondition();
 	virtual Value * getTrueValue();
 	virtual Value * getFalseValue();
-
-	virtual ap_constyp_t constraintConditionToAPConsType(
-			constraint_condition_t consCond);
-	virtual bool isConstraintConditionToAPNeedsReverse(
-			constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTcons(constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTrueTcons();
-	virtual ap_tcons1_t getConditionFalseTcons();
-	virtual ap_tcons1_t getSetValueTcons(Value * value);
-	virtual ap_tcons1_t getSetTrueValueTcons();
-	virtual ap_tcons1_t getSetFalseValueTcons();
-
+	virtual AbstractState updateJoinMember(AbstractState state,
+		Value * value, bool isNegate);
 public:
 	SelectValueInstruction(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
-	virtual void populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints);
 	virtual bool isSkip();
+	virtual void update(AbstractState & state);
 };
 
 llvm::SelectInst * SelectValueInstruction::asSelectInst() {
 	return &llvm::cast<llvm::SelectInst>(*m_value);
-}
-
-Value * SelectValueInstruction::getCondition() {
-	ValueFactory * factory = ValueFactory::getInstance();
-	llvm::Value * condition = asSelectInst()->getCondition();
-	Value * result = factory->getValue(condition);
-	return result;
 }
 
 Value * SelectValueInstruction::getTrueValue() {
@@ -1244,7 +1553,7 @@ Value * SelectValueInstruction::getFalseValue() {
 std::string SelectValueInstruction::getValueString() {
 	std::ostringstream oss;
 	oss << "(";
-	appendValue(oss, getCondition(), "<unknown condition>") ;
+	appendValue(oss, &getCondition(m_value), "<unknown condition>") ;
 	oss << " ? ";
 	appendValue(oss, getTrueValue(), "<unknown value>") ;
 	oss << " : ";
@@ -1253,144 +1562,32 @@ std::string SelectValueInstruction::getValueString() {
 	return oss.str();
 }
 
-ap_constyp_t SelectValueInstruction::constraintConditionToAPConsType(
-		constraint_condition_t consCond) {
-	switch (consCond) {
-	case cons_cond_eq:
-		return AP_CONS_EQ;
-	case cons_cond_eqmod:
-		return AP_CONS_EQMOD;
-	case cons_cond_neq:
-		return AP_CONS_DISEQ;
-	case cons_cond_gt:
-		return AP_CONS_SUP;
-	case cons_cond_ge:
-		return AP_CONS_SUPEQ;
-	case cons_cond_lt:
-		return AP_CONS_SUP;
-	case cons_cond_le:
-		return AP_CONS_SUPEQ;
-	case cons_cond_true:
-		abort();
-	case cons_cond_false:
-		abort();
-	default:
-		abort();
-	}
-}
-bool SelectValueInstruction::isConstraintConditionToAPNeedsReverse(
-		constraint_condition_t consCond) {
-	switch (consCond) {
-	case cons_cond_lt:
-	case cons_cond_le:
-		return true;
-	default:
-		return false;
-	}
+AbstractState SelectValueInstruction::updateJoinMember(AbstractState state,
+		Value * value, bool isNegated) {
+	LogicalBinaryOperationValue & condition = getCondition(m_value);
+	condition.updateConditionalAssumptions(state, isNegated);
+	state.m_apronAbstractState.finish_meet_aggregate();
+	ap_texpr1_t * texpr = value->createTreeExpression(state);
+	state.m_apronAbstractState.assign(getName(), texpr);
+	return state;
 }
 
-ap_tcons1_t SelectValueInstruction::getConditionTcons(
-		constraint_condition_t consCond) {
-	// TODO definitely make into a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
-	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
-	ap_texpr1_t * left = compareValue->createOperandTreeExpression(0);
-	ap_texpr1_t * right = compareValue->createOperandTreeExpression(1);
-	ap_texpr1_t * texpr ;
-	if (reverse) {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, right, left,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-	} else {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, left, right,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-	}
-	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
-	return result;
-}
-
-ap_tcons1_t SelectValueInstruction::getConditionTrueTcons() {
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(compareValue->getConditionType());
-}
-
-ap_tcons1_t SelectValueInstruction::getConditionFalseTcons() {
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(compareValue->getNegatedConditionType());
-}
-
-ap_tcons1_t SelectValueInstruction::getSetValueTcons(Value * value) {
-	BasicBlock * basicBlock = getBasicBlock();
-	return Value::getSetValueTcons(basicBlock, value);
-}
-
-ap_tcons1_t SelectValueInstruction::getSetTrueValueTcons() {
-	return getSetValueTcons(getTrueValue());
-}
-
-ap_tcons1_t SelectValueInstruction::getSetFalseValueTcons() {
-	return getSetValueTcons(getFalseValue());
-}
-
-void SelectValueInstruction::populateTreeConstraints(
-		std::list<ap_tcons1_t> & constraints) {
-	/*
-	The command is %4 <- select %1, %2, %3
-	We have all the information (it is in the list<ap_tcons1_t>). What if we
-	do the following?:
-		arr1 <- Create a constraint array
-		arr2 <- clone it
-
-		arr1.append(%1)
-		arr1.append(%2 - %4 = 0)
-
-		arr2.append(!%1)
-		arr2.append(%3 - %4 = 0)
-
-		abst_val1 <- from arr 1
-		abst_val2 <- from arr 2
-		abst_val = join(abst_val1, abst_val2)
-		arr <- abst_val to list of constraints
-	*/
-	// Creates copies of the constraints.
-	std::list<ap_tcons1_t> constraintsTrue = constraints;
-	std::list<ap_tcons1_t> constraintsFalse = constraints;
-
-	ap_tcons1_t conditionTrue = getConditionTrueTcons();
-	ap_tcons1_t setTrueValue = getSetTrueValueTcons();
-	ap_tcons1_t conditionFalse = getConditionFalseTcons();
-	ap_tcons1_t setFalseValue = getSetFalseValueTcons();
-
-	constraintsTrue.push_back(conditionTrue);
-	constraintsTrue.push_back(setTrueValue);
-
-	constraintsFalse.push_back(conditionFalse);
-	constraintsFalse.push_back(setFalseValue);
-
-	BasicBlock * basicBlock = getBasicBlock();
-	ap_abstract1_t abstValueTrue =
-			basicBlock->abstractOfTconsList(constraintsTrue);
-	ap_abstract1_t abstValueFalse =
-			basicBlock->abstractOfTconsList(constraintsFalse);
-
-	ap_abstract1_t joinedValue = ap_abstract1_join(basicBlock->getManager(),
-			false, &abstValueTrue, &abstValueFalse);
-
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
-			basicBlock->getManager(), &joinedValue);
-
-	size_t arraySize = ap_tcons1_array_size(&array);
-	for (int idx = 0; idx < arraySize; idx++) {
-		ap_tcons1_t constraint = ap_tcons1_array_get(&array, idx);
-		constraints.push_back(constraint);
-	}
+void SelectValueInstruction::update(AbstractState & state) {
+	// Take original state.
+	// Clone it. (True case)
+	// 	Meet with true assume
+	// 	Assign True value
+	// Clone it. (False case)
+	// 	Meet with False assume
+	// 	Assign False value
+	// Join clones
+	// Meet original state with clones
+	AbstractState trueState = updateJoinMember(state, getTrueValue(), false);
+	AbstractState falseState = updateJoinMember(state, getFalseValue(), true);
+	trueState.join(falseState);
+	ApronAbstractState & aas = state.m_apronAbstractState;
+	// XXX Because we don't have meet on AbstractState
+	aas.meet(trueState.m_apronAbstractState);
 }
 
 bool SelectValueInstruction::isSkip() {
@@ -1410,18 +1607,16 @@ llvm::UnaryInstruction * UnaryOperationValue::asUnaryInstruction() {
 
 class CastOperationValue : public UnaryOperationValue {
 protected:
-	virtual ap_texpr1_t * createRHSTreeExpression();
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 public:
 	CastOperationValue(llvm::Value * value) : UnaryOperationValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip();
+	virtual void update(AbstractState & state);
 };
 
 std::string CastOperationValue::getValueString() {
-	llvm::UnaryInstruction * inst = asUnaryInstruction();
-	llvm::Value * operand = inst->getOperand(0);
-	ValueFactory * factory = ValueFactory::getInstance();
-	Value * value = factory->getValue(operand);
+	Value * value = getOperandValue(0);
 	std::ostringstream oss;
 	oss << "cast(";
 	appendValueName(oss, value, "<value unknown>");
@@ -1433,170 +1628,66 @@ bool CastOperationValue::isSkip() {
 	return false;
 }
 
-ap_texpr1_t * CastOperationValue::createRHSTreeExpression() {
-	llvm::UnaryInstruction * inst = asUnaryInstruction();
-	llvm::Value * operand = inst->getOperand(0);
-	ValueFactory * factory = ValueFactory::getInstance();
-	Value * value = factory->getValue(operand);
-	return value->createTreeExpression(getBasicBlock());
+ap_texpr1_t * CastOperationValue::createRHSTreeExpression(AbstractState & state) {
+	Value * value = getOperandValue(0);
+	return value->createTreeExpression(getBasicBlock()->getAbstractState());
 }
 
-class BranchInstructionValue : public TerminatorInstructionValue {
+void CastOperationValue::update(AbstractState & state) {
+	if (isPointer()) {
+		MPTAbstractState & mpt = state.m_mayPointsTo;
+		Value * src = getOperandValue(0);
+		mpt.m_mayPointsTo[getName()] = mpt.m_mayPointsTo[src->getName()];
+	}
+	UnaryOperationValue::update(state);
+}
+
+class BranchInstructionValue : public TerminatorInstructionValue, public ConditionalMixin<llvm::BranchInst> {
 protected:
-	virtual Value * getCondition();
-	virtual ap_tcons1_t getConditionTcons(constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTrueTcons();
-	virtual ap_tcons1_t getConditionFalseTcons();
-	virtual ap_constyp_t constraintConditionToAPConsType(
-			constraint_condition_t consCond);
-	virtual bool isConstraintConditionToAPNeedsReverse(
-			constraint_condition_t consCond);
-	virtual ap_tcons1_array_t getBBConstraintsConditional(
-			BasicBlock * basicBlock, llvm::BranchInst * branchInst);
-	virtual ap_tcons1_array_t getBBConstraintsUnconditional(
-			BasicBlock * basicBlock, llvm::BranchInst * branchInst);
+	virtual bool isSuccessorByIndex(BasicBlock * basicBlock, int idx);
+	virtual bool isElseSuccessor(BasicBlock * basicBlock);
+	virtual bool isThenSuccessor(BasicBlock * basicBlock);
+
 public:
 	BranchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
-	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
+	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 };
 
-ap_tcons1_array_t BranchInstructionValue::getBasicBlockConstraints(
-		BasicBlock * basicBlock) {
+bool BranchInstructionValue::isSuccessorByIndex(BasicBlock * basicBlock, int idx) {
 	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
-	if (branchInst->isConditional()) {
-		return getBBConstraintsConditional(basicBlock, branchInst);
-	} else {
-		return getBBConstraintsUnconditional(basicBlock, branchInst);
-	}
-}
-
-ap_tcons1_array_t BranchInstructionValue::getBBConstraintsConditional(
-		BasicBlock* basicBlock, llvm::BranchInst * branchInst) {
+	llvm::BasicBlock * llvmsuccessor = branchInst->getSuccessor(idx);
 	BasicBlockManager & manager = BasicBlockManager::getInstance();
-	ap_environment_t * environment = 0;
-
-	llvm::BasicBlock * llvmTrueSuccessor = branchInst->getSuccessor(0);
-	BasicBlock * trueSuccessor = manager.getBasicBlock(llvmTrueSuccessor);
-	if (basicBlock == trueSuccessor) {
-		ap_tcons1_t conditionTrue = getConditionTrueTcons();
-		environment = getBasicBlock()->getEnvironment();
-		ap_tcons1_array_t trueConstraints = ap_tcons1_array_make(environment, 1);
-		ap_tcons1_array_set(&trueConstraints, 0, &conditionTrue);
-		return trueConstraints;
-	}
-
-	// TODO(oanson) Repeated code?
-	llvm::BasicBlock * llvmFalseSuccessor = branchInst->getSuccessor(1);
-	BasicBlock * falseSuccessor = manager.getBasicBlock(llvmFalseSuccessor);
-	if (basicBlock == falseSuccessor) {
-		ap_tcons1_t conditionFalse = getConditionFalseTcons();
-		environment = getBasicBlock()->getEnvironment();
-		ap_tcons1_array_t falseConstraints = ap_tcons1_array_make(environment, 1);
-		ap_tcons1_array_set(&falseConstraints, 0, &conditionFalse);
-		return falseConstraints;
-	}
-	llvm::errs() << "Warning: Given basic block is not a successor\n";
-	return TerminatorInstructionValue::getBasicBlockConstraints(basicBlock);
+	BasicBlock * successor = manager.getBasicBlock(llvmsuccessor);
+	return (successor == basicBlock);
 }
 
-ap_tcons1_array_t BranchInstructionValue::getBBConstraintsUnconditional(
-		BasicBlock* basicBlock, llvm::BranchInst * branchInst) {
-	llvm::BasicBlock * singleSuccessor = branchInst->getSuccessor(0);
-	BasicBlockManager & manager = BasicBlockManager::getInstance();
-	BasicBlock * succBasicBlock = manager.getBasicBlock(singleSuccessor);
-	if (basicBlock != succBasicBlock) {
-		llvm::errs() << "Warning: Given basic block is not a successor\n";
-	}
-	return TerminatorInstructionValue::getBasicBlockConstraints(basicBlock);
+bool BranchInstructionValue::isThenSuccessor(BasicBlock * basicBlock) {
+	return isSuccessorByIndex(basicBlock, 0);
 }
 
-// TODO(oanson) Code copied from SelectValueInstruction
-Value * BranchInstructionValue::getCondition() {
+bool BranchInstructionValue::isElseSuccessor(BasicBlock * basicBlock) {
+	return isSuccessorByIndex(basicBlock, 1);
+}
+
+void BranchInstructionValue::updateAssumptions(
+		BasicBlock * source, BasicBlock * dest, AbstractState & state) {
 	llvm::BranchInst * branchInst = &llvm::cast<llvm::BranchInst>(*m_value);
-	ValueFactory * factory = ValueFactory::getInstance();
-	llvm::Value * condition = branchInst->getCondition();
-	Value * result = factory->getValue(condition);
-	return result;
-}
-
-ap_constyp_t BranchInstructionValue::constraintConditionToAPConsType(
-		constraint_condition_t consCond) {
-	switch (consCond) {
-	case cons_cond_eq:
-		return AP_CONS_EQ;
-	case cons_cond_eqmod:
-		return AP_CONS_EQMOD;
-	case cons_cond_neq:
-		return AP_CONS_DISEQ;
-	case cons_cond_gt:
-		return AP_CONS_SUP;
-	case cons_cond_ge:
-		return AP_CONS_SUPEQ;
-	case cons_cond_lt:
-		return AP_CONS_SUP;
-	case cons_cond_le:
-		return AP_CONS_SUPEQ;
-	case cons_cond_true:
-		llvm::errs() << "BranchInstructionValue::constraintConditionToAPConsType: Constant condition true\n";
-		abort();
-	case cons_cond_false:
-		llvm::errs() << "BranchInstructionValue::constraintConditionToAPConsType: Constant condition false\n";
-		abort();
-	default:
-		llvm::errs() << "BranchInstructionValue::constraintConditionToAPConsType: Constant condition unknown: " << consCond << "\n";
-		abort();
+	if (!branchInst->isConditional()) {
+		return;
 	}
-}
 
-bool BranchInstructionValue::isConstraintConditionToAPNeedsReverse(
-		constraint_condition_t consCond) {
-	switch (consCond) {
-	case cons_cond_lt:
-	case cons_cond_le:
-		return true;
-	default:
-		return false;
-	}
-}
-
-ap_tcons1_t BranchInstructionValue::getConditionTcons(
-		constraint_condition_t consCond) {
-	// TODO definitely make into a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
-	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
-	ap_texpr1_t * left = compareValue->createOperandTreeExpression(0);
-	ap_texpr1_t * right = compareValue->createOperandTreeExpression(1);
-	ap_texpr1_t * texpr ;
-	BasicBlock * basicBlock = getBasicBlock();
-	basicBlock->extendTexprEnvironment(left);
-	basicBlock->extendTexprEnvironment(right);
-	if (reverse) {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, right, left,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
+	LogicalBinaryOperationValue & condition = getCondition(m_value);
+	bool isNegated;
+	if (isThenSuccessor(dest)) {
+		assert(!isElseSuccessor(dest));
+		isNegated = false;
+	} else if (isElseSuccessor(dest)) {
+		assert(!isThenSuccessor(dest));
+		isNegated = true;
 	} else {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, left, right,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
+		abort();
 	}
-	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
-	return result;
-}
-
-ap_tcons1_t BranchInstructionValue::getConditionTrueTcons() {
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(compareValue->getConditionType());
-}
-
-ap_tcons1_t BranchInstructionValue::getConditionFalseTcons() {
-	Value * condition = getCondition();
-	CompareValue * compareValue = static_cast<CompareValue*>(condition);
-	return getConditionTcons(compareValue->getNegatedConditionType());
+	condition.updateConditionalAssumptions(state, isNegated);
 }
 
 Value::Value(llvm::Value * value) : m_value(value),
@@ -1613,9 +1704,16 @@ std::string Value::llvmValueName(llvm::Value * value) {
 				*value);
 		return constant.getValue().toString(10, true);
 	}
+	if (llvm::isa<llvm::ConstantPointerNull>(value)) {
+		return "null";
+	}
 	std::ostringstream oss;
 	oss << "%" << valuesIndex++;
 	return oss.str();
+}
+
+bool Value::isPointer() {
+	return m_value->getType()->isPointerTy();
 }
 
 static const llvm::Module *getModuleFromVal(const llvm::Value *V) {
@@ -1671,43 +1769,32 @@ bool Value::isSkip() {
 	return false;
 }
 
-ap_texpr1_t * Value::createTreeExpression(BasicBlock * basicBlock) {
-	return basicBlock->getVariableTExpr(this);
+ap_texpr1_t * Value::createTreeExpression(ApronAbstractState & state) {
+	return state.asTexpr(getName());
 }
 
-ap_tcons1_t Value::getSetValueTcons(BasicBlock * basicBlock, Value * other) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
-	ap_texpr1_t * value_texpr = other->createTreeExpression(basicBlock);
-	// Verify the environments are up-to-date
-	basicBlock->extendTexprEnvironment(var_texpr);
-	basicBlock->extendTexprEnvironment(value_texpr);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, texpr, zero);
-	return result;
+ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
+	return createTreeExpression(state.m_apronAbstractState);
 }
 
 ap_tcons1_t Value::getValueEq0Tcons(BasicBlock * basicBlock) {
+	AbstractState & state = basicBlock->getAbstractState();
 	ap_scalar_t* zero = ap_scalar_alloc ();
 	ap_scalar_set_int(zero, 0);
-	ap_texpr1_t * var_texpr = createTreeExpression(basicBlock);
+	ap_texpr1_t * var_texpr = createTreeExpression(state);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, var_texpr, zero);
 	return result;
 }
 
-void Value::havoc() {
-	llvm::errs() << "havoc not implemented for this value: " << this << "\n";
-	abort();
+void Value::havoc(AbstractState & state) {
+	state.m_apronAbstractState.forget(getName());
 }
 
-void Value::havoc(BasicBlock * bb) {
-	bb->forget(this);
+void Value::populateMayPointsToUserBuffers(MPTItemAbstractState & buffers) {
+	return;
 }
 
-void Value::populateMayPointsToUserBuffers(std::set<std::string> & buffers) {
+void Value::updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
 	return;
 }
 
@@ -1814,8 +1901,9 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 
 	// Logical operators...
 	case llvm::BinaryOperator::And:
-		return new AndValue(instruction);
-	//case llvm::BinaryOperator::Or :
+		return new AndOperationValue(instruction);
+	case llvm::BinaryOperator::Or :
+		return new OrOperationValue(instruction);
 	//case llvm::BinaryOperator::Xor:
 
 	// Memory instructions...
@@ -1874,6 +1962,9 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 	}
 	if (llvm::isa<llvm::ConstantFP>(constant)) {
 		return new ConstantFloatValue(constant);
+	}
+	if (llvm::isa<llvm::ConstantPointerNull>(constant)) {
+		return new ConstantNullValue(constant);
 	}
 	return NULL;
 }

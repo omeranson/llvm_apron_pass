@@ -10,6 +10,7 @@
 #include <llvm/IR/Instructions.h>
 
 #include <APStream.h>
+#include <AbstractState.h>
 #include <BasicBlock.h>
 #include <Value.h>
 
@@ -27,13 +28,14 @@ public:
 	Function(llvm::Function * function) : m_function(function) {};
 	bool isUserPointer(std::string & ptrname);
 	std::vector<std::string> getUserPointers();
+	// Kept for debug purposes only
 	virtual ap_abstract1_t trimmedLastASAbstractValue();
-	virtual ap_abstract1_t trimmedLastBBAbstractValue();
-	virtual ap_abstract1_t trimmedLastJoinedAbstractValue();
+	virtual AbstractState & getReturnAbstractState();
 	virtual llvm::ReturnInst * getReturnInstruction();
 	virtual BasicBlock * getReturnBasicBlock();
 	virtual bool isVarInOut(const char * varname);
-	std::map<std::string, ap_abstract1_t> generateErrorStates();
+	virtual ApronAbstractState minimize(ApronAbstractState & state);
+	std::map<std::string, ApronAbstractState> generateErrorStates();
 	std::string getName();
 	std::vector<std::pair<std::string, std::string> > getArgumentStrings();
 	std::string getSignature();

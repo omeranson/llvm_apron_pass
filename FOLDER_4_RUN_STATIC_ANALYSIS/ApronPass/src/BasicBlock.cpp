@@ -24,7 +24,6 @@ extern "C" {
 #include <pkeq.h>
 #include <ap_ppl.h>
 
-unsigned WideningThreshold = 11;
 extern bool Debug;
 // TODO This should go in apron lib
 void ap_tcons1_array_resize(ap_tcons1_array_t * array, size_t size) {
@@ -37,12 +36,8 @@ BasicBlockManager & BasicBlockManager::getInstance() {
 	return instance;
 }
 
-BasicBlockManager::BasicBlockManager() : m_manager(create_manager()) {}
-//BasicBlockManager::BasicBlockManager() : m_manager(ap_ppl_poly_manager_alloc(true)) {}
-//BasicBlockManager::BasicBlockManager() : m_manager(box_manager_alloc()) {}
-
 BasicBlock * BasicBlockManager::createBasicBlock(llvm::BasicBlock * basicBlock) {
-	BasicBlock * result = new BasicBlock(m_manager, basicBlock);
+	BasicBlock * result = new BasicBlock(basicBlock);
 	return result;
 }
 
@@ -63,11 +58,9 @@ BasicBlock * BasicBlockManager::getBasicBlock(llvm::BasicBlock * basicBlock) {
 /*				   BasicBlock				     */
 int BasicBlock::basicBlockCount = 0;
 
-BasicBlock::BasicBlock(ap_manager_t * manager, llvm::BasicBlock * basicBlock) :
+BasicBlock::BasicBlock(llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
-		m_manager(manager),
 		m_markedForChanged(false),
-		m_abst_value(ap_abstract1_bottom(manager, ap_environment_alloc_empty())),
 		updateCount(0) {
 	if (!basicBlock->hasName()) {
 		initialiseBlockName();
@@ -82,17 +75,6 @@ void BasicBlock::initialiseBlockName() {
 	m_basicBlock->setName(name);
 }
 
-bool BasicBlock::is_eq(ap_abstract1_t & value) {
-	ap_manager_t * manager = getManager();
-	ap_environment_t * environment = getEnvironment();
-	if (ap_environment_is_eq(
-			ap_abstract1_environment(manager, &m_abst_value),
-			ap_abstract1_environment(manager, &value))) {
-		return ap_abstract1_is_eq(manager, &m_abst_value, &value);
-	}
-	return false;
-}
-
 std::string BasicBlock::getName() {
 	return m_basicBlock->getName();
 }
@@ -102,37 +84,20 @@ llvm::BasicBlock * BasicBlock::getLLVMBasicBlock() {
 }
 
 ap_abstract1_t & BasicBlock::getAbstractValue() {
-	return m_abst_value;
+	return getAbstractState().m_apronAbstractState.m_abstract1;
 }
 
 ap_manager_t * BasicBlock::getManager() {
 	// In a function, since manager is global, and this impl. may change
-	return m_manager;
+	return apron_manager;
 }
 
 ap_environment_t * BasicBlock::getEnvironment() {
-	return ap_abstract1_environment(getManager(), &m_abst_value);
-}
-
-void BasicBlock::setEnvironment(ap_environment_t * nenv) {
-	m_abst_value = ap_abstract1_change_environment(getManager(), false,
-			&m_abst_value, nenv, false);
-}
-
-void BasicBlock::extendEnvironment(const char * varname) {
-	ap_environment_t* env = getEnvironment();
-	ap_var_t var = (ap_var_t)varname;
-	if (ap_environment_mem_var(env, var)) {
-		return;
-	}
-	// TODO Handle reals
-	ap_environment_t* nenv = ap_environment_add(env, &var, 1, NULL, 0);
-	setEnvironment(nenv);
-	// TODO Memory leak?
+	return getAbstractState().m_apronAbstractState.getEnvironment();
 }
 
 void BasicBlock::extendEnvironment(const std::string & varname) {
-	extendEnvironment(varname.c_str());
+	getAbstractState().m_apronAbstractState.extend(varname, false);
 }
 
 void BasicBlock::extendEnvironment(Value * value) {
@@ -144,52 +109,28 @@ void BasicBlock::forget(Value * value) {
 }
 
 void BasicBlock::forget(const std::string & varname) {
-	forget(varname.c_str());
-}
-void BasicBlock::forget(const char * varname) {
-	ap_var_t var = (ap_var_t)varname;
-	if (!ap_environment_mem_var(getEnvironment(), var)) {
-		return;
-	}
-	m_abst_value = ap_abstract1_forget_array(getManager(), false,
-			&m_abst_value, &var, 1, false);
-}
-
-ap_interval_t * BasicBlock::getVariableInterval(const char * value) {
-	extendEnvironment(value);
-	ap_var_t var = (ap_var_t)value;
-	ap_interval_t* result = ap_abstract1_bound_variable(
-			getManager(), &m_abst_value, var);
-	return result;
+	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
+	aas.forget(varname);
 }
 
 ap_interval_t * BasicBlock::getVariableInterval(const std::string & value) {
-	return getVariableInterval(value.c_str());
+	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
+	aas.extend(value);
+	ap_var_t var = (ap_var_t)value.c_str();
+	ap_interval_t* result = ap_abstract1_bound_variable(
+			getManager(), &aas.m_abstract1, var);
+	return result;
 }
 
 ap_interval_t * BasicBlock::getVariableInterval(Value * value) {
 	return getVariableInterval(value->getName());
 }
 
-ap_texpr1_t* BasicBlock::getVariableTExpr(const char * value) {
-	ap_var_t var = (ap_var_t)value;
-	ap_texpr1_t* result = ap_texpr1_var(getEnvironment(), var);
-	if (!result) {
-		extendEnvironment(value);
-		result = ap_texpr1_var(getEnvironment(), var);
-		if (!result) {
-			llvm::errs() << "This one is still not in env " <<
-					(void*)getEnvironment() << ": " <<
-					(void*)var << " " <<
-					(char*)var << "\n";
-			abort();
-		}
-	}
-	return result;
-}
-
 ap_texpr1_t* BasicBlock::getVariableTExpr(const std::string & value) {
-	return getVariableTExpr(value.c_str());
+	extendEnvironment(value);
+	ap_var_t var = (ap_var_t)value.c_str();
+	ap_texpr1_t* result = ap_texpr1_var(getEnvironment(), var);
+	return result;
 }
 
 ap_texpr1_t* BasicBlock::getVariableTExpr(Value * value) {
@@ -201,46 +142,11 @@ ap_texpr1_t* BasicBlock::getConstantTExpr(unsigned value) {
 }
 
 void BasicBlock::extendTexprEnvironment(ap_texpr1_t * texpr) {
-	// returns true on error. WTF?
-	bool failed = ap_texpr1_extend_environment_with(texpr, getEnvironment());
-	assert(!failed);
+	getAbstractState().m_apronAbstractState.extendEnvironment(texpr);
 }
 
 void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
-	// returns true on error. WTF?
-	bool failed = ap_tcons1_extend_environment_with(tcons, getEnvironment());
-	assert(!failed);
-}
-
-bool BasicBlock::joinInAbstract1(ap_abstract1_t & abst_value) {
-	joinCount++;
-	ap_abstract1_t prev = m_abst_value;
-	ap_manager_t * manager = getManager();
-	ap_dimchange_t * dimchange1 = NULL;
-	ap_dimchange_t * dimchange2 = NULL;
-	ap_environment_t * environment = ap_environment_lce(
-			ap_abstract1_environment(manager, &m_abst_value),
-			ap_abstract1_environment(manager, &abst_value),
-			&dimchange1, &dimchange2);
-	m_abst_value = ap_abstract1_change_environment(manager, false,
-			&m_abst_value, environment, true);
-	ap_abstract1_t lcl_abst_val = ap_abstract1_change_environment(manager, false,
-			&abst_value, environment, true);
-	if ((joinCount % WideningThreshold) == 0) {
-		m_abst_value = ap_abstract1_widening(manager,
-				&m_abst_value, &abst_value);
-	} else {
-		m_abst_value = ap_abstract1_join(manager, false,
-				&m_abst_value, &abst_value);
-	}
-	if (Debug) {
-		llvm::errs() << getName() << ": Join";
-		if ((joinCount % WideningThreshold) == 0) {
-			llvm::errs() << " (Widening)";
-		}
-		llvm::errs() << ": " << std::make_pair(manager, &m_abst_value);
-	}
-	return is_eq(prev);
+	getAbstractState().m_apronAbstractState.extendEnvironment(tcons);
 }
 
 void BasicBlock::addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
@@ -263,126 +169,19 @@ void BasicBlock::addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
 	constraints.push_back(result);
 }
 
-ap_abstract1_t BasicBlock::getAbstract1MetWithIncomingPhis(BasicBlock & basicBlock) {
-	ap_tcons1_array_t tconstraints_array = basicBlock.getBasicBlockConstraints(this);
-	llvm::BasicBlock * llvmBB = getLLVMBasicBlock();
+void BasicBlock::updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & otherAS) {
+	Value * terminator = basicBlock.getTerminatorValue();
+	terminator->updateAssumptions(&basicBlock, this, otherAS);
 	ValueFactory * factory = ValueFactory::getInstance();
-	std::vector<ap_tcons1_t> tconstraints;
-	std::vector<ap_environment_t*> envs;
-	std::vector<ap_var_t> phiVars;
-	ap_abstract1_t other = basicBlock.m_abst_value;
-	ap_manager_t* manager = getManager();
-	ap_environment_t * other_env = ap_abstract1_environment(manager, &other);
+	llvm::BasicBlock * llvmBB = getLLVMBasicBlock();
 	for (auto iit = llvmBB->begin(), iie = llvmBB->end(); iit != iie; iit++) {
-		// XXX(oanson) There is a mish-mash of GepValue code and BasicBlock code here.
-		// Including but not limited to a lot of repeated code
 		llvm::PHINode * phi = llvm::dyn_cast<llvm::PHINode>(iit);
 		if (!phi) {
 			continue;
 		}
 		Value * phiValue = factory->getValue(phi);
-		llvm::Value * incoming = phi->getIncomingValueForBlock(
-				basicBlock.getLLVMBasicBlock());
-		Value * incomingValue = factory->getValue(incoming);
-		if (!phi->getType()->isPointerTy()) {
-			ap_tcons1_t tcons = phiValue->getSetValueTcons(this, incomingValue);
-			tconstraints.push_back(tcons);
-			envs.push_back(ap_tcons1_envref(&tcons));
-			ap_var_t phiVar = (ap_var_t)phiValue->getName().c_str();
-			if (ap_environment_mem_var(other_env, phiVar)) {
-				phiVars.push_back(phiVar);
-			}
-		} else {
-			// XXX(oanson) So basically this is the same as in GepValue
-			std::string & incomingValueName = incomingValue->getName();
-			if (llvm::isa<llvm::Argument>(incoming)) {
-				if (getFunction()->isUserPointer(incomingValueName)) {
-					const std::string & generatedName = generateOffsetName(phiValue, incomingValueName);
-					ap_var_t phiVar = (ap_var_t)generatedName.c_str();
-					if (ap_environment_mem_var(other_env, phiVar)) {
-						phiVars.push_back(phiVar);
-					}
-					ap_texpr1_t * value_texpr = ap_texpr1_cst_scalar_int(
-							getEnvironment(), 0);
-					addOffsetConstraint(tconstraints, value_texpr,
-							phiValue, incomingValueName);
-				}
-			} else {
-				AbstractState & otherAS = basicBlock.getAbstractState();
-				std::set<std::string> & userPtrs = otherAS.m_mayPointsTo[incomingValueName];
-				for (auto & srcPtrName : userPtrs) {
-					const std::string & generatedName = generateOffsetName(phiValue, srcPtrName);
-					ap_var_t phiVar = (ap_var_t)generatedName.c_str();
-					if (ap_environment_mem_var(other_env, phiVar)) {
-						phiVars.push_back(phiVar);
-					}
-					const std::string & generatedNameIncoming = generateOffsetName(incomingValue, srcPtrName);
-					ap_texpr1_t * value_texpr = getVariableTExpr(generatedNameIncoming);
-					addOffsetConstraint(tconstraints, value_texpr,
-							phiValue, srcPtrName);
-				}
-			}
-		}
+		phiValue->updateAssumptions(&basicBlock, this, otherAS);
 	}
-	unsigned oldsize = ap_tcons1_array_size(&tconstraints_array);
-	unsigned size = tconstraints.size();
-	unsigned newsize = oldsize + size;
-	other = ap_abstract1_forget_array(manager, false, &other,
-			phiVars.data(), phiVars.size(), false);
-	if (newsize > 0) {
-		ap_environment_t * environment = getEnvironment();
-		envs.push_back(environment);
-		envs.push_back(ap_tcons1_array_envref(&tconstraints_array));
-		envs.push_back(ap_abstract1_environment(manager, &other));
-		ap_dimchange_t ** ptdimchange = 0;
-		environment = ap_environment_lce_array(envs.data(), envs.size(), &ptdimchange);
-		ap_tcons1_array_extend_environment_with(&tconstraints_array, environment);
-		other = ap_abstract1_change_environment(manager, false,
-				&other, environment, false);
-		if (size > 0) {
-			ap_tcons1_array_resize(&tconstraints_array, newsize);
-			for (unsigned idx = 0; idx < size; idx++) {
-				ap_tcons1_t & tcons = tconstraints[idx];
-				ap_tcons1_extend_environment_with(&tcons, environment);
-				bool failed = ap_tcons1_array_set(&tconstraints_array,
-						oldsize+idx, &tcons);
-				assert(!failed);
-			}
-		}
-
-		if (ap_abstract1_is_bottom(manager, &other)) {
-			other = ap_abstract1_of_tcons_array(manager, environment, &tconstraints_array);
-		} else {
-			other = ap_abstract1_meet_tcons_array(manager, false, &other, &tconstraints_array); 
-		}
-	}
-	return other;
-}
-
-const std::string & BasicBlock::generateOffsetName(Value * value, const std::string & bufname) {
-	return generateOffsetName(value->getName(), bufname);
-}
-
-const std::string & BasicBlock::generateOffsetName(const std::string & valueName, const std::string & bufname) {
-	static std::set<std::string> names;
-	std::string s;
-	llvm::raw_string_ostream rso(s);
-	rso << "offset(" << valueName << "," << bufname << ")";
-	rso.str();
-	// To make sure we always get the same c_str
-	std::pair<std::set<std::string>::iterator,bool> inserted = names.insert(s);
-	return *inserted.first;
-}
-
-const std::string & BasicBlock::generateLastName(const std::string & bufname, user_pointer_operation_e op) {
-	static std::set<std::string> names;
-	std::string s;
-	llvm::raw_string_ostream rso(s);
-	rso << "last(" << bufname << "," << op << ")";
-	rso.str();
-	// To make sure we always get the same c_str
-	std::pair<std::set<std::string>::iterator,bool> inserted = names.insert(s);
-	return *inserted.first;
 }
 
 ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
@@ -392,18 +191,18 @@ ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
 
 ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
 		const std::string & valueName, const std::string & bufname) {
-	const std::string & generatedName = generateOffsetName(valueName, bufname);
+	const std::string & generatedName = AbstractState::generateOffsetName(valueName, bufname);
 	return getVariableTExpr(generatedName);
 }
 
 ap_texpr1_t * BasicBlock::createUserPointerLastTreeExpression(
 		const std::string & bufname, user_pointer_operation_e op) {
-	const std::string & generatedName = generateLastName(bufname, op);
+	const std::string & generatedName = AbstractState::generateLastName(bufname, op);
 	return getVariableTExpr(generatedName);
 }
 
-AbstractState BasicBlock::getAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock) {
-	AbstractState & otherAS = basicBlock.getAbstractState();
+void BasicBlock::updateAbstractStateMetWithIncomingPhis(
+		BasicBlock & basicBlock, AbstractState & otherAS) {
 	llvm::BasicBlock * llvmBB = getLLVMBasicBlock();
 	ValueFactory * factory = ValueFactory::getInstance();
 	for (auto iit = llvmBB->begin(), iie = llvmBB->end(); iit != iie; iit++) {
@@ -411,91 +210,37 @@ AbstractState BasicBlock::getAbstractStateMetWithIncomingPhis(BasicBlock & basic
 		if (!phi) {
 			continue;
 		}
-		if (!phi->getType()->isPointerTy()) {
+		Value * phiValue = factory->getValue(phi);
+		if (!phiValue->isPointer()) {
 			continue;
 		}
-		Value * phiValue = factory->getValue(phi);
 		llvm::Value * incoming = phi->getIncomingValueForBlock(
 				basicBlock.getLLVMBasicBlock());
 		Value * incomingValue = factory->getValue(incoming);
-		std::set<std::string> &dest =
-				otherAS.m_mayPointsTo[phiValue->getName()];
+		MPTItemAbstractState &dest =
+				otherAS.m_mayPointsTo.m_mayPointsTo[phiValue->getName()];
 		dest.clear();
 		incomingValue->populateMayPointsToUserBuffers(dest);
 	}
+}
+
+AbstractState BasicBlock::getAbstractStateWithAssumptions(
+		BasicBlock & predecessor) {
+	AbstractState otherAS = predecessor.getAbstractState();
+	updateAbstractStateMetWithIncomingPhis(predecessor, otherAS);
+	updateAbstract1MetWithIncomingPhis(predecessor, otherAS);
 	return otherAS;
 }
 
 bool BasicBlock::join(BasicBlock & basicBlock) {
-	ap_abstract1_t other = getAbstract1MetWithIncomingPhis(basicBlock);
-	AbstractState otherAS = getAbstractStateMetWithIncomingPhis(basicBlock);
-	bool isChanged = joinInAbstract1(other);
-	bool isASChanged = m_abstractState.join(otherAS);
-	return isChanged || isASChanged;
+	AbstractState prev = getAbstractState();
+	AbstractState otherAS = getAbstractStateWithAssumptions(basicBlock);
+	bool isChanged = m_abstractState.join(otherAS);
+	llvm::errs() << getName() << ": Joined from " << basicBlock.getName() << ":\n";
+	llvm::errs() << "Prev: " << prev << "Other: " << otherAS << " New: " << getAbstractState();
+	return isChanged;
 }
 
-bool BasicBlock::meet(ap_abstract1_t & abst_value) {
-	ap_abstract1_t prev = m_abst_value;
-	ap_manager_t * manager = getManager();
-	m_abst_value = ap_abstract1_unify(manager, false,
-			&m_abst_value, &abst_value);
-	return is_eq(prev);
-}
-
-bool BasicBlock::meet(std::list<ap_abstract1_t> & abst_values) {
-	std::list<ap_abstract1_t>::iterator it;
-	bool result = false;
-	for (it = abst_values.begin(); it != abst_values.end(); it++) {
-		ap_abstract1_t & value = *it;
-		result |= meet(value);
-	}
-	return result;
-}
-
-bool BasicBlock::meet(ap_tcons1_t & constraint) {
-	ap_tcons1_array_t array = ap_tcons1_array_make(getEnvironment(), 1);
-	extendTconsEnvironment(&constraint);
-	bool failed = ap_tcons1_array_set(&array, 0, &constraint);
-	assert(!failed);
-	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
-			getManager(), getEnvironment(), &array);
-	return meet(abs);
-}
-
-bool BasicBlock::meet(BasicBlock & basicBlock) {
-	return meet(basicBlock.m_abst_value);
-}
-
-bool BasicBlock::unify(ap_abstract1_t & abst_value) {
-	ap_abstract1_t prev = m_abst_value;
-	m_abst_value = ap_abstract1_unify(getManager(), false,
-			&m_abst_value, &abst_value);
-	return is_eq(prev);
-}
-
-bool BasicBlock::unify(BasicBlock & basicBlock) {
-	return unify(basicBlock.m_abst_value);
-}
-
-bool BasicBlock::unify(std::list<ap_abstract1_t> & abst_values) {
-	std::list<ap_abstract1_t>::iterator it;
-	bool result = false;
-	for (it = abst_values.begin(); it != abst_values.end(); it++) {
-		ap_abstract1_t & value = *it;
-		result |= unify(value);
-	}
-	return result;
-}
-
-bool BasicBlock::unify(ap_tcons1_t & constraint) {
-	ap_tcons1_array_t array = ap_tcons1_array_make(getEnvironment(), 1);
-	extendTconsEnvironment(&constraint);
-	bool failed = ap_tcons1_array_set(&array, 0, &constraint);
-	assert(!failed);
-	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
-			getManager(), getEnvironment(), &array);
-	return unify(abs);
-}
 
 bool BasicBlock::isTop(ap_abstract1_t & value) {
 	return ap_abstract1_is_top(getManager(), &value);
@@ -506,38 +251,13 @@ bool BasicBlock::isBottom(ap_abstract1_t & value) {
 }
 
 bool BasicBlock::isTop() {
-	return ap_abstract1_is_top(getManager(), &m_abst_value);
+	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
+	return aas.isTop();
 }
 
 bool BasicBlock::isBottom() {
-	return ap_abstract1_is_bottom(getManager(), &m_abst_value);
-}
-
-bool BasicBlock::operator==(BasicBlock & basicBlock) {
-	return is_eq(basicBlock.m_abst_value);
-}
-
-void BasicBlock::addBogusInitialConstarints(
-		std::list<ap_tcons1_t>  & constraints) {
-	const char * y_name = "y";
-	const char * z_name = "z";
-	//char * z_name = std::string("z").c_str();
-	ap_environment_t* env = getEnvironment();
-	env = ap_environment_add(env, (ap_var_t*)&y_name, 1, NULL, 0);
-	env = ap_environment_add(env, (ap_var_t*)&z_name, 1, NULL, 0);
-	setEnvironment(env);
-
-	ap_texpr1_t* y = ap_texpr1_var(getEnvironment(), (ap_var_t)y_name);
-	ap_texpr1_t* z = ap_texpr1_var(getEnvironment(), (ap_var_t)z_name);
-
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-
-	ap_tcons1_t constraint1 = ap_tcons1_make(AP_CONS_SUPEQ, y, zero);
-	ap_tcons1_t constraint2 = ap_tcons1_make(AP_CONS_SUPEQ, z, zero);
-
-	constraints.push_back(constraint1);
-	constraints.push_back(constraint2);
+	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
+	return aas.isBottom();
 }
 
 void BasicBlock::setChanged() {
@@ -547,94 +267,54 @@ void BasicBlock::setChanged() {
 bool BasicBlock::update() {
 	++updateCount;
 	/* Process the block. Return true if the block's context is modified.*/
-	//llvm::errs() << "Processing block '" << getName() << "'\n";
 	std::list<ap_tcons1_t> constraints;
 
-	ap_abstract1_t prev = m_abst_value;
+	AbstractState & as = getAbstractState();
+	ApronAbstractState & aas = as.m_apronAbstractState;
+	ap_abstract1_t prev = aas.m_abstract1;
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
 		llvm::Instruction & inst = *it;
 		processInstruction(constraints, inst);
 	}
 
-	ap_manager_t * manager = getManager();
-	ap_environment_t* env = getEnvironment();
-	ap_abstract1_t abs = applyConstraints(constraints);
-	// ap_abstract1_t abs = abstractOfTconsList(constraints);
-	m_abstractState.updateUserOperationAbstract1(abs);
-
+	applyConstraints(constraints);
+	as.updateUserOperationAbstract1();
+	std::vector<std::string> userBuffers = getFunction()->getUserPointers();
 	if (Debug) {
-		llvm::errs() << getName() << ": Update: " <<std::make_pair(manager, &abs);
+		llvm::errs() << getName() << ": Update (before Reduce): " << as;
 	}
-	// Some debug output
-	/*
-	llvm::errs() << "Block prev abstract value:\n";
-	llvm::errs() << prev;
-	llvm::errs() << "isTop: " << isTop(prev) <<
-			". isBottom: " << isBottom(prev) << "\n";
-
-	std::list<ap_tcons1_t>::iterator cons_it;
-	llvm::errs() << "List of " << constraints.size() << " constraints:\n";
-	for (cons_it = constraints.begin(); cons_it != constraints.end(); cons_it++) {
-		llvm::errs() << *cons_it;
-		llvm::errs() << "\n";
+	bool isReduceChanged = as.reduce(userBuffers);
+	if (Debug && isReduceChanged) {
+		llvm::errs() << getName() << ": Update (after Reduce): " << as;
 	}
-	llvm::errs() << "Calculated abstract value:\n";
-	llvm::errs() << abs;
-	llvm::errs() << "isTop: " << isTop(abs) <<
-			". isBottom: " << isBottom(abs) << "\n";
-
-	llvm::errs() << "Block new abstract value:\n";
-	llvm::errs() << m_abst_value;
-	llvm::errs() << "isTop: " << isTop() <<
-			". isBottom: " << isBottom() << "\n";
-	*/
 	bool markedForChanged = m_markedForChanged;
 	m_markedForChanged = false;
-	bool isChanged = !is_eq(abs);
-	m_abst_value = abs;
+	bool isChanged = (aas != prev);
 	return markedForChanged || isChanged;
 }
 
-void BasicBlock::populateConstraintsFromAbstractValue(
-		std::list<ap_tcons1_t> & constraints) {
-	if (isBottom()) {
-		return;
-	}
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
-			getManager(), &getAbstractValue());
-	int size = ap_tcons1_array_size(&array);
-	for (int cnt = 0; cnt < size; cnt++) {
-		ap_tcons1_t constraint = ap_tcons1_array_get(&array, cnt);
-		constraints.push_back(constraint);
-	}
+void BasicBlock::makeTop() {
+	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
+	aas = ApronAbstractState::top();
 }
 
-
-ap_tcons1_array_t BasicBlock::getBasicBlockConstraints(BasicBlock * basicBlock) {
+Value * BasicBlock::getTerminatorValue() {
 	llvm::BasicBlock * llvmThis = getLLVMBasicBlock();
 	llvm::Instruction * terminator = llvmThis->getTerminator();
 	ValueFactory * factory = ValueFactory::getInstance();
-	TerminatorInstructionValue * terminatorValue = static_cast<TerminatorInstructionValue*>(
-			factory->getValue(terminator));
-	return terminatorValue->getBasicBlockConstraints(basicBlock);
+	return factory->getValue(terminator);
 }
 
-ap_abstract1_t BasicBlock::applyConstraints(
+void BasicBlock::applyConstraints(
 		std::list<ap_tcons1_t> & constraints) {
-	if (constraints.empty()) {
-		return m_abst_value;
+	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
+	if (!constraints.empty()) {
+		ap_tcons1_array_t array = createTcons1Array(getEnvironment(), constraints);
+		ap_abstract1_t abs = ap_abstract1_meet_tcons_array(
+				getManager(), false, &aas.m_abstract1, &array);
+		aas.m_abstract1 = abs;
 	}
-	ap_tcons1_array_t array = createTcons1Array(constraints);
-	ap_abstract1_t abs;
-	if (ap_abstract1_is_bottom(getManager(), &m_abst_value)) {
-		abs = ap_abstract1_of_tcons_array(
-				getManager(), getEnvironment(), &array);
-	} else {
-		abs = ap_abstract1_meet_tcons_array(
-				getManager(), false, &m_abst_value, &array);
-	}
-	return abs;
 }
 
 ap_abstract1_t BasicBlock::abstractOfTconsList(
@@ -642,26 +322,10 @@ ap_abstract1_t BasicBlock::abstractOfTconsList(
 	if (constraints.empty()) {
 		return ap_abstract1_bottom(getManager(), getEnvironment());
 	}
-	ap_tcons1_array_t array = createTcons1Array(constraints);
+	ap_tcons1_array_t array = createTcons1Array(getEnvironment(), constraints);
 	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
 			getManager(), getEnvironment(), &array);
 	return abs;
-}
-
-ap_tcons1_array_t BasicBlock::createTcons1Array(
-		std::list<ap_tcons1_t> & constraints) {
-	ap_tcons1_array_t array = ap_tcons1_array_make(
-			getEnvironment(), constraints.size());
-	int idx = 0;
-	std::list<ap_tcons1_t>::iterator it;
-	for (it = constraints.begin(); it != constraints.end(); it++) {
-		ap_tcons1_t & constraint = *it;
-		ap_tcons1_t constraint2 = ap_tcons1_copy(&constraint);
-		extendTconsEnvironment(&constraint2);
-		bool failed = ap_tcons1_array_set(&array, idx++, &constraint2);
-		assert(!failed);
-	}
-	return array;
 }
 
 void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
@@ -692,7 +356,8 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 
 std::string BasicBlock::toString() {
 	std::ostringstream oss;
-	oss << getName() << ": " << std::make_pair(getManager(), &m_abst_value)
+	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
+	oss << getName() << ": " << &aas.m_abstract1
 			<< "AND " << getAbstractState() << "\n";
 	return oss.str();
 }

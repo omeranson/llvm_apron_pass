@@ -20,6 +20,7 @@ StreamHelper(Contract, contract)
 StreamHelper(Preamble, preamble)
 StreamHelper(Precondition, precondition)
 StreamHelper(Modification, modification)
+StreamHelper(Havoc, havoc)
 
 struct Conjunction {
 	ap_tcons1_array_t * array;
@@ -88,6 +89,35 @@ inline stream & operator<<(stream & s, Preamble<CopyMsghdrFromUserCall> p) {
 	return s;
 }
 
+
+template <class stream, class T>
+inline stream & operator<<(stream & s, Havoc<T> h) {
+	const T & havoc = *h.t;
+	for (const std::string var : havoc) {
+		s << depth << "i64 " << var << ";\n";
+		s << depth << "HAVOC(" << var << ");\n";
+	}
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s,
+		Precondition<std::pair<const std::string, ApronAbstractState> > p) {
+	const std::pair<std::string, ApronAbstractState> & pair = *p.t;
+	const std::string & name = pair.first;
+	const ApronAbstractState & state = pair.second;
+	ApronAbstractState::Variables variables = ApronAbstractState::Variables(state);
+	// call SE_SAT
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
+			apron_manager, (ap_abstract1_t*)&state.m_abstract1);
+	s << depth << "if(SE_SAT(" << Conjunction(&array) << ")) {\n";
+	++depth;
+	s << depth << "warn(\"Invalid pointer " << name << "\");\n";
+	--depth;
+	s << depth << "}\n";
+	return s;
+}
+
 template <class stream>
 inline stream & operator<<(stream & s, Precondition<ImportIovecCall> p) {
 	const ImportIovecCall & call = *p.t;
@@ -97,7 +127,7 @@ inline stream & operator<<(stream & s, Precondition<ImportIovecCall> p) {
 			") >= sizeof(struct iovec)*" << call.iovec_len_name <<
 			"))) {\n";
 	++depth;
-	s << "warn(\"Invalid iovec pointer " << call.iovec_name << "\");\n";
+	s << depth << "warn(\"Invalid iovec pointer " << call.iovec_name << "\");\n";
 	--depth;
 	s << depth << "}\n";
 // 	Verify each item within iovec
@@ -106,7 +136,7 @@ inline stream & operator<<(stream & s, Precondition<ImportIovecCall> p) {
 	s << depth << "i64 iovec_element_size = SE_size_obj(" << call.iovec_name << "[idx].iov_base);\n";
 	s << depth << "if (SE_SAT(!(iovec_element_size >= " << call.iovec_name << "[idx].iov_len))) {\n";
 	++depth;
-	s << "warn(\"Invalid iovec internal pointer " << call.iovec_name << "\");\n";
+	s << depth << "warn(\"Invalid iovec internal pointer " << call.iovec_name << "\");\n";
 	--depth;
 	s << depth << "}\n";
 	--depth;
@@ -134,6 +164,26 @@ inline stream & operator<<(stream & s, Precondition<CopyMsghdrFromUserCall> p) {
 	s << depth << "warn(\"Invalid pointer " << call.msghdr_name << "->msg_name\");\n";
 	--depth;
 	s << depth << "}";
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s,
+		Modification<std::pair<std::string, ApronAbstractState> > p) {
+	const std::pair<std::string, ApronAbstractState> & pair = *p.t;
+	const std::string & name = pair.first;
+	ApronAbstractState state = pair.second;
+	std::string last_name = AbstractState::generateLastName(name, user_pointer_operation_write);
+	state.extend(last_name);
+	s << depth << "// Modification for " << name << ":\n";
+	ApronAbstractState::Variables variables = ApronAbstractState::Variables(state);
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
+			apron_manager, &state.m_abstract1);
+	s << depth << "if " << Conjunction(&array) << " {\n";
+	++depth;
+	s << depth << "HAVOC_SIZE(" << name << ", " << last_name << ");\n";
+	--depth;
+	s << depth << "}\n";
 	return s;
 }
 
@@ -179,10 +229,11 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << "#include \"contracts.h\"\n";
 	s << function->getSignature() << " {\n";
 	++depth;
-	s << depth << "// Preamble\n"; // TODO(oanson) res type should be taken from signature
+	s << depth << "// Preamble\n";
 	std::vector<std::string> userPointers = function->getUserPointers();
-	std::map<std::string, ap_abstract1_t> errorStates = function->generateErrorStates();
-	ap_abstract1_t asabstarct1 = function->trimmedLastASAbstractValue();
+	std::map<std::string, ApronAbstractState> errorStates = function->generateErrorStates();
+	AbstractState & abstractState = function->getReturnAbstractState();
+	ApronAbstractState & apronAbstractState = abstractState.m_apronAbstractState;
 	const std::vector<ImportIovecCall> & importIovecCalls = function->getImportIovecCalls();
 	const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls =
 			function->getCopyMsghdrFromUserCalls();
@@ -195,21 +246,24 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
 		s << preamble(&call);
 	}
-	s << depth << "" << function->getReturnTypeString() << " res;\n"; // TODO(oanson) res type should be taken from signature
+	s << depth << function->getReturnTypeString() << " res;\n";
 	s << depth << "bool b;\n";
 	s << depth << "int idx;\n";
+	ApronAbstractState::Variables variables =
+			ApronAbstractState::Variables(apronAbstractState);
+	s << havoc(&variables);
 	// Preconditions
 	// Standard variables
 	s << depth << "// Preconditions\n";
-	ap_manager_t * manager = BasicBlockManager::getInstance().m_manager;
-	for (auto & errorState : errorStates) {
-		s << depth << "// Error state for " << errorState.first << ":\n";
-		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &errorState.second);
-		s << depth << "if(SE_SAT(" << Conjunction(&array) << ")) {\n";
-		++depth;
-		s << depth << "warn(\"Invalid pointer " << errorState.first << "\");\n";
-		--depth;
-		s << depth << "}\n";
+	ap_manager_t * manager = apron_manager;
+	for (auto & errorStatePair : errorStates) {
+		s << depth << "// Error state for " << errorStatePair.first << ":\n";
+		ApronAbstractState minimizedErrorState =
+				function->minimize(errorStatePair.second);
+		ap_tcons1_array_t minimized_array = ap_abstract1_to_tcons_array(
+				apron_manager, &minimizedErrorState.m_abstract1);
+		s << depth << "// " << Conjunction(&minimized_array) << "\n";
+		s << precondition(&errorStatePair);
 	}
 	for (const ImportIovecCall & call : importIovecCalls) {
 		s << precondition(&call);
@@ -223,13 +277,8 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	// 		HAVOC(buf, last(buf,write))
 	s << "\t// Modifications\n";
 	for (std::string & userPointer : userPointers) {
-		s << "\t// Modification for " << userPointer << ":\n";
-		s << "\ti64 last(" << userPointer << ", write);\n";
-		s << "\tHAVOC(last(" << userPointer << ", write));\n";
-		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &asabstarct1);
-		s << "\tif " << Conjunction(&array) << " {\n";
-		s << "\t\tHAVOC_SIZE(" << userPointer << ", " << " last(" << userPointer << ", write));\n";
-		s << "\t}\n";
+		auto pair = std::make_pair(userPointer, apronAbstractState);
+		s << modification(&pair);
 	}
 	for (const ImportIovecCall & call : importIovecCalls) {
 		s << modification(&call);
@@ -239,7 +288,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	}
 	// Postconditions
 	s << "\t// Postconditions\n";
-	ap_abstract1_t retvalAbstract1 = function->trimmedLastBBAbstractValue();
+	ap_abstract1_t retvalAbstract1 = function->trimmedLastASAbstractValue();
 	llvm::ReturnInst * returnInst = function->getReturnInstruction();
 	llvm::Value * returnValue = returnInst->getReturnValue();
 	ValueFactory * factory = ValueFactory::getInstance();
