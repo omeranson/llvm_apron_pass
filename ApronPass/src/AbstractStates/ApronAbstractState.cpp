@@ -57,22 +57,27 @@ void ApronAbstractState::extendEnvironment(ap_tcons1_t * tcons) {
 
 bool ApronAbstractState::join(const ApronAbstractState & other) {
 	++joinCount;
-	if (other.isBottom()) {
-		return false;
-	}
-	if (other.isTop()) {
-		bool result = isTop();
-		m_abstract1 = other.m_abstract1;
-		return result;
-	}
-	if (isBottom()) {
-		// other is *not* bottom
-		m_abstract1 = other.m_abstract1;
-		return true;
-	}
 	ap_abstract1_t prev = m_abstract1;
 	ap_abstract1_t this_abst = m_abstract1;
 	ap_abstract1_t other_abst = other.m_abstract1;
+	if ((joinCount % m_wideningThreshold) == 0) {
+		if (other.isBottom()) {
+			changeToLeastCommonEnv(this_abst, other_abst, true);
+			return false;
+		}
+		if (other.isTop()) {
+			bool result = isTop();
+			changeToLeastCommonEnv(this_abst, other_abst, false);
+			m_abstract1 = other.m_abstract1;
+			return result;
+		}
+		if (isBottom()) {
+			// other is *not* bottom
+			changeToLeastCommonEnv(this_abst, other_abst, true);
+			m_abstract1 = other.m_abstract1;
+			return true;
+		}
+	}
 	changeToLeastCommonEnv(this_abst, other_abst, true);
 
 	if ((joinCount % m_wideningThreshold) == 0) {
@@ -87,25 +92,10 @@ bool ApronAbstractState::join(const ApronAbstractState & other) {
 }
 
 bool ApronAbstractState::meet(const ApronAbstractState & other) {
-	if (isBottom()) {
-		return false;
-	}
-	if (other.isTop()) {
-		return false;
-	}
-	if (other.isBottom()) {
-		m_abstract1 = other.m_abstract1;
-		return true;
-	}
-	if (isTop()) {
-		// other is *not* top
-		m_abstract1 = other.m_abstract1;
-		return true;
-	}
 	ap_abstract1_t prev = m_abstract1;
 	ap_abstract1_t this_abst = m_abstract1;
 	ap_abstract1_t other_abst = other.m_abstract1;
-	changeToLeastCommonEnv(this_abst, other_abst, true);
+	changeToLeastCommonEnv(this_abst, other_abst, false);
 	m_abstract1 = ap_abstract1_meet(apron_manager, false,
 			&this_abst, &other_abst);
 	return (*this != prev);
