@@ -16,7 +16,7 @@ void ChaoticExecution::see(BasicBlock * block) {
 }
 
 void ChaoticExecution::execute() {
-	worklist.clear();
+	std::list<BasicBlock *> worklist;
 	BasicBlock * root = callGraph.getRoot();
 	std::vector<std::string> userPointers = root->getFunction()->getUserPointers();
 	AbstractState state(userPointers);
@@ -36,13 +36,20 @@ void ChaoticExecution::execute() {
 			}
 		}
 		bool isModified = block->update();
-		//llvm::errs() << block->toString() <<
-				//": isModified: " <<
-				//isModified  << "\n";
 		if (!wasSeen || isModified) {
-			callGraph.populateWithSuccessors(
-					worklist, block);
+			populateWithSuccessors(worklist, block);
 		}
+	}
+}
+
+void ChaoticExecution::populateWithSuccessors(
+		std::list<BasicBlock *> & worklist, BasicBlock * block) {
+	for (BasicBlock * succ : callGraph.successors(block)) {
+		bool isSuccModified = succ->join(*block);
+		if (isSuccModified) {
+			succ->setChanged();
+		}
+		worklist.push_back(succ);
 	}
 }
 

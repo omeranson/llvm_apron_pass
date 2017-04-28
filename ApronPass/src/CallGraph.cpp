@@ -48,31 +48,21 @@ const std::string & CallGraph::getName() const {
 	return m_name;
 }
 
-void CallGraph::populateWithSuccessors(
-		std::list<BasicBlock *> & list, BasicBlock * block) {
-	std::multimap<BasicBlock *, BasicBlock *>::iterator it;
-	std::multimap<BasicBlock *, BasicBlock *>::iterator stop;
-	stop = m_nexts.upper_bound(block);
-	for (it = m_nexts.lower_bound(block); it != stop; it++) {
-		BasicBlock * succ = it->second;
-		// llvm::errs() << block->getName() << " -> " << succ->getName() << "\n";
-		bool isSuccModified = succ->join(*block);
-		if (isSuccModified) {
-			succ->setChanged();
-		}
-		list.push_back(succ);
+std::vector<BasicBlock*> CallGraph::elements(std::multimap<BasicBlock *, BasicBlock *> & source, BasicBlock * block) {
+	std::vector<BasicBlock*> result;
+	for (auto it = source.lower_bound(block), ie = source.upper_bound(block);
+			it != ie; it++) {
+		result.push_back(it->second);
 	}
+	return result;
 }
 
-void CallGraph::populateWithPredecessors(
-		std::list<BasicBlock *> & list, BasicBlock * block) {
-	std::multimap<BasicBlock *, BasicBlock *>::iterator it;
-	std::multimap<BasicBlock *, BasicBlock *>::iterator stop;
-	stop = m_prevs.upper_bound(block);
-	for (it = m_prevs.lower_bound(block); it != stop; it++) {
-		// llvm::errs() << block->getName() << " -> " << it->second->getName() << "\n";
-		list.push_back(it->second);
-	}
+std::vector<BasicBlock*> CallGraph::successors(BasicBlock * block) {
+	return elements(m_nexts, block);
+}
+
+std::vector<BasicBlock*> CallGraph::predecessory(BasicBlock * block) {
+	return elements(m_prevs, block);
 }
 
 void CallGraph::printAsDot() {

@@ -10,11 +10,12 @@ class BasicBlock;
 class ChaoticExecution {
 private:
 	CallGraph & callGraph;
-	std::list<BasicBlock *> worklist;
 	std::set<BasicBlock *> seen;
 
 	bool isSeen(BasicBlock * block);
 	void see(BasicBlock * block);
+	void populateWithSuccessors(
+		std::list<BasicBlock *> & worklist, BasicBlock * block);
 public:
 	ChaoticExecution(CallGraph & callGraph);
 

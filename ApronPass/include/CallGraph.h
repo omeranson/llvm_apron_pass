@@ -16,16 +16,16 @@ private:
 	std::string m_name;
 
 	void constructGraph();
+	virtual std::vector<BasicBlock*> elements(
+			std::multimap<BasicBlock *, BasicBlock *> & source, BasicBlock * block);
 public:
 	CallGraph(Function * function);
 	CallGraph(const std::string & name, BasicBlock * root);
 
 	virtual BasicBlock * getRoot();
 	virtual const std::string & getName() const;
-	virtual void populateWithSuccessors(std::list<BasicBlock *> & list,
-			BasicBlock * block);
-	virtual void populateWithPredecessors(std::list<BasicBlock *> & list,
-			BasicBlock * block);
+	virtual std::vector<BasicBlock*> successors(BasicBlock * block);
+	virtual std::vector<BasicBlock*> predecessory(BasicBlock * block);
 	virtual void printAsDot(); 
 };
 
