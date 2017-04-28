@@ -1398,6 +1398,47 @@ void OrOperationValue::updateConditionalAssumptions(AbstractState & state, bool 
 	}
 }
 
+class AndOperationValue : public LogicalBinaryOperationValue {
+protected:
+	virtual std::string getOperationSymbol() { return "and"; }
+	virtual void updateConditionalAssumptionsPositive(AbstractState & state);
+	virtual void updateConditionalAssumptionsNegative(AbstractState & state);
+public:
+	AndOperationValue(llvm::Value * value) : LogicalBinaryOperationValue(value) {}
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false);
+};
+
+void AndOperationValue::updateConditionalAssumptionsPositive(AbstractState & state) {
+	for (int idx = 0; idx < asInstruction()->getNumOperands(); idx++) {
+		Value * operand = getOperandValue(idx);
+		LogicalBinaryOperationValue * lbov = static_cast<LogicalBinaryOperationValue*>(
+				operand);
+		lbov->updateConditionalAssumptions(state, false);
+	}
+}
+
+void AndOperationValue::updateConditionalAssumptionsNegative(AbstractState & state) {
+	AbstractState joined; // = AbstractState::bottom();
+	for (int idx = 0; idx < asInstruction()->getNumOperands(); idx++) {
+		Value * operand = getOperandValue(idx);
+		LogicalBinaryOperationValue * lbov = static_cast<LogicalBinaryOperationValue*>(
+				operand);
+		AbstractState clone = state;
+		lbov->updateConditionalAssumptions(clone, true);
+		joined.join(clone);
+	}
+	// XXX Not implemented: state.meet(joined);
+	state.m_apronAbstractState.meet(joined.m_apronAbstractState);
+}
+
+void AndOperationValue::updateConditionalAssumptions(AbstractState & state, bool isNegated) {
+	if (!isNegated) {
+		updateConditionalAssumptionsPositive(state);
+	} else {
+		updateConditionalAssumptionsNegative(state);
+	}
+}
+
 class PhiValue : public InstructionValue {
 protected:
 	virtual llvm::PHINode * asPHINode();
@@ -1859,8 +1900,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 		return new RemainderOperationValue(instruction);
 
 	// Logical operators...
-	//case llvm::BinaryOperator::And:
-	//	return new AndOperationValue(instruction);
+	case llvm::BinaryOperator::And:
+		return new AndOperationValue(instruction);
 	case llvm::BinaryOperator::Or :
 		return new OrOperationValue(instruction);
 	//case llvm::BinaryOperator::Xor:
