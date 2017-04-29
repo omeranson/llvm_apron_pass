@@ -41,6 +41,15 @@ ApronAbstractState ApronAbstractState::bottom() {
 	return abst;
 }
 
+ap_scalar_t * ApronAbstractState::zero() {
+	static ap_scalar_t* zero = 0;
+	if (!zero) {
+		zero = ap_scalar_alloc ();
+		ap_scalar_set_int(zero, 0);
+	}
+	return zero;
+}
+
 ap_environment_t * ApronAbstractState::getEnvironment() const {
 	return ap_abstract1_environment(apron_manager, (ap_abstract1_t*)&m_abstract1);
 }

@@ -151,8 +151,7 @@ void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
 
 void BasicBlock::addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
 		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
+	ap_scalar_t* zero = ApronAbstractState::zero();
 
 	ap_texpr1_t * var_texpr = createUserPointerOffsetTreeExpression(
 			dest, pointerName);

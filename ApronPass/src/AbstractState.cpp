@@ -71,8 +71,7 @@ bool meetVectors(std::vector<T> & dest, const std::vector<T> & src) {
 AbstractState::AbstractState(std::vector<std::string> & userBuffers) :
 		m_apronAbstractState(ApronAbstractState::top()),
 		m_mayPointsTo(userBuffers) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
+	ap_scalar_t* zero = ApronAbstractState::zero();
 	m_apronAbstractState.start_meet_aggregate();
 	for (const std::string & buffer : userBuffers) {
 		const std::string & offsetName = generateOffsetName(buffer, buffer);
@@ -105,9 +104,7 @@ void AbstractState::updateUserOperationAbstract1() {
 	if (memoryAccessAbstractValues.empty()) {
 		return;
 	}
-	// TODO definitely make into a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
+	ap_scalar_t* zero = ApronAbstractState::zero();
 
 	ap_manager_t * manager = getManager();
 	// Construct the environment

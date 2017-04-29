@@ -130,8 +130,7 @@ std::map<std::string, ApronAbstractState> Function::generateErrorStates() {
 	AbstractState & as = returnBasicBlock->getAbstractState();
 	ApronAbstractState apronAbstractState = as.m_apronAbstractState;
 	ap_manager_t * manager = apron_manager;
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
+	ap_scalar_t* zero = ApronAbstractState::zero();
 	// for each buf : user buffer:
 	// 	create constraints: size(buf) > last(buf,read)
 	// 	                    size(buf) > last(buf,write)

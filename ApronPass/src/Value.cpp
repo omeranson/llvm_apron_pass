@@ -1258,9 +1258,7 @@ ap_constyp_t IntegerCompareValue::constraintConditionToAPConsType(
 
 ap_tcons1_t IntegerCompareValue::getConditionTcons(AbstractState & state,
 		constraint_condition_t consCond) {
-	// TODO definitely make into a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
+	ap_scalar_t* zero = ApronAbstractState::zero();
 	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
 	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
 	ap_texpr1_t * left = createOperandTreeExpression(state, 0);
@@ -1785,8 +1783,7 @@ ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
 
 ap_tcons1_t Value::getValueEq0Tcons(BasicBlock * basicBlock) {
 	AbstractState & state = basicBlock->getAbstractState();
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
+	ap_scalar_t* zero = ApronAbstractState::zero();
 	ap_texpr1_t * var_texpr = createTreeExpression(state);
 	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, var_texpr, zero);
 	return result;

@@ -32,6 +32,7 @@ public:
 
 	static ApronAbstractState top();
 	static ApronAbstractState bottom();
+	static ap_scalar_t * zero();
 
 	// Modification
 	virtual bool join(const ApronAbstractState & other);
