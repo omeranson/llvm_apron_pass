@@ -311,10 +311,6 @@ bool TerminatorInstructionValue::isSkip() {
 	return true;
 }
 
-ap_tcons1_array_t TerminatorInstructionValue::getBasicBlockConstraints(BasicBlock * basicBlock) {
-	return ap_tcons1_array_make(getBasicBlock()->getEnvironment(), 0);
-}
-
 class ReturnInstValue : public TerminatorInstructionValue {
 friend class ValueFactory;
 protected:
@@ -1694,6 +1690,37 @@ void BranchInstructionValue::updateAssumptions(
 	condition.updateConditionalAssumptions(state, isNegated);
 }
 
+class SwitchInstructionValue : public TerminatorInstructionValue {
+protected:
+	llvm::SwitchInst * asSwitchInst();
+public:
+	SwitchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
+	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
+};
+
+llvm::SwitchInst * SwitchInstructionValue::asSwitchInst() {
+	return &llvm::cast<llvm::SwitchInst>(*m_value);
+}
+
+void SwitchInstructionValue::updateAssumptions(
+		BasicBlock * source, BasicBlock * dest, AbstractState & state) {
+	llvm::SwitchInst * switchInst = asSwitchInst();
+	llvm::Value * llvmCondVar = switchInst->getCondition();
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * condVar = factory->getValue(llvmCondVar);
+	llvm::ConstantInt * llvmCaseValue = switchInst->findCaseDest(dest->getLLVMBasicBlock());
+	state.m_apronAbstractState.extend(condVar->getName());
+	if (llvmCaseValue) {
+		Value * caseValue = factory->getValue(llvmCaseValue);
+		state.m_apronAbstractState.assign(condVar->getName(),
+				caseValue->createTreeExpression(state));
+	} else {
+		// TODO Add constraints that condVar is different from all other cases
+		// Verify the value is top:
+		state.m_apronAbstractState.forget(condVar->getName());
+	}
+}
+
 Value::Value(llvm::Value * value) : m_value(value),
 		m_name(llvmValueName(value))
 	{}
@@ -1878,7 +1905,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	// Terminators
 	case llvm::BinaryOperator::Br:
 		return new BranchInstructionValue(instruction);
-	//case llvm::BinaryOperator::Switch:
+	case llvm::BinaryOperator::Switch:
+		return new SwitchInstructionValue(instruction);
 	//case llvm::BinaryOperator::IndirectBr:
 	//case llvm::BinaryOperator::Invoke:
 	//case llvm::BinaryOperator::Unreachable:
