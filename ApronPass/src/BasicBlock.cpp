@@ -237,6 +237,7 @@ bool BasicBlock::join(BasicBlock & basicBlock) {
 	bool isChanged = m_abstractState.join(otherAS);
 	llvm::errs() << getName() << ": Joined from " << basicBlock.getName() << ":\n";
 	llvm::errs() << "Prev: " << prev << "Other: " << otherAS << " New: " << getAbstractState();
+	llvm::errs() << "isChanged: " << isChanged << " and " << bool(prev != getAbstractState()) << "\n";
 	return isChanged;
 }
 
@@ -326,7 +327,6 @@ ap_abstract1_t BasicBlock::abstractOfTconsList(
 
 void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 		llvm::Instruction & inst) {
-	const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
 	// TODO Circular dependancy
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(&inst);
@@ -337,9 +337,12 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 		return;
 	}
 	if (value->isSkip()) {
-		/*llvm::errs() << "Skipping set-skipped instruction: " << value->toString() << "\n";*/
+		llvm::errs() << "Skipping set-skipped instruction: " << value->getName() << "\n";
 		return;
+	} else {
+		llvm::errs() << "Applying non-set-skipped instruction: " << value->getName() << "\n";
 	}
+	//const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
 	//llvm::errs() << "Apron: Instruction: "
 			//// << scope->getFilename() << ": "
 			//<< debugLoc.getLine() << ": "
@@ -353,8 +356,7 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 std::string BasicBlock::toString() {
 	std::ostringstream oss;
 	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	oss << getName() << ": " << &aas.m_abstract1
-			<< "AND " << getAbstractState() << "\n";
+	oss << getName() << ": " << getAbstractState() << "\n";
 	return oss.str();
 }
 

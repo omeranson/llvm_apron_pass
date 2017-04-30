@@ -153,7 +153,7 @@ inline stream & operator<<(stream & s, AbstractState & as) {
 		}
 		s << "],";
 	}
-	s << "},abstract1:{" << &as.m_apronAbstractState.m_abstract1 << "}";
+	s << "},abstract1:{" << &as.m_apronAbstractState.m_abstract1 << "}}";
 	return s;
 }
 
