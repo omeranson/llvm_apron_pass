@@ -12,11 +12,11 @@ BASEDIR = $(shell pwd)
 ###############
 C_FILES_DIRECTORY            =$(BASEDIR)/FOLDER_1_INPUT_C_FILES
 LLVM_BITCODE_FILES_DIRECTORY =$(BASEDIR)/FOLDER_2_LLVM_BITCODE_FILES
-PASS_5_DIR                   =$(BASEDIR)/FOLDER_3_DONT_INLINE_SPECIAL_KERNEL_FUNCTIONS
-PASS_5_DIR                   =$(BASEDIR)/FOLDER_4_DO_INLINE_SELECTED_FUNCTIONS
-PASS_2_DIR                   =$(BASEDIR)/FOLDER_5_EXTRACT_GET_USER_AND_PUT_USER
-PASS_3_DIR                   =$(BASEDIR)/FOLDER_6_IGNORE_INLINE_ASM
-PASS_1_DIR                   =$(BASEDIR)/FOLDER_7_IGNORE_EXTRACT_VALUE
+PASS_1_DIR                   =$(BASEDIR)/FOLDER_3_DO_INLINE_SELECTED_FUNCTIONS
+PASS_2_DIR                   =$(BASEDIR)/FOLDER_4_DONT_INLINE_SPECIAL_KERNEL_FUNCTIONS
+PASS_3_DIR                   =$(BASEDIR)/FOLDER_5_EXTRACT_GET_USER_AND_PUT_USER
+PASS_4_DIR                   =$(BASEDIR)/FOLDER_6_IGNORE_INLINE_ASM
+PASS_5_DIR                   =$(BASEDIR)/FOLDER_7_IGNORE_EXTRACT_VALUE
 RUN_ANALYSIS_DIR             =$(BASEDIR)/FOLDER_9_RUN_STATIC_ANALYSIS/ApronPass
 APRON_PASS_DIR               =$(BASEDIR)/FOLDER_9_RUN_STATIC_ANALYSIS/ApronPass
 IGNORE_EXTRACT_VALUE_DIR     =$(BASEDIR)/FOLDER_4_IGNORE_EXTRACT_VALUE/INLINE_ME
@@ -51,6 +51,12 @@ inputTagbc=$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag
 ###############
 all:
 	clear
+	@echo "*********************************************************"
+	@echo "* Clean temporary files & folders from previous run ... *"
+	@echo "*********************************************************"
+	@echo "\n"
+	rm -rf /tmp/INLINE_ME/*
+	@echo "\n"
 	@echo "*********************************************"
 	@echo "* Compile Combined Static Analysis Pass ... *"
 	@echo "*********************************************"
@@ -75,28 +81,27 @@ all:
 	@echo "\n"
 	opt -instnamer ${inputbc}.O3.MergeReturn.bc -o ${inputbc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"
-	@echo "*******************************************************"
-	@echo "* llvm-dis to work with human readable text files ... *"
-	@echo "* 'cause I love human readable text files :]]     ... *"
-	@echo "*******************************************************"
+	@echo "*****************************************************"
+	@echo "* Use the original c file to detect functions that  *"
+	@echo "* have an input paramater with __user attribute     *"
+	@echo "*****************************************************"
 	@echo "\n"
-	#llvm-dis -o=$(PASS_1_DIR)/FOLDER_6_INPUT/Input.ll ${inputbc}.O3.MergeReturn.InstNamer.bc
+	cp ${inputc}.c $(PASS_1_DIR)/FOLDER_5_INPUT/Input.c
 	@echo "\n"
 	@echo "*******************************"
 	@echo "* Run Passes in order now ... *"
 	@echo "* Running Pass(1)         ... *"
 	@echo "*******************************"
 	@echo "\n"	
-	cd $(PASS_1_DIR) && ${MAKE}
+	cd $(PASS_1_DIR) && ${MAKE}	
 	@echo "\n"
-	@echo "************************************************************"
-	@echo "* Copy the output of PASS(i) to the input of PASS(i+1) ... *"
-	@echo "************************************************************"
-	@echo "\n"			
-	cp \
-	$(PASS_1_DIR)/FOLDER_6_OUTPUT/Output.ll \
-	$(PASS_2_DIR)/FOLDER_5_INPUT/Input.ll
-	@echo "\n"			
+	@echo "*******************************************************"
+	@echo "* llvm-dis to work with human readable text files ... *"
+	@echo "* 'cause I love human readable text files :]]     ... *"
+	@echo "*******************************************************"
+	@echo "\n"
+	#llvm-dis -o=$(PASS_2_DIR)/FOLDER_5_INPUT/Input.ll ${inputbc}.O3.MergeReturn.InstNamer.bc
+	@echo "\n"
 	@echo "***********************"
 	@echo "* Running Pass(2) ... *"
 	@echo "***********************"
@@ -110,29 +115,48 @@ all:
 	cp \
 	$(PASS_2_DIR)/FOLDER_6_OUTPUT/Output.ll \
 	$(PASS_3_DIR)/FOLDER_5_INPUT/Input.ll
-		
-	#####################################
-	# GET INSIDE CURRENT PASS & MAKE IT #
-	#####################################
+	@echo "\n"
+	@echo "***********************"
+	@echo "* Running Pass(3) ... *"
+	@echo "***********************"
+	@echo "\n"		
 	cd $(PASS_3_DIR) && ${MAKE}
-		
-	####################################
-	# INPUT(pass i+1) = OUTPUT(pass i) #
-	####################################
+	@echo "\n"
+	@echo "************************************************************"
+	@echo "* Copy the output of PASS(i) to the input of PASS(i+1) ... *"
+	@echo "************************************************************"
+	@echo "\n"			
 	cp \
 	$(PASS_3_DIR)/FOLDER_6_OUTPUT/Output.ll \
 	$(PASS_4_DIR)/FOLDER_5_INPUT/Input.ll
-	
 	@echo "\n"
-	@echo "*****************************************************"
-	@echo "* Use the original c file to detect functions that  *"
-	@echo "* have an input paramater with __user attribute     *"
-	@echo "*****************************************************"
+	@echo "***********************"
+	@echo "* Running Pass(4) ... *"
+	@echo "***********************"
+	@echo "\n"		
+	cd $(PASS_4_DIR) && ${MAKE}
 	@echo "\n"
-	#cp ${inputc}.c $(PASS_1_DIR)/FOLDER_6_INPUT/Input.c
-
-	cp $(PASS_5_DIR)/FOLDER_7_OUTPUT/Output.ll $(inputbc).ll
-	
+	@echo "************************************************************"
+	@echo "* Copy the output of PASS(i) to the input of PASS(i+1) ... *"
+	@echo "************************************************************"
+	@echo "\n"			
+	cp \
+	$(PASS_4_DIR)/FOLDER_6_OUTPUT/Output.ll \
+	$(PASS_5_DIR)/FOLDER_5_INPUT/Input.ll
+	@echo "\n"
+	@echo "***********************"
+	@echo "* Running Pass(4) ... *"
+	@echo "***********************"
+	@echo "\n"		
+	cd $(PASS_5_DIR) && ${MAKE}
+	@echo "\n"
+	@echo "***********************************************************"
+	@echo "* Copy the output of PASS(5) to the input of the analysis *"
+	@echo "***********************************************************"
+	@echo "\n"			
+	cp \
+	$(PASS_4_DIR)/FOLDER_6_OUTPUT/Output.ll \
+	$(PASS_5_DIR)/FOLDER_5_INPUT/Input.ll
 	@echo "\n"	
 	@echo "*************************************************************"
 	@echo "* Syscall function to Analyze and create a contract for ... *"

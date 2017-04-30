@@ -48,8 +48,8 @@ Transformer_HEADER_FILES := $(wildcard  $(HEADER_FILES_DIR)/*.h)
 ################
 # INPUT/OUTPUT #
 ################
-INPUT	=	$(INPUT_DIR)/Input.ll
-OUTPUT	=	$(OUTPUT_DIR)/Output.ll
+INPUT	=	$(INPUT_DIR)/Input.c
+OUTPUT	=	$(OUTPUT_DIR)/Output.c
 
 ##########################
 # ALL LEXER(S) PARSER(S) #

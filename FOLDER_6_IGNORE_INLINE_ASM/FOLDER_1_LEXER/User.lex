@@ -71,23 +71,27 @@ YYSTYPE aalval;
 			r = strchr(q,' ');
 			if (r)
 			{
-				/******************/
-				/* temporary name */
-				/******************/
-				memset(temp,0,sizeof(temp));
-				strncpy(temp,q,r-q);
-				User_ErrorMsg_Log("  %s = add ",temp);
 				for (p=aatext;(*p) && (strncmp(p,"call",4)!=0);p++);
 				p += strlen("call ");
 				if (*p == '{')
 				{
-					q = strchr(p,'}');
-					memset(temp,0,sizeof(temp));
-					strncpy(temp,p,q-p+1);
-					User_ErrorMsg_Log("%s 0, 0",temp);
+					/**************************************/
+					/* DO NOTHING                         */
+					/**************************************/
+					/* q = strchr(p,'}');                 */
+					/* memset(temp,0,sizeof(temp));       */
+					/* strncpy(temp,p,q-p+1);             */
+					/* User_ErrorMsg_Log("%s 0, 0",temp); */
+					/**************************************/
 				}
 				else
 				{
+					/******************/
+					/* temporary name */
+					/******************/
+					memset(temp,0,sizeof(temp));
+					strncpy(temp,q,r-q);
+					User_ErrorMsg_Log("  %s = add ",temp);
 					q = strchr(p,' ');
 					memset(temp,0,sizeof(temp));
 					strncpy(temp,p,q-p);
