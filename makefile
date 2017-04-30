@@ -17,9 +17,8 @@ PASS_2_DIR                   =$(BASEDIR)/FOLDER_4_DONT_INLINE_SPECIAL_KERNEL_FUN
 PASS_3_DIR                   =$(BASEDIR)/FOLDER_5_EXTRACT_GET_USER_AND_PUT_USER
 PASS_4_DIR                   =$(BASEDIR)/FOLDER_6_IGNORE_INLINE_ASM
 PASS_5_DIR                   =$(BASEDIR)/FOLDER_7_IGNORE_EXTRACT_VALUE
-RUN_ANALYSIS_DIR             =$(BASEDIR)/FOLDER_9_RUN_STATIC_ANALYSIS/ApronPass
-APRON_PASS_DIR               =$(BASEDIR)/FOLDER_9_RUN_STATIC_ANALYSIS/ApronPass
-IGNORE_EXTRACT_VALUE_DIR     =$(BASEDIR)/FOLDER_4_IGNORE_EXTRACT_VALUE/INLINE_ME
+RUN_ANALYSIS_DIR             =$(BASEDIR)/FOLDER_8_RUN_STATIC_ANALYSIS/ApronPass
+APRON_PASS_DIR               =$(BASEDIR)/FOLDER_8_RUN_STATIC_ANALYSIS/ApronPass
 
 #######################
 # APRON CONFIGURATION #
@@ -157,7 +156,31 @@ all:
 	cp \
 	$(PASS_5_DIR)/FOLDER_6_OUTPUT/Output.ll \
 	$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag.ll
-	@echo "\n"	
+	@echo "\n"
+	@echo "************************************"
+	@echo "* llvm-as the processed input file *"
+	@echo "************************************"
+	@echo "\n"
+	llvm-as -o=\
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag.bc \
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag.ll
+	@echo "\n"
+	@echo "********************************"
+	@echo "* opt inline the nasty buggers *"
+	@echo "********************************"
+	@echo "\n"
+	opt -always-inline \
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag.bc -o \
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.bc
+	@echo "\n"
+	@echo "*************************************************"
+	@echo "* Make a humen readable edition for input ready *"
+	@echo "*************************************************"
+	@echo "\n"
+	llvm-dis -o=\
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.ll \
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.bc	
+	@echo "\n"
 	@echo "*************************************************************"
 	@echo "* Syscall function to Analyze and create a contract for ... *"
 	@echo "*************************************************************"
@@ -173,7 +196,7 @@ all:
 	-load ${APRON_PASS_DIR}/adaptors/lib${APRON_MANAGER}_adaptor.so \
 	-load ${APRON_PASS_DIR}/libapronpass.so                         \
 	-apron -d -update-count-max=11                                  \
-	${inlinedbc}.bc
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.bc
 	@echo "\n"
 	@echo "****************************************************************"
 	@echo "* Extract Static Analysis Results and Synthesize Contracts ... *"
