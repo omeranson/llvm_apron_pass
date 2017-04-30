@@ -136,7 +136,8 @@ public:
 	//virtual bool unify(AbstractState &);
 	//virtual bool isTop();
 	//virtual bool isBottom();
-	//virtual bool operator==(AbstractState &);
+	virtual bool operator==(const AbstractState &) const;
+	virtual bool operator!=(const AbstractState &) const;
 
 	virtual void makeTop();
 	virtual void makeBottom();

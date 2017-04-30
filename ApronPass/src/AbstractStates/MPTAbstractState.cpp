@@ -85,6 +85,14 @@ bool MPTItemAbstractState::contains(const std::string & name) const {
 	return (m_buffers.count(name) == 1);
 }
 
+bool MPTItemAbstractState::operator==(const MPTItemAbstractState & other) const {
+	return (m_buffers == other.m_buffers);
+}
+
+bool MPTItemAbstractState::operator!=(const MPTItemAbstractState & other) const {
+	return !(*this == other);
+}
+
 void MPTItemAbstractState::updateToIntersection(MPTItemAbstractState & left, MPTItemAbstractState & right) {
 	std::set<std::string> intersection;
 	std::set_intersection(left.begin(), left.end(), right.begin(), right.end(),
@@ -162,4 +170,12 @@ void MPTAbstractState::clear() {
 			it = m_mayPointsTo.erase(it);
 		}
 	}
+}
+
+bool MPTAbstractState::operator==(const MPTAbstractState& other) const {
+	return (m_mayPointsTo == other.m_mayPointsTo);
+}
+
+bool MPTAbstractState::operator!=(const MPTAbstractState& other) const {
+	return !(*this == other);
 }

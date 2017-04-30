@@ -192,6 +192,17 @@ bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
 	return (prev.m_apronAbstractState != m_apronAbstractState);
 }
 
+bool AbstractState::operator==(const AbstractState & other) const {
+	return ((m_mayPointsTo == other.m_mayPointsTo) &&
+			(m_apronAbstractState == other.m_apronAbstractState) &&
+			(m_importedIovecCalls == other.m_importedIovecCalls) &&
+			(m_copyMsghdrFromUserCalls == other.m_copyMsghdrFromUserCalls));
+}
+
+bool AbstractState::operator!=(const AbstractState & other) const {
+	return !(*this == other);
+}
+
 void AbstractState::makeTop() {
 	assert(0 && "TODO: Not yet implemented");
 }

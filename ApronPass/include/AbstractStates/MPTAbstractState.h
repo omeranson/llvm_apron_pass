@@ -25,6 +25,8 @@ public:
 	bool empty() const;
 	bool isWritable() const;
 	bool contains(const std::string & name) const;
+	bool operator==(const MPTItemAbstractState & other) const;
+	bool operator!=(const MPTItemAbstractState & other) const;
 
 	static void updateToIntersection(MPTItemAbstractState & left, MPTItemAbstractState & right);
 };
@@ -83,6 +85,9 @@ public:
 	bool join(const MPTAbstractState & other);
 	bool meet(const MPTAbstractState & other);
 	void clear();
+
+	bool operator==(const MPTAbstractState& other) const;
+	bool operator!=(const MPTAbstractState& other) const;
 };
 
 #endif // MPT_ABSTRACT_STATE_H
