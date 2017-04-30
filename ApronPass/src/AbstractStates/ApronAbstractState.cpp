@@ -64,39 +64,45 @@ void ApronAbstractState::extendEnvironment(ap_tcons1_t * tcons) {
 	assert(!failed);
 }
 
+bool ApronAbstractState::widen(const ApronAbstractState & other) {
+	ap_abstract1_t prev = m_abstract1;
+	ap_abstract1_t other_abst = other.m_abstract1;
+	if (other.isBottom()) {
+		changeToLeastCommonEnv(m_abstract1, other_abst, true);
+		return false;
+	}
+	if (other.isTop()) {
+		bool result = isTop();
+		changeToLeastCommonEnv(m_abstract1, other_abst, false);
+		m_abstract1 = other.m_abstract1;
+		return result;
+	}
+	if (isBottom()) {
+		// other is *not* bottom
+		changeToLeastCommonEnv(m_abstract1, other_abst, true);
+		m_abstract1 = other_abst;
+		return true;
+	}
+
+	ap_abstract1_t this_abst = m_abstract1;
+	changeToLeastCommonEnv(this_abst, other_abst, true);
+	llvm::errs() << "Widening: " << &this_abst << " -> " << &other_abst;
+	m_abstract1 = ap_abstract1_widening(apron_manager,
+			&this_abst, &other_abst);
+	return (*this != prev);
+}
+
 bool ApronAbstractState::join(const ApronAbstractState & other) {
-	++joinCount;
+	if (++joinCount >= m_wideningThreshold) {
+		return widen(other);
+	}
 	ap_abstract1_t prev = m_abstract1;
 	ap_abstract1_t this_abst = m_abstract1;
 	ap_abstract1_t other_abst = other.m_abstract1;
-	if ((joinCount % m_wideningThreshold) == 0) {
-		if (other.isBottom()) {
-			changeToLeastCommonEnv(this_abst, other_abst, true);
-			return false;
-		}
-		if (other.isTop()) {
-			bool result = isTop();
-			changeToLeastCommonEnv(this_abst, other_abst, false);
-			m_abstract1 = other.m_abstract1;
-			return result;
-		}
-		if (isBottom()) {
-			// other is *not* bottom
-			changeToLeastCommonEnv(this_abst, other_abst, true);
-			m_abstract1 = other.m_abstract1;
-			return true;
-		}
-	}
 	changeToLeastCommonEnv(this_abst, other_abst, true);
 
-	if ((joinCount % m_wideningThreshold) == 0) {
-		llvm::errs() << "Widening:\n";
-		m_abstract1 = ap_abstract1_widening(apron_manager,
-				&this_abst, &other_abst);
-	} else {
-		m_abstract1 = ap_abstract1_join(apron_manager, false,
-				&this_abst, &other_abst);
-	}
+	m_abstract1 = ap_abstract1_join(apron_manager, false,
+			&this_abst, &other_abst);
 	return (*this != prev);
 }
 
