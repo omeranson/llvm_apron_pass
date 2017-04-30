@@ -270,7 +270,7 @@ bool BasicBlock::update() {
 
 	AbstractState & as = getAbstractState();
 	ApronAbstractState & aas = as.m_apronAbstractState;
-	ap_abstract1_t prev = aas.m_abstract1;
+	AbstractState prev = as;
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
 		llvm::Instruction & inst = *it;
@@ -280,16 +280,13 @@ bool BasicBlock::update() {
 	applyConstraints(constraints);
 	as.updateUserOperationAbstract1();
 	std::vector<std::string> userBuffers = getFunction()->getUserPointers();
-	if (Debug) {
-		llvm::errs() << getName() << ": Update (before Reduce): " << as;
-	}
 	bool isReduceChanged = as.reduce(userBuffers);
-	if (Debug && isReduceChanged) {
-		llvm::errs() << getName() << ": Update (after Reduce): " << as;
+	if (Debug) {
+		llvm::errs() << getName() << ": Update: " << prev << " -> " << as;
 	}
 	bool markedForChanged = m_markedForChanged;
 	m_markedForChanged = false;
-	bool isChanged = (aas != prev);
+	bool isChanged = (as != prev);
 	return markedForChanged || isChanged;
 }
 
