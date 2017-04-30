@@ -9,8 +9,8 @@
 /*************************/
 /* PROJECT INCLUDE FILES */
 /*************************/
-#include "User_ErrorMsg.h"
-#include "User_Tokens.h"
+#include "ErrorMsg.h"
+#include "Tokens.h"
 #include "util.h"
 
 /**************************/
@@ -47,94 +47,83 @@ YYSTYPE aalval;
 /* UNIQUE PREFIX */
 /*****************/
 %option prefix="aa"
-
-/********************/
-/* COMMON REGEXP(s) */
-/********************/
-
-/***************/
-/* PARENTHESES */
-/***************/
-LPAREN "("
-RPAREN ")"
-NON_PAREN [^)(]
-/**********/
-/* SPACES */
-/**********/
-WHITE_SPACE	" "
-
-/*******************/
-/* LINE TERMINATOR */
-/*******************/
-LINE_TERMINATOR	"\n"|"\r\n"|"\n\r"
-
-/********/
-/* USER */
-/********/
-USER	"__user"
-
-/****************************/
-/* FUNC WITH USER ATTRIBUTE */
-/****************************/
-FUNCUSR	{LPAREN}{NON_PAREN}*{USER}{NON_PAREN}*{RPAREN}
-
-/******/
-/* ID */
-/******/
-ID	[a-zA-Z_][a-zA-Z_0-9]*
 		
 /*********/
 /* RULES */
 /*********/
 %%
-"SYSCALL_DEFINE"[0-9]{FUNCUSR}		{
-						FILE *fl;
-						char *p = aatext+strlen("SYSCALL_DEFINE0(");
-						char *q = strchr(p,',');
-						char funcname[100];
-						char filename[100];
-						memset(funcname,0,sizeof(funcname));
-						strncpy(funcname,p,q-p);
-						if (strcmp(funcname,"copy_msghdr_from_user") == 0) continue;
-						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-						fl = fopen(filename,"w+t");
-						fprintf(fl,"INLINE ME BABY!!!\n");
-						fclose(fl);
-						continue;
+[^\n]*"extractvalue"[^\n]*", "[0-9]	{
+		char *p;
+		char *q;
+		char *r;
+		char *s;
+		char *t;
+		char *u;
+		char *v;
+		char *w	;
+		char temp1[128];
+		char temp2[128];
+		int d;
+		int i;
+	
+		p = aatext;
+		q = strchr(p,'%');
+		if (q)
+		{
+			r = strchr(q,' ');
+			if (r)
+			{
+				s = strchr(r,'{');
+				if (s)
+				{
+					t = strchr(s,'}');
+					if (t)
+					{
+						u = strchr(t,'%');
+						if (u)
+						{
+							v = strchr(u,',');
+							if (v)
+							{
+								d = atoi(v+1);
+							}
+						}
 					}
-("ssize_t"{WHITE_SPACE}){ID}{FUNCUSR}	{
-						FILE *fl;
-						char *p = aatext+strlen("ssize_t ");
-						char *q = strchr(p,'(');
-						char funcname[100];
-						char filename[100];
-						memset(funcname,0,sizeof(funcname));
-						strncpy(funcname,p,q-p);
-						if (strcmp(funcname,"copy_msghdr_from_user") == 0) continue;
-						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-						fl = fopen(filename,"w+t");
-						fprintf(fl,"INLINE ME BABY!!!\n");
-						fclose(fl);
-						continue;
-					}
-("static"{WHITE_SPACE})("ssize_t"{WHITE_SPACE}){ID}{FUNCUSR}	{
-						FILE *fl;
-						char *p = aatext+strlen("static ssize_t ");
-						char *q = strchr(p,'(');
-						char funcname[100];
-						char filename[100];
-						memset(funcname,0,sizeof(funcname));
-						strncpy(funcname,p,q-p);
-						if (strcmp(funcname,"copy_msghdr_from_user") == 0) continue;
-						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-						fl = fopen(filename,"w+t");
-						fprintf(fl,"INLINE ME BABY!!!\n");
-						fclose(fl);
-						continue;
-					}
-[^\n]*				{User_ErrorMsg_Log("%s", aatext); continue;}
-[^\r\n]*			{User_ErrorMsg_Log("%s", aatext); continue;}
-"\n"				{User_ErrorMsg_Log("%s", aatext); continue;}
-"\r\n"				{User_ErrorMsg_Log("%s", aatext); continue;}
-"\n\r"				{User_ErrorMsg_Log("%s", aatext); continue;}
+				}
+			}
+		}
+
+		/******************/
+		/* temporary name */
+		/******************/
+		memset(temp1,0,sizeof(temp1));
+		strncpy(temp1,q,r-q);
+
+		/*****************/
+		/* type of field */
+		/*****************/
+		for (i=0;i<d;i++)
+		{
+			s = strchr(s+1,',');
+		}
+		s+=2;
+		w = strchr(s,' ');
+		memset(temp2,0,sizeof(temp2));
+		if (*(w-1) == ','){*(w-1)=0;}
+		strncpy(temp2,s,w-s);
+		
+		if ((*(w-1) == '*') || (*(w-2) == '*'))
+		{
+			User_ErrorMsg_Log("  %s = inttoptr i32 0 to %s",temp1,temp2);			
+		}
+		else
+		{
+			User_ErrorMsg_Log("  %s = add %s 0, 0",temp1,temp2);
+		}
+	}
+[^\n]*		{User_ErrorMsg_Log("%s", aatext); continue;}
+[^\r\n]*	{User_ErrorMsg_Log("%s", aatext); continue;}
+"\n"		{User_ErrorMsg_Log("%s", aatext); continue;}
+"\r\n"		{User_ErrorMsg_Log("%s", aatext); continue;}
+"\n\r"		{User_ErrorMsg_Log("%s", aatext); continue;}
 
