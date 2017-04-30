@@ -59,6 +59,7 @@ public:
 	virtual bool isKnown(const std::string & var) const;
 	virtual bool operator==(const ApronAbstractState &) const;
 	virtual bool operator!=(const ApronAbstractState &) const;
+	virtual bool operator<=(const ApronAbstractState &) const;
 	virtual ap_texpr1_t * asTexpr(const std::string & var);
 	virtual ap_texpr1_t * asTexpr(int64_t value);
 	virtual ap_texpr1_t * asTexpr(double value);

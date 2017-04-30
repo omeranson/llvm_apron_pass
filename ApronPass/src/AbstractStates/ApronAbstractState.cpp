@@ -304,6 +304,23 @@ bool ApronAbstractState::operator!=(const ApronAbstractState &other) const {
 	return !(*this == other);
 }
 
+bool ApronAbstractState::operator<=(const ApronAbstractState & other) const {
+	ap_abstract1_t this_abst = m_abstract1;
+	ap_abstract1_t other_abst = other.m_abstract1;
+	ap_dimchange_t * dimchange1 = NULL;
+	ap_dimchange_t * dimchange2 = NULL;
+	ap_environment_t * environment = ap_environment_lce(
+			ap_abstract1_environment(apron_manager, &this_abst),
+			ap_abstract1_environment(apron_manager, &other_abst),
+			&dimchange1, &dimchange2);
+
+	this_abst = ap_abstract1_change_environment(
+			apron_manager, false, &this_abst, environment, true);
+	other_abst = ap_abstract1_change_environment(
+			apron_manager, false, &other_abst, environment, false);
+	return ap_abstract1_is_leq(apron_manager, &this_abst, &other_abst);
+}
+
 ap_texpr1_t * ApronAbstractState::asTexpr(const std::string & var) {
 	extend(var);
 	ap_var_t apvar = (ap_var_t)var.c_str();
