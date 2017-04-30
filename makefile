@@ -12,9 +12,13 @@ BASEDIR = $(shell pwd)
 ###############
 C_FILES_DIRECTORY            =$(BASEDIR)/FOLDER_1_INPUT_C_FILES
 LLVM_BITCODE_FILES_DIRECTORY =$(BASEDIR)/FOLDER_2_LLVM_BITCODE_FILES
-INLINE_SELECTED_FUNCTIONS_DIR=$(BASEDIR)/FOLDER_3_INLINE_SELECTED_FUNCTIONS/INLINE_ME
-RUN_ANALYSIS_DIR             =$(BASEDIR)/FOLDER_4_RUN_STATIC_ANALYSIS/ApronPass
-APRON_PASS_DIR               =$(BASEDIR)/FOLDER_4_RUN_STATIC_ANALYSIS/ApronPass
+PASS_5_DIR                   =$(BASEDIR)/FOLDER_3_DONT_INLINE_SPECIAL_KERNEL_FUNCTIONS
+PASS_5_DIR                   =$(BASEDIR)/FOLDER_4_DO_INLINE_SELECTED_FUNCTIONS
+PASS_2_DIR                   =$(BASEDIR)/FOLDER_5_EXTRACT_GET_USER_AND_PUT_USER
+PASS_5_DIR                   =$(BASEDIR)/FOLDER_6_IGNORE_INLINE_ASM
+PASS_1_DIR                   =$(BASEDIR)/FOLDER_7_IGNORE_EXTRACT_VALUE
+RUN_ANALYSIS_DIR             =$(BASEDIR)/FOLDER_9_RUN_STATIC_ANALYSIS/ApronPass
+APRON_PASS_DIR               =$(BASEDIR)/FOLDER_9_RUN_STATIC_ANALYSIS/ApronPass
 IGNORE_EXTRACT_VALUE_DIR     =$(BASEDIR)/FOLDER_4_IGNORE_EXTRACT_VALUE/INLINE_ME
 
 #######################
@@ -40,19 +44,13 @@ SYSCALL_NAME = "readv"
 SYSCALL?=read
 inputc =$(C_FILES_DIRECTORY)/Input
 inputbc=$(LLVM_BITCODE_FILES_DIRECTORY)/Input
-inlinedbc=$(LLVM_BITCODE_FILES_DIRECTORY)/OutputInlined
+inputTagbc=$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag
 
 ###############
 # DIRECTORIES #
 ###############
 all:
 	clear
-	@echo "\n"
-	@echo "*****************"
-	@echo "* Clean All ... *"
-	@echo "*****************"
-	@echo "\n"
-	@echo "\n"
 	@echo "*********************************************"
 	@echo "* Compile Combined Static Analysis Pass ... *"
 	@echo "*********************************************"
@@ -82,40 +80,49 @@ all:
 	@echo "* 'cause I love human readable text files :]]      ... *"
 	@echo "********************************************************"
 	@echo "\n"
-	llvm-dis -o=$(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_6_INPUT/Input.ll ${inputbc}.O3.MergeReturn.InstNamer.bc
+	#llvm-dis -o=$(PASS_1_DIR)/FOLDER_6_INPUT/Input.ll ${inputbc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"
 	@echo "*****************************************************"
 	@echo "* Use the original c file to detect functions that  *"
 	@echo "* have an input paramater with __user attribute     *"
 	@echo "*****************************************************"
 	@echo "\n"
-	cp ${inputc}.c $(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_6_INPUT/Input.c
+	#cp ${inputc}.c $(PASS_1_DIR)/FOLDER_6_INPUT/Input.c
 	@echo "\n"
-	@echo "***************************************"
-	@echo "* Run The Actual Inliner Pass Now ... *"
-	@echo "***************************************"
-	@echo "\n"
-	cd $(INLINE_SELECTED_FUNCTIONS_DIR) && ${MAKE}
-	@echo "\n"
-	@echo "*******************"
-	@echo "* Copy Output ... *"
-	@echo "*******************"
-	@echo "\n"
-	cp $(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_7_OUTPUT/OutputInlined.bc ${inlinedbc}.bc
-	cp $(INLINE_SELECTED_FUNCTIONS_DIR)/FOLDER_7_OUTPUT/OutputInlined.ll ${inlinedbc}.ll
-	@echo "\n"
-	@echo "*******************"
-	@echo "* Copy Output ... *"
-	@echo "*******************"
-	@echo "\n"
-	echo $(IGNORE_EXTRACT_VALUE_DIR)
-	cp ${inlinedbc}.ll /home/oren/Input.ll
-	cp /home/oren/Input.ll $(IGNORE_EXTRACT_VALUE_DIR)/FOLDER_6_INPUT/Input.ll
-	@echo "\n"
-	cd $(IGNORE_EXTRACT_VALUE_DIR) && ${MAKE}
-	@echo "\n"
-	cp $(IGNORE_EXTRACT_VALUE_DIR)/FOLDER_7_OUTPUT/Output.bc ${inlinedbc}.bc
-	cp $(IGNORE_EXTRACT_VALUE_DIR)/FOLDER_7_OUTPUT/OrenOutput.ll ${inlinedbc}.ll
+	@echo "*******************************"
+	@echo "* Run The Actual Pass Now ... *"
+	@echo "*******************************"
+	@echo "\n"	
+		
+	#####################################
+	# GET INSIDE CURRENT PASS & MAKE IT #
+	#####################################
+	cd $(PASS_1_DIR) && ${MAKE}
+		
+	####################################
+	# INPUT(pass i+1) = OUTPUT(pass i) #
+	####################################
+	cp \
+	$(PASS_1_DIR)/FOLDER_6_OUTPUT/Output.ll \
+	$(PASS_2_DIR)/FOLDER_5_INPUT/Input.ll
+		
+	#####################################
+	# GET INSIDE CURRENT PASS & MAKE IT #
+	#####################################
+	cd $(PASS_2_DIR) && ${MAKE}
+		
+	####################################
+	# INPUT(pass i+1) = OUTPUT(pass i) #
+	####################################
+	cp \
+	$(PASS_2_DIR)/FOLDER_6_OUTPUT/Output.ll \
+	$(PASS_3_DIR)/FOLDER_5_INPUT/Input.ll
+
+
+
+
+	cp $(PASS_5_DIR)/FOLDER_7_OUTPUT/Output.ll $(inputbc).ll
+	
 	@echo "\n"	
 	@echo "*************************************************************"
 	@echo "* Syscall function to Analyze and create a contract for ... *"

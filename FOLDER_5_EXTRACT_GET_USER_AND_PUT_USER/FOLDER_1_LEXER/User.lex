@@ -9,8 +9,8 @@
 /*************************/
 /* PROJECT INCLUDE FILES */
 /*************************/
-#include "User_ErrorMsg.h"
-#include "User_Tokens.h"
+#include "ErrorMsg.h"
+#include "Tokens.h"
 #include "util.h"
 
 /**************************/
@@ -47,94 +47,63 @@ YYSTYPE aalval;
 /* UNIQUE PREFIX */
 /*****************/
 %option prefix="aa"
-
-/********************/
-/* COMMON REGEXP(s) */
-/********************/
-
-/***************/
-/* PARENTHESES */
-/***************/
-LPAREN "("
-RPAREN ")"
-NON_PAREN [^)(]
-/**********/
-/* SPACES */
-/**********/
-WHITE_SPACE	" "
-
-/*******************/
-/* LINE TERMINATOR */
-/*******************/
-LINE_TERMINATOR	"\n"|"\r\n"|"\n\r"
-
-/********/
-/* USER */
-/********/
-USER	"__user"
-
-/****************************/
-/* FUNC WITH USER ATTRIBUTE */
-/****************************/
-FUNCUSR	{LPAREN}{NON_PAREN}*{USER}{NON_PAREN}*{RPAREN}
-
-/******/
-/* ID */
-/******/
-ID	[a-zA-Z_][a-zA-Z_0-9]*
 		
 /*********/
 /* RULES */
 /*********/
 %%
-"SYSCALL_DEFINE"[0-9]{FUNCUSR}		{
-						FILE *fl;
-						char *p = aatext+strlen("SYSCALL_DEFINE0(");
-						char *q = strchr(p,',');
-						char funcname[100];
-						char filename[100];
-						memset(funcname,0,sizeof(funcname));
-						strncpy(funcname,p,q-p);
-						if (strcmp(funcname,"copy_msghdr_from_user") == 0) continue;
-						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-						fl = fopen(filename,"w+t");
-						fprintf(fl,"INLINE ME BABY!!!\n");
-						fclose(fl);
-						continue;
+[^\n]*"get_user"[^\n]*	{
+		char *p;
+		char *q;
+		char *r;
+		char *s;
+		char *t;
+		char *u;
+		char *v;
+		char *w	;
+		char temp[128];
+	
+		p = aatext;
+		q = strchr(p,'%');
+		if (q)
+		{
+			r = strchr(q,' ');
+			if (r)
+			{
+				s = strchr(r,'{');
+				if (s)
+				{
+					t = strchr(s,'}');
+					if (t)
+					{
+						u = strchr(t,'(');
+						if (u)
+						{
+							v = strchr(u,')');
+							if (v)
+							{
+								/******************/
+								/* temporary name */
+								/******************/
+								memset(temp,0,sizeof(temp));
+								strncpy(temp,q,r-q);
+								User_ErrorMsg_Log("  %s = call",temp);
+								memset(temp,0,sizeof(temp));
+								strncpy(temp,s,t-s+1);
+								User_ErrorMsg_Log(" %s @get_user",temp);
+								memset(temp,0,sizeof(temp));
+								strncpy(temp,u,v-u+1);
+								User_ErrorMsg_Log("%s",temp);
+							}
+						}
 					}
-("ssize_t"{WHITE_SPACE}){ID}{FUNCUSR}	{
-						FILE *fl;
-						char *p = aatext+strlen("ssize_t ");
-						char *q = strchr(p,'(');
-						char funcname[100];
-						char filename[100];
-						memset(funcname,0,sizeof(funcname));
-						strncpy(funcname,p,q-p);
-						if (strcmp(funcname,"copy_msghdr_from_user") == 0) continue;
-						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-						fl = fopen(filename,"w+t");
-						fprintf(fl,"INLINE ME BABY!!!\n");
-						fclose(fl);
-						continue;
-					}
-("static"{WHITE_SPACE})("ssize_t"{WHITE_SPACE}){ID}{FUNCUSR}	{
-						FILE *fl;
-						char *p = aatext+strlen("static ssize_t ");
-						char *q = strchr(p,'(');
-						char funcname[100];
-						char filename[100];
-						memset(funcname,0,sizeof(funcname));
-						strncpy(funcname,p,q-p);
-						if (strcmp(funcname,"copy_msghdr_from_user") == 0) continue;
-						sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-						fl = fopen(filename,"w+t");
-						fprintf(fl,"INLINE ME BABY!!!\n");
-						fclose(fl);
-						continue;
-					}
-[^\n]*				{User_ErrorMsg_Log("%s", aatext); continue;}
-[^\r\n]*			{User_ErrorMsg_Log("%s", aatext); continue;}
-"\n"				{User_ErrorMsg_Log("%s", aatext); continue;}
-"\r\n"				{User_ErrorMsg_Log("%s", aatext); continue;}
-"\n\r"				{User_ErrorMsg_Log("%s", aatext); continue;}
+				}
+			}
+		}
+	}
+[^\n]*		{User_ErrorMsg_Log("%s", aatext); continue;}
+[^\r\n]*	{User_ErrorMsg_Log("%s", aatext); continue;}
+"\n"		{User_ErrorMsg_Log("%s", aatext); continue;}
+"\r\n"		{User_ErrorMsg_Log("%s", aatext); continue;}
+"\n\r"		{User_ErrorMsg_Log("%s", aatext); continue;}
 

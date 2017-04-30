@@ -1,5 +1,5 @@
 /***************************************/
-/* FILE NAME: Inline_ErrorMsg.c */
+/* FILE NAME: User_ErrorMsg.c */
 /***************************************/
 
 /****************************************/
@@ -19,7 +19,7 @@
 /* PROJECT INCLUDE FILES */
 /*************************/
 #include "util.h"
-#include "Inline_ErrorMsg.h"
+#include "ErrorMsg.h"
 
 /***************/
 /* DEFINITIONS */
@@ -29,7 +29,7 @@
 /****************/
 /* LOG FILENAME */
 /****************/
-char Inline_ErrorMsg_Log_Filename[MAX_FILENAME_LENGTH];
+char User_ErrorMsg_Log_Filename[MAX_FILENAME_LENGTH];
 
 /********************/
 /* GLOBAL VARIABLES */
@@ -41,12 +41,12 @@ static int lineNum = 1;
 /********************/
 /* GLOBAL VARIABLES */
 /********************/
-int Inline_ErrorMsg_tokPos=0;
+int User_ErrorMsg_tokPos=0;
 
 /**********************/
 /* EXTERNAL VARIABLES */
 /**********************/
-extern FILE *bbin;
+extern FILE *aain;
 
 /*********/
 /* TYPES */
@@ -72,12 +72,12 @@ static IntList linePos=NULL;
 /********************/
 /* GLOBAL VARIABLES */
 /********************/
-FILE *Inline_ErrorMsg_Log_fl;
+FILE *User_ErrorMsg_Log_fl;
 
 /****************/
 /* LOG FUNCTION */
 /****************/
-void Inline_ErrorMsg_Log(char *message,...)
+void User_ErrorMsg_Log(char *message,...)
 {
 	/***********/
 	/* va_list */
@@ -91,9 +91,9 @@ void Inline_ErrorMsg_Log(char *message,...)
 
 	if (first_time == 1) {
 		first_time  = 0;
-		Inline_ErrorMsg_Log_fl = fopen(Inline_ErrorMsg_Log_Filename,"w+t");
-		if (Inline_ErrorMsg_Log_fl == NULL) return;
-		fclose(Inline_ErrorMsg_Log_fl);
+		User_ErrorMsg_Log_fl = fopen(User_ErrorMsg_Log_Filename,"w+t");
+		if (User_ErrorMsg_Log_fl == NULL) return;
+		fclose(User_ErrorMsg_Log_fl);
 	}
 
 	/*************************/
@@ -105,36 +105,36 @@ void Inline_ErrorMsg_Log(char *message,...)
 	/*************************/
 	/* [1] Open the log file */
 	/*************************/
-	Inline_ErrorMsg_Log_fl = fopen(Inline_ErrorMsg_Log_Filename,"a+t");
-	if (Inline_ErrorMsg_Log_fl == NULL) return;
+	User_ErrorMsg_Log_fl = fopen(User_ErrorMsg_Log_Filename,"a+t");
+	if (User_ErrorMsg_Log_fl == NULL) return;
 		
 	/*************************/
 	/* [2] Write LEXED token */
 	/*************************/
 	va_start(ap,message);
-	vfprintf(Inline_ErrorMsg_Log_fl, message, ap);
+	vfprintf(User_ErrorMsg_Log_fl, message, ap);
 	va_end(ap);
 
 	/**********************/
 	/* [3] Close the file */
 	/**********************/
-	fclose(Inline_ErrorMsg_Log_fl);
+	fclose(User_ErrorMsg_Log_fl);
 }
 
 /***********/
 /* NEWLINE */
 /***********/
-void Inline_ErrorMsg_Newline(void)
+void User_ErrorMsg_Newline(void)
 {
 	lineNum++;
-	linePos = intList(Inline_ErrorMsg_tokPos, linePos);
-	Inline_ErrorMsg_Log("\n");
+	linePos = intList(User_ErrorMsg_tokPos, linePos);
+	User_ErrorMsg_Log("\n");
 }
 
 /*********/
 /* ERROR */
 /*********/
-void Inline_ErrorMsg_Error(int pos, char *message,...)
+void User_ErrorMsg_Error(int pos, char *message,...)
 {
 	va_list ap;
 	IntList lines = linePos;
@@ -171,24 +171,24 @@ void Inline_ErrorMsg_Error(int pos, char *message,...)
 /****************/
 /* LOG FILENAME */
 /****************/
-void Inline_ErrorMsg_Set_Log_Filename(string log_Filename)
+void User_ErrorMsg_Set_Log_Filename(string log_Filename)
 {
-	strcpy(Inline_ErrorMsg_Log_Filename,log_Filename);
+	strcpy(User_ErrorMsg_Log_Filename,log_Filename);
 }
 
 /*********/
 /* RESET */
 /*********/
-void Inline_ErrorMsg_Reset(string fname)
+void User_ErrorMsg_Reset(string fname)
 {
 	anyErrors=FALSE;
 	fileName=fname;
 	lineNum=1;
 	linePos=intList(0,NULL);
-	bbin = fopen(fname,"r");
-	if (!bbin)
+	aain = fopen(fname,"r");
+	if (!aain)
 	{
-		Inline_ErrorMsg_Error(0,"cannot open");
+		User_ErrorMsg_Error(0,"cannot open");
 		exit(1);
 	}
 }
