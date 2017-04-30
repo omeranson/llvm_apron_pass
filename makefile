@@ -155,8 +155,8 @@ all:
 	@echo "***********************************************************"
 	@echo "\n"			
 	cp \
-	$(PASS_4_DIR)/FOLDER_6_OUTPUT/Output.ll \
-	$(PASS_5_DIR)/FOLDER_5_INPUT/Input.ll
+	$(PASS_5_DIR)/FOLDER_6_OUTPUT/Output.ll \
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag.ll
 	@echo "\n"	
 	@echo "*************************************************************"
 	@echo "* Syscall function to Analyze and create a contract for ... *"

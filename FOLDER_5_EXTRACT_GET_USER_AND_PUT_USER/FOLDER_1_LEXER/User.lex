@@ -52,6 +52,15 @@ YYSTYPE aalval;
 /* RULES */
 /*********/
 %%
+"; Function Attrs:"[^\n]*	{
+		static int get_user_declared=0;
+		if (get_user_declared == 0)
+		{
+			get_user_declared=1;
+			User_ErrorMsg_Log("%s","declare { i32*, i64 } @get_user(i32*, i64)\n");
+		}
+		User_ErrorMsg_Log("%s",aatext);
+	}
 [^\n]*"get_user"[^\n]*	{
 		char *p;
 		char *q;
