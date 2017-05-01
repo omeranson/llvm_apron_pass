@@ -161,6 +161,20 @@ bool MPTAbstractState::meet(const MPTAbstractState & other) {
 	return isChanged;
 }
 
+void MPTAbstractState::forget(const std::string & name) {
+	std::map<std::string, MPTItemAbstractState>::iterator it = m_mayPointsTo.find(name);
+	if (it == m_mayPointsTo.end()) {
+		return;
+	}
+	assert(it->second.isWritable());
+	m_mayPointsTo.erase(it);
+	assert(m_mayPointsTo.find(name) == m_mayPointsTo.end());
+}
+
+MPTItemAbstractState & MPTAbstractState::extend(const std::string& name) {
+	return m_mayPointsTo[name];
+}
+
 void MPTAbstractState::clear() {
 	for (std::map<std::string, MPTItemAbstractState >::iterator it = m_mayPointsTo.begin(),
 	                                                            ie = m_mayPointsTo.end();
@@ -170,6 +184,14 @@ void MPTAbstractState::clear() {
 			it = m_mayPointsTo.erase(it);
 		}
 	}
+}
+
+MPTItemAbstractState * MPTAbstractState::find(const std::string& name) {
+	std::map<std::string, MPTItemAbstractState>::iterator it = m_mayPointsTo.find(name);
+	if (it == m_mayPointsTo.end()) {
+		return 0;
+	}
+	return &it->second;
 }
 
 bool MPTAbstractState::operator==(const MPTAbstractState& other) const {

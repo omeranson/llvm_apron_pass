@@ -84,7 +84,11 @@ public:
 
 	bool join(const MPTAbstractState & other);
 	bool meet(const MPTAbstractState & other);
+	void forget(const std::string & pointer);
 	void clear();
+
+	MPTItemAbstractState * find(const std::string& name);
+	MPTItemAbstractState & extend(const std::string& name);
 
 	bool operator==(const MPTAbstractState& other) const;
 	bool operator!=(const MPTAbstractState& other) const;
