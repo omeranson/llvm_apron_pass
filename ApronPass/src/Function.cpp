@@ -76,7 +76,7 @@ bool Function::isVarInOut(const char * varname) {
 	}
 	llvm::ReturnInst * returnInst = getReturnInstruction();
 	llvm::Value * returnValue = returnInst->getReturnValue();
-	if (returnValue->getName() == varname) {
+	if (returnValue && returnValue->getName() == varname) {
 		return true;
 	}
 	return false;
