@@ -797,6 +797,9 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("copy_to_user" == funcName) {
 		return true;
 	}
+	if ("_copy_to_user" == funcName) {
+		return true;
+	}
 	if ("copy_from_user" == funcName) {
 		return true;
 	}
@@ -848,6 +851,10 @@ void CallValue::update(AbstractState & state) {
 			return;
 		}
 		if ("copy_to_user" == funcName) {
+			updateForCopyToUser(state);
+			return;
+		}
+		if ("_copy_to_user" == funcName) {
 			updateForCopyToUser(state);
 			return;
 		}
