@@ -5,6 +5,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 
 /*************************/
 /* PROJECT INCLUDE FILES */
@@ -89,6 +90,10 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 		printf("%s\n",funcname);
 		sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
 		fl = fopen(filename,"w+t");
+		if (!fl) {
+			fprintf(stderr, "Failed to open output file %s: %s\n", filename, strerror(errno));
+			exit(1);
+		}
 		fprintf(fl,"INLINE ME BABY!!!\n");
 		fclose(fl);
 		continue;
@@ -104,6 +109,10 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 		printf("%s\n",funcname);
 		sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
 		fl = fopen(filename,"w+t");
+		if (!fl) {
+			fprintf(stderr, "Failed to open output file %s: %s\n", filename, strerror(errno));
+			exit(1);
+		}
 		fprintf(fl,"INLINE ME BABY!!!\n");
 		fclose(fl);
 		continue;
@@ -119,6 +128,10 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 		printf("%s\n",funcname);
 		sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
 		fl = fopen(filename,"w+t");
+		if (!fl) {
+			fprintf(stderr, "Failed to open output file %s: %s\n", filename, strerror(errno));
+			exit(1);
+		}
 		fprintf(fl,"INLINE ME BABY!!!\n");
 		fclose(fl);
 		continue;
