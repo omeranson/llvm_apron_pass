@@ -35,10 +35,8 @@ void ChaoticExecution::execute() {
 				continue;
 			}
 		}
-		bool isModified = block->update();
-		if (!wasSeen || isModified) {
-			populateWithSuccessors(worklist, block);
-		}
+		block->update();
+		populateWithSuccessors(worklist, block);
 	}
 }
 
@@ -46,8 +44,8 @@ void ChaoticExecution::populateWithSuccessors(
 		std::list<BasicBlock *> & worklist, BasicBlock * block) {
 	for (BasicBlock * succ : callGraph.successors(block)) {
 		bool isSuccModified = succ->join(*block);
-		if (isSuccModified) {
-			succ->setChanged();
+		if (!isSuccModified) {
+			continue;
 		}
 		worklist.push_back(succ);
 	}
