@@ -79,66 +79,38 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 /* RULES */
 /*********/
 %%
-"ssize_t new_sync_read(char __user *buf)"[^\n]*	{
+[^\r\n]*"("[^)]*"__user"[^)]*")"[^\r\n]*	{
 		FILE *fl;
-		char *p = aatext+strlen("ssize_t ");
+		char *p = aatext;
 		char *q = strchr(p,'(');
+		char *r = q-1;
 		char funcname[100];
 		char filename[100];
-		memset(funcname,0,sizeof(funcname));
-		strncpy(funcname,p,q-p);
-		printf("%s\n",funcname);
-		sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-		fl = fopen(filename,"w+t");
-		if (!fl) {
-			fprintf(stderr, "Failed to open output file %s: %s\n", filename, strerror(errno));
-			exit(1);
+		int i;
+		while (
+			 ((*r) == '_') ||
+			(((*r) >= 'a') && ((*r) <= 'z')) ||
+			(((*r) >= 'A') && ((*r) <= 'Z')) ||
+			(((*r) >= '0') && ((*r) <= '9')))
+		{
+			r--;
 		}
-		fprintf(fl,"INLINE ME BABY!!!\n");
-		fclose(fl);
-		continue;
-	}
-"ssize_t "{ID}"("[^)]*"__user"[^)]*")"[^\n]*	{
-		FILE *fl;
-		char *p = aatext+strlen("ssize_t ");
-		char *q = strchr(p,'(');
-		char funcname[100];
-		char filename[100];
-		memset(funcname,0,sizeof(funcname));
-		strncpy(funcname,p,q-p);
-		printf("%s\n",funcname);
-		sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-		fl = fopen(filename,"w+t");
-		if (!fl) {
-			fprintf(stderr, "Failed to open output file %s: %s\n", filename, strerror(errno));
-			exit(1);
+		r++;
+		if (r<q)
+		{
+			memset(funcname,0,sizeof(funcname));
+			strncpy(funcname,r,q-r);
+			sprintf(filename,"/tmp/INLINE_ME/%s.txt",funcname);
+			fl = fopen(filename,"w+t");
+			if (!fl) {
+				fprintf(stderr, "Failed to open output file %s: %s\n", filename, strerror(errno));
+				exit(1);
+			}
+			fprintf(fl,"INLINE ME BABY!!!\n");
+			fclose(fl);
 		}
-		fprintf(fl,"INLINE ME BABY!!!\n");
-		fclose(fl);
-		continue;
 	}
-"static ssize_t "{ID}"("[^)]*"__user"[^)]*")"[^\n]*	{
-		FILE *fl;
-		char *p = aatext+strlen("static ssize_t ");
-		char *q = strchr(p,'(');
-		char funcname[100];
-		char filename[100];
-		memset(funcname,0,sizeof(funcname));
-		strncpy(funcname,p,q-p);
-		printf("%s\n",funcname);
-		sprintf(filename,"/tmp/INLINE_ME/%s",funcname);
-		fl = fopen(filename,"w+t");
-		if (!fl) {
-			fprintf(stderr, "Failed to open output file %s: %s\n", filename, strerror(errno));
-			exit(1);
-		}
-		fprintf(fl,"INLINE ME BABY!!!\n");
-		fclose(fl);
-		continue;
-	}
-[^\n]*		{User_ErrorMsg_Log("%s", aatext); continue;}
 [^\r\n]*	{User_ErrorMsg_Log("%s", aatext); continue;}
 "\n"		{User_ErrorMsg_Log("%s", aatext); continue;}
-"\r\n"		{User_ErrorMsg_Log("%s", aatext); continue;}
-"\n\r"		{User_ErrorMsg_Log("%s", aatext); continue;}
+"\r"		{User_ErrorMsg_Log("%s", aatext); continue;}
 
