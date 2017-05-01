@@ -132,7 +132,8 @@ bool MPTAbstractState::join(const MPTAbstractState & other) {
 		auto pt_it = m_mayPointsTo.find(name);
 		if (pt_it == m_mayPointsTo.end()) {
 			isChanged = true;
-			m_mayPointsTo.insert(std::make_pair(name, buffers));
+			m_mayPointsTo.insert(std::make_pair(name,
+					MPTItemAbstractState(buffers.getBuffers(), true)));
 		} else {
 			isChanged = pt_it->second.join(buffers) || isChanged;
 		}
