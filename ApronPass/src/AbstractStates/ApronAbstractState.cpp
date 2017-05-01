@@ -8,6 +8,7 @@
 #include <ap_environment.h>
 
 extern ap_manager_t * apron_manager;
+extern bool Debug;
 
 // In place
 void changeToLeastCommonEnv(ap_abstract1_t & a1, ap_abstract1_t & a2, bool isBottom) {
@@ -67,28 +68,23 @@ void ApronAbstractState::extendEnvironment(ap_tcons1_t * tcons) {
 bool ApronAbstractState::widen(const ApronAbstractState & other) {
 	ap_abstract1_t prev = m_abstract1;
 	ap_abstract1_t other_abst = other.m_abstract1;
-	if (other.isBottom()) {
-		changeToLeastCommonEnv(m_abstract1, other_abst, true);
-		return false;
-	}
-	if (other.isTop()) {
-		bool result = isTop();
-		changeToLeastCommonEnv(m_abstract1, other_abst, false);
-		m_abstract1 = other.m_abstract1;
-		return result;
-	}
-	if (isBottom()) {
-		// other is *not* bottom
-		changeToLeastCommonEnv(m_abstract1, other_abst, true);
-		m_abstract1 = other_abst;
-		return true;
-	}
-
 	ap_abstract1_t this_abst = m_abstract1;
-	changeToLeastCommonEnv(this_abst, other_abst, true);
-	llvm::errs() << "Widening: " << &this_abst << " -> " << &other_abst;
+	if (Debug) {
+		llvm::errs() << "Widening: " << &this_abst << " and " << &other_abst;
+	}
+	changeToLeastCommonEnv(this_abst, other_abst, false);
+
+	if (!ap_abstract1_is_leq(apron_manager, &this_abst, &other_abst)) {
+		other_abst = ap_abstract1_join(apron_manager, false, &other_abst, &this_abst);
+	}
+	if (!ap_abstract1_is_leq(apron_manager, &this_abst, &other_abst)) {
+		llvm::errs() << "Warning: Widening with something not geq (even after join!)\n";
+	}
 	m_abstract1 = ap_abstract1_widening(apron_manager,
 			&this_abst, &other_abst);
+	if (!(ApronAbstractState(prev) <= m_abstract1)) {
+		llvm::errs() << "Warning: Widening is not geq than prev\n";
+	}
 	return (*this != prev);
 }
 
