@@ -37,7 +37,6 @@ protected:
 
 	llvm::BasicBlock * m_basicBlock;
 	std::string m_name;
-	bool m_markedForChanged;
 	AbstractState m_abstractState;
 
 	BasicBlock(llvm::BasicBlock * basicBlock);
@@ -46,19 +45,20 @@ protected:
 	virtual void processInstruction(AbstractState & state,
 			llvm::Instruction & inst);
 
-	virtual AbstractState getAbstractStateWithAssumptions(BasicBlock & predecessor);
+	virtual AbstractState getAbstractStateWithAssumptions(BasicBlock & predecessor, AbstractState & state);
 	virtual void updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
 	virtual void updateAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
 public:
+	std::vector<std::pair<ApronAbstractState, ApronAbstractState> > m_updatedStates;
+
 	unsigned updateCount;
 	unsigned joinCount;
 	virtual std::string getName();
 	virtual ap_abstract1_t & getAbstractValue();
 	virtual std::string toString();
 	virtual llvm::BasicBlock * getLLVMBasicBlock();
-	virtual void setChanged();
 	virtual Value * getTerminatorValue();
-	virtual bool update();
+	virtual void update(AbstractState & state);
 	virtual void makeTop();
 
 	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
@@ -68,7 +68,7 @@ public:
 	virtual ap_texpr1_t * createUserPointerLastTreeExpression(
 		const std::string & bufname, user_pointer_operation_e op);
 
-	virtual bool join(BasicBlock & basicBlock);
+	virtual bool join(BasicBlock & basicBlock, AbstractState & state);
 	virtual bool isTop(ap_abstract1_t & value);
 	virtual bool isBottom(ap_abstract1_t & value);
 	virtual bool isTop();

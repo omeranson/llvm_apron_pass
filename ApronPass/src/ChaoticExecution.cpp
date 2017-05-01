@@ -35,15 +35,16 @@ void ChaoticExecution::execute() {
 				continue;
 			}
 		}
-		block->update();
-		populateWithSuccessors(worklist, block);
+		AbstractState state = block->getAbstractState();
+		block->update(state);
+		populateWithSuccessors(worklist, block, state);
 	}
 }
 
 void ChaoticExecution::populateWithSuccessors(
-		std::list<BasicBlock *> & worklist, BasicBlock * block) {
+		std::list<BasicBlock *> & worklist, BasicBlock * block, AbstractState & state) {
 	for (BasicBlock * succ : callGraph.successors(block)) {
-		bool isSuccModified = succ->join(*block);
+		bool isSuccModified = succ->join(*block, state);
 		if (!isSuccModified) {
 			continue;
 		}

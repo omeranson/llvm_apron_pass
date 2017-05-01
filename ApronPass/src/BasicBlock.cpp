@@ -60,7 +60,6 @@ int BasicBlock::basicBlockCount = 0;
 
 BasicBlock::BasicBlock(llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
-		m_markedForChanged(false),
 		updateCount(0) {
 	if (!basicBlock->hasName()) {
 		initialiseBlockName();
@@ -201,16 +200,16 @@ void BasicBlock::updateAbstractStateMetWithIncomingPhis(
 }
 
 AbstractState BasicBlock::getAbstractStateWithAssumptions(
-		BasicBlock & predecessor) {
-	AbstractState otherAS = predecessor.getAbstractState();
+		BasicBlock & predecessor, AbstractState & state) {
+	AbstractState otherAS = state;
 	updateAbstractStateMetWithIncomingPhis(predecessor, otherAS);
 	updateAbstract1MetWithIncomingPhis(predecessor, otherAS);
 	return otherAS;
 }
 
-bool BasicBlock::join(BasicBlock & basicBlock) {
+bool BasicBlock::join(BasicBlock & basicBlock, AbstractState & state) {
 	AbstractState prev = getAbstractState();
-	AbstractState otherAS = getAbstractStateWithAssumptions(basicBlock);
+	AbstractState otherAS = getAbstractStateWithAssumptions(basicBlock, state);
 	bool isChanged = m_abstractState.join(otherAS);
 	llvm::errs() << getName() << ": Joined from " << basicBlock.getName() << ":\n";
 	llvm::errs() << "Prev: " << prev << "Other: " << otherAS << " New: " << getAbstractState();
@@ -237,32 +236,24 @@ bool BasicBlock::isBottom() {
 	return aas.isBottom();
 }
 
-void BasicBlock::setChanged() {
-	m_markedForChanged = true;
-}
-
-bool BasicBlock::update() {
+void BasicBlock::update(AbstractState & state) {
 	++updateCount;
 	/* Process the block. Return true if the block's context is modified.*/
 
-	AbstractState & as = getAbstractState();
-	ApronAbstractState & aas = as.m_apronAbstractState;
-	AbstractState prev = as;
+	ApronAbstractState & aas = state.m_apronAbstractState;
+	AbstractState prev = state;
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
 		llvm::Instruction & inst = *it;
-		processInstruction(as, inst);
+		processInstruction(state, inst);
 	}
-	as.updateUserOperationAbstract1();
+	state.updateUserOperationAbstract1();
 	std::vector<std::string> userBuffers = getFunction()->getUserPointers();
-	bool isReduceChanged = as.reduce(userBuffers);
+	bool isReduceChanged = state.reduce(userBuffers);
+	m_updatedStates.push_back(std::make_pair(prev.m_apronAbstractState, state.m_apronAbstractState));
 	if (Debug) {
-		llvm::errs() << getName() << ": Update: " << prev << " -> " << as;
+		llvm::errs() << getName() << ": Update: " << prev << " -> " << state;
 	}
-	bool markedForChanged = m_markedForChanged;
-	m_markedForChanged = false;
-	bool isChanged = (as != prev);
-	return markedForChanged || isChanged;
 }
 
 void BasicBlock::makeTop() {
@@ -279,13 +270,12 @@ Value * BasicBlock::getTerminatorValue() {
 
 void BasicBlock::applyConstraints(
 		std::list<ap_tcons1_t> & constraints) {
-	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	if (!constraints.empty()) {
-		ap_tcons1_array_t array = createTcons1Array(getEnvironment(), constraints);
-		ap_abstract1_t abs = ap_abstract1_meet_tcons_array(
-				getManager(), false, &aas.m_abstract1, &array);
-		aas.m_abstract1 = abs;
+	if (constraints.empty()) {
+		return;
 	}
+	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
+	ap_tcons1_array_t array = createTcons1Array(getEnvironment(), constraints);
+	aas.meet(array);
 }
 
 ap_abstract1_t BasicBlock::abstractOfTconsList(
@@ -301,7 +291,7 @@ ap_abstract1_t BasicBlock::abstractOfTconsList(
 
 void BasicBlock::processInstruction(AbstractState & state,
 		llvm::Instruction & inst) {
-	// TODO Circular dependancy
+	// TODO Circular dependancy (Still?)
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(&inst);
 	if (!value) {

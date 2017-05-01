@@ -6,6 +6,7 @@
 
 class CallGraph;
 class BasicBlock;
+class AbstractState;
 
 class ChaoticExecution {
 private:
@@ -15,7 +16,7 @@ private:
 	bool isSeen(BasicBlock * block);
 	void see(BasicBlock * block);
 	void populateWithSuccessors(
-		std::list<BasicBlock *> & worklist, BasicBlock * block);
+		std::list<BasicBlock *> & worklist, BasicBlock * block, AbstractState & state);
 public:
 	ChaoticExecution(CallGraph & callGraph);
 
