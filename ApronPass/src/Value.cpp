@@ -510,6 +510,33 @@ ap_texpr1_t * SHLOperationValue::createRHSTreeExpression(AbstractState & state) 
 	return texpr;
 }
 
+class SHROperationValue : public BinaryOperationValue {
+protected:
+	virtual std::string getOperationSymbol()  { return " >> "; }
+	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MOD; }
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
+public:
+	SHROperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
+};
+
+// XXX Pull into abstract class over this and SHROperationValue
+ap_texpr1_t * SHROperationValue::createRHSTreeExpression(AbstractState & state) {
+	ap_texpr1_t * op0_texpr = createOperandTreeExpression(state, 0);
+	ap_texpr1_t * op1_texpr = createOperandTreeExpression(state, 1);
+	// TODO Handle reals
+	// Align environments
+	state.m_apronAbstractState.extendEnvironment(op0_texpr);
+	state.m_apronAbstractState.extendEnvironment(op1_texpr);
+	ap_texpr1_t * two = state.m_apronAbstractState.asTexpr((int64_t)2);
+	ap_texpr1_t * op1_shl = ap_texpr1_binop(
+			AP_TEXPR_POW, two, op1_texpr,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_DIV, op0_texpr, op1_shl,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	return texpr;
+}
+
 class ConstantValue : public Value {
 protected:
 	virtual std::string getValueString() ;
@@ -1974,8 +2001,9 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 		return new CallValue(instruction);
 	case llvm::BinaryOperator::Shl:
 	case llvm::BinaryOperator::LShr:
-		return new SHLOperationValue(instruction);
-	//case llvm::BinaryOperator::AShr:
+		return new SHROperationValue(instruction);
+	case llvm::BinaryOperator::AShr:
+		return new SHROperationValue(instruction);
 	//case llvm::BinaryOperator::VAArg:
 	//case llvm::BinaryOperator::ExtractElement:
 	//case llvm::BinaryOperator::InsertElement:
