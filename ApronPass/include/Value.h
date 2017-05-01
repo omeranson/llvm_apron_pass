@@ -80,7 +80,6 @@ public:
 	virtual Value * getOperandValue(int idx);
 	virtual const std::set<std::string> * mayPointsToUserBuffers();
 	virtual bool isSkip();
-	virtual void forget();
 };
 
 class TerminatorInstructionValue : public InstructionValue {

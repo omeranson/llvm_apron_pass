@@ -306,10 +306,6 @@ bool InstructionValue::isSkip() {
 	return true;
 }
 
-void InstructionValue::forget() {
-	getBasicBlock()->forget(this);
-}
-
 BasicBlock * InstructionValue::getBasicBlock() {
 	llvm::Instruction * instruction = asInstruction();
 	llvm::BasicBlock * llvmBasicBlock = instruction->getParent();
