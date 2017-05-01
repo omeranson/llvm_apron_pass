@@ -1804,14 +1804,6 @@ ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
 	return createTreeExpression(state.m_apronAbstractState);
 }
 
-ap_tcons1_t Value::getValueEq0Tcons(BasicBlock * basicBlock) {
-	AbstractState & state = basicBlock->getAbstractState();
-	ap_scalar_t* zero = ApronAbstractState::zero();
-	ap_texpr1_t * var_texpr = createTreeExpression(state);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_EQ, var_texpr, zero);
-	return result;
-}
-
 void Value::havoc(AbstractState & state) {
 	state.m_apronAbstractState.forget(getName());
 }

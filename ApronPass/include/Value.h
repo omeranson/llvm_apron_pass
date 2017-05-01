@@ -52,8 +52,6 @@ public:
 
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
-	virtual ap_tcons1_t getValueEq0Tcons(
-			BasicBlock * basicBlock);
 	virtual void havoc(AbstractState & state);
 	virtual void assign0(AbstractState & state);
 
