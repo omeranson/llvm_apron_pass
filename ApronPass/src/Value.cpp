@@ -808,6 +808,11 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 }
 
 bool CallValue::isSkip() {
+	llvm::CallInst * callInst = asCallInst();
+	if (asCallInst()->isInlineAsm()) {
+		llvm::errs() << "Warning: Skipping inline asm: " << *callInst->getCalledValue() << "\n";
+		return true;
+	}
 	const std::string funcName = getCalledFunctionName();
 	if (isDebugFunction(funcName)) {
 		return true;
