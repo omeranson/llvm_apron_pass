@@ -104,15 +104,6 @@ void BasicBlock::extendEnvironment(Value * value) {
 	extendEnvironment(value->getName());
 }
 
-void BasicBlock::forget(Value * value) {
-	forget(value->getName());
-}
-
-void BasicBlock::forget(const std::string & varname) {
-	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	aas.forget(varname);
-}
-
 ap_interval_t * BasicBlock::getVariableInterval(const std::string & value) {
 	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
 	aas.extend(value);
@@ -327,7 +318,8 @@ void BasicBlock::processInstruction(AbstractState & state,
 			//// << scope->getFilename() << ": "
 			//<< debugLoc.getLine() << ": "
 			//<< value->toString() << "\n";
-	forget(value);
+	// TODO Is this needed?
+	state.m_apronAbstractState.forget(value->getName());
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->update(state);

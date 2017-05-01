@@ -80,8 +80,6 @@ public:
 	virtual ap_environment_t * getEnvironment();
 	virtual void extendEnvironment(Value * value);
 	virtual void extendEnvironment(const std::string & varname);
-	virtual void forget(Value * value);
-	virtual void forget(const std::string & varname);
 	virtual ap_interval_t * getVariableInterval(Value * value);
 	virtual ap_interval_t * getVariableInterval(const std::string & value);
 	virtual ap_texpr1_t * getVariableTExpr(Value * value);
