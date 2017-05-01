@@ -52,6 +52,7 @@ public:
 	virtual ap_tcons1_t getValueEq0Tcons(
 			BasicBlock * basicBlock);
 	virtual void havoc(AbstractState & state);
+	virtual void assign0(AbstractState & state);
 
 	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
@@ -73,9 +74,6 @@ protected:
 public:
 	InstructionValue(llvm::Value * value) : Value(value) {}
 	virtual void update(AbstractState & state);
-	// @deprecated
-	virtual void populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints);
 	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 	virtual Value * getOperandValue(int idx);
 	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);

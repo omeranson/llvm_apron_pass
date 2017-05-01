@@ -149,14 +149,13 @@ bool StoreValue::isSkip() {
 class GepValue : public InstructionValue {
 public:
 	virtual llvm::GetElementPtrInst * asGetElementPtrInst();
-	virtual void addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
+	virtual void addOffsetConstraint(AbstractState & state,
 		ap_texpr1_t * value_texpr, const std::string & pointerName);
 public:
 	GepValue (llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
 	virtual bool isSkip() { return false; }
-	virtual void populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints);
+	virtual void update(AbstractState & state);
 };
 
 llvm::GetElementPtrInst * GepValue::asGetElementPtrInst() {
@@ -174,45 +173,52 @@ std::string GepValue::getValueString() {
 	return rso.str();
 }
 
-void GepValue::addOffsetConstraint(std::list<ap_tcons1_t> & constraints,
+void GepValue::addOffsetConstraint(AbstractState & state,
 		ap_texpr1_t * value_texpr, const std::string & pointerName) {
-	std::vector<ap_tcons1_t> tconss;
-	getBasicBlock()->addOffsetConstraint(tconss, value_texpr, this, pointerName);
-	constraints.insert(constraints.end(), tconss.begin(), tconss.end());
+	ap_scalar_t* zero = ApronAbstractState::zero();
+
+	const std::string & offsetName = AbstractState::generateOffsetName(
+			getName(), pointerName);
+	ap_texpr1_t * var_texpr = state.m_apronAbstractState.asTexpr(offsetName);
+	state.m_apronAbstractState.extendEnvironment(value_texpr);
+	state.m_apronAbstractState.extendEnvironment(var_texpr);
+	ap_tcons1_t greaterThan0 = ap_tcons1_make(
+			AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
+	state.m_apronAbstractState.meet(greaterThan0);
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_SUB, value_texpr, var_texpr,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t leqSource = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
+	state.m_apronAbstractState.meet(leqSource);
 }
 
-void GepValue::populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints) {
-	BasicBlock * basicBlock = getBasicBlock();
-	AbstractState & state = basicBlock->getAbstractState();
+void GepValue::update(AbstractState & state) {
 	Function * function = getFunction();
-	ValueFactory * factory = ValueFactory::getInstance();
-	llvm::GetElementPtrInst * gepi = asGetElementPtrInst();
 
-	Value * src = factory->getValue(gepi->getOperand(0));
+	Value * src = getOperandValue(0);
 	assert(src != this && "SSA assumption broken");
 
-	Value * offset = factory->getValue(gepi->getOperand(1));
+	Value * offset = getOperandValue(1);
 
 	std::string pointerName = src->getName();
 	MPTItemAbstractState & dest = state.m_mayPointsTo.m_mayPointsTo[getName()];
 	dest.clear();
 	const std::string & offsetName = state.generateOffsetName(getName(), pointerName);
-	state.m_apronAbstractState.forget(offsetName);
+	state.m_apronAbstractState.forget(offsetName); // XXX is this needed?
 	ap_texpr1_t * offset_texpr = offset->createTreeExpression(state);
 	MPTItemAbstractState & srcUserPointers = state.m_mayPointsTo.m_mayPointsTo[pointerName];
 	for (auto & srcPtrName : srcUserPointers) {
 		dest.insert(srcPtrName);
-		ap_texpr1_t * offset_var_texpr = basicBlock->createUserPointerOffsetTreeExpression(
-				src, srcPtrName);
-		ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
-		ap_texpr1_extend_environment_with(offset_texpr_copy, basicBlock->getEnvironment());
-		ap_texpr1_extend_environment_with(offset_var_texpr, basicBlock->getEnvironment());
+		const std::string & offsetVar = AbstractState::generateOffsetName(
+				src->getName(), srcPtrName);
+		ap_texpr1_t * offset_var_texpr = state.m_apronAbstractState.asTexpr(offsetVar);		ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
+		state.m_apronAbstractState.extendEnvironment(offset_texpr_copy);
+		state.m_apronAbstractState.extendEnvironment(offset_var_texpr);
 		ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
 				offset_texpr_copy, offset_var_texpr,
 				AP_RTYPE_INT, AP_RDIR_ZERO);
 		assert(value_texpr);
-		addOffsetConstraint(constraints, value_texpr, srcPtrName);
+		addOffsetConstraint(state, value_texpr, srcPtrName);
 	}
 	ap_texpr1_free(offset_texpr);
 }
@@ -260,11 +266,6 @@ void InstructionValue::update(AbstractState & state) {
 	ap_texpr1_t * value_texpr = createRHSTreeExpression(state);
 	assert(value_texpr && "RHS Tree expression is NULL");
 	state.m_apronAbstractState.assign(getName(), value_texpr);
-}
-
-void InstructionValue::populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints) {
-	update(getBasicBlock()->getAbstractState());
 }
 
 ap_texpr1_t * InstructionValue::createRHSTreeExpression(AbstractState & state) {
@@ -640,34 +641,25 @@ protected:
 	bool isDebugFunction(const std::string & funcName) const;
 	bool isKernelUserMemoryOperation(const std::string & funcName) const;
 
-	virtual void populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints);
-	void populateTreeConstraintsForGetPutUser(
-		std::list<ap_tcons1_t> & constraints,
-		user_pointer_operation_e op);
-	virtual void populateTreeConstraintsForGetUser(std::list<ap_tcons1_t> & constraints);
-	virtual void populateTreeConstraintsForPutUser(std::list<ap_tcons1_t> & constraints);
-	virtual void populateTreeConstraintsForClearUser(std::list<ap_tcons1_t> & constraints);
-	virtual void populateTreeConstraintsForCopyToUser(std::list<ap_tcons1_t> & constraints);
-	virtual void populateTreeConstraintsForCopyFromUser(std::list<ap_tcons1_t> & constraints);
-	virtual void populateTreeConstraintsForStrnlenUser(std::list<ap_tcons1_t> & constraints);
-	virtual void populateTreeConstraintsForStrncpyFromUser(std::list<ap_tcons1_t> & constraints);
-
-	virtual void populateTreeConstraintsForUserMemoryOperation(
+	virtual void updateForAccessOK(AbstractState & state);
+	virtual void updateForGetUser(AbstractState & state);
+	virtual void updateForPutUser(AbstractState & state);
+	virtual void updateForClearUser(AbstractState & state);
+	virtual void updateForCopyToUser(AbstractState & state);
+	virtual void updateForCopyFromUser(AbstractState & state);
+	virtual void updateForStrnlenUser(AbstractState & state);
+	virtual void updateForStrncpyFromUser(AbstractState & state);
+	virtual void updateForUserMemoryOperation(AbstractState & state,
 			const std::string & ptr, ap_texpr1_t * size,
 			user_pointer_operation_e op);
-	virtual void populateTreeConstraintsForUserMemoryOperation(
+	virtual void updateForUserMemoryOperation(AbstractState & state,
 			Value * ptr, ap_texpr1_t * size,
 			user_pointer_operation_e op);
-	virtual void populateTreeConstraintsForUserMemoryOperation(
-			llvm::Value * llvmptr, ap_texpr1_t * size,
+	virtual void updateForGetPutUser(AbstractState & state,
 			user_pointer_operation_e op);
-	virtual void populateTreeConstraintsForGetPutUser(
-			user_pointer_operation_e op);
-	virtual void populateTreeConstraintsForLiteralSize(llvm::Value * ptr,
-			llvm::Value * llvmsize, user_pointer_operation_e op);
-	virtual void populateTreeConstraintsForCopyToFromUser(user_pointer_operation_e op);
-	virtual void populateTreeConstraintsForImportIovec(std::list<ap_tcons1_t> & constraints);
-	virtual void populateTreeConstraintsForCopyMsghdrFromUser(std::list<ap_tcons1_t> & constraints);
+	virtual void updateForCopyToFromUser(AbstractState & state, user_pointer_operation_e op);
+	virtual void updateForImportIovec(AbstractState & state);
+	virtual void updateForCopyMsghdrFromUser(AbstractState & state);
 	virtual user_pointer_operation_e getArgumentUserOperation(int arg);
 	virtual user_pointer_operation_e getImportIovecOp();
 	virtual const std::string & getArgumentName(int arg);
@@ -676,15 +668,10 @@ protected:
 
 public:
 	CallValue(llvm::Value * value) : InstructionValue(value) {}
+	virtual ap_texpr1_t *createRHSTreeExpression(AbstractState & state);
 	virtual std::string getValueString();
 	virtual bool isSkip();
-
-    /**************************/
-    /* OREN ISH SHALOM added: */
-    /**************************/
-    virtual ap_texpr1_t *createRHSTreeExpression(AbstractState & state);
-	virtual void populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints);
+	virtual void update(AbstractState & state);
 };
 
 ap_texpr1_t *CallValue::createRHSTreeExpression(AbstractState & state)
@@ -820,51 +807,51 @@ bool CallValue::isSkip() {
 	return false;
 }
 
-void CallValue::populateTreeConstraints(std::list<ap_tcons1_t> & constraints) {
+void CallValue::update(AbstractState & state) {
 	const std::string funcName = getCalledFunctionName();
 	if (isKernelUserMemoryOperation(funcName)) {
 		if ("access_ok" == funcName) {
-			populateTreeConstraintsForAccessOK(constraints);
+			updateForAccessOK(state);
 			return;
 		}
 		if ("get_user" == funcName) {
-			populateTreeConstraintsForGetUser(constraints);
+			updateForGetUser(state);
 			return;
 		}
 		if ("put_user" == funcName) {
-			populateTreeConstraintsForPutUser(constraints);
+			updateForPutUser(state);
 			return;
 		}
 		if ("clear_user" == funcName) {
-			populateTreeConstraintsForClearUser(constraints);
+			updateForClearUser(state);
 			return;
 		}
 		if ("copy_to_user" == funcName) {
-			populateTreeConstraintsForCopyToUser(constraints);
+			updateForCopyToUser(state);
 			return;
 		}
 		if ("copy_from_user" == funcName) {
-			populateTreeConstraintsForCopyFromUser(constraints);
+			updateForCopyFromUser(state);
 			return;
 		}
 		if ("strnlen_user" == funcName) {
-			populateTreeConstraintsForStrnlenUser(constraints);
+			updateForStrnlenUser(state);
 			return;
 		}
 		if ("strncpy_from_user" == funcName) {
-			populateTreeConstraintsForStrncpyFromUser(constraints);
+			updateForStrncpyFromUser(state);
 			return;
 		}
 		if ("import_iovec" == funcName) {
-			populateTreeConstraintsForImportIovec(constraints);
+			updateForImportIovec(state);
 			return;
 		}
 		if ("copy_msghdr_from_user" == funcName) {
-			populateTreeConstraintsForCopyMsghdrFromUser(constraints);
+			updateForCopyMsghdrFromUser(state);
 			return;
 		}
 	}
-	InstructionValue::populateTreeConstraints(constraints);
+	InstructionValue::update(state);
 	return;
 }
 
@@ -900,27 +887,23 @@ const std::string & CallValue::getImportIovecLenName() {
 	return getArgumentName(2);
 }
 
-void CallValue::populateTreeConstraintsForImportIovec(std::list<ap_tcons1_t> & constraints) {
-	BasicBlock * bb = getBasicBlock();
-	AbstractState & abstractState = bb->getAbstractState();
+void CallValue::updateForImportIovec(AbstractState & state) {
 	/* The op sent to import_iovec is the oposite of what we plan to do,
 	 * i.e. read -> write, and write -> read */
 	user_pointer_operation_e op = (getImportIovecOp() == user_pointer_operation_read) ?
 			user_pointer_operation_write : user_pointer_operation_read;
-	abstractState.m_importedIovecCalls.push_back(ImportIovecCall(
+	state.m_importedIovecCalls.push_back(ImportIovecCall(
 		op, getImportIovecPtrName(), getImportIovecLenName()));
 
-	ap_tcons1_t return_value = getValueEq0Tcons(bb);
-	constraints.push_back(return_value);
+	ap_texpr1_t * zero = state.m_apronAbstractState.asTexpr((int64_t)0);
+	assign0(state);
 }
 
 
-void CallValue::populateTreeConstraintsForCopyMsghdrFromUser(
-		std::list<ap_tcons1_t> & constraints) {
+void CallValue::updateForCopyMsghdrFromUser(
+		AbstractState & state) {
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 4);
-	BasicBlock * bb = getBasicBlock();
-	AbstractState & abstractState = bb->getAbstractState();
 
 	user_pointer_operation_e op = user_pointer_operation_write;
 	llvm::Value * llvmOp = callinst->getArgOperand(2);
@@ -929,124 +912,105 @@ void CallValue::populateTreeConstraintsForCopyMsghdrFromUser(
 		op = user_pointer_operation_read;
 	}
 
-	abstractState.m_copyMsghdrFromUserCalls.push_back(
+	state.m_copyMsghdrFromUserCalls.push_back(
 			CopyMsghdrFromUserCall(op, getArgumentName(1)));
-
-	ap_tcons1_t return_value = getValueEq0Tcons(bb);
-	constraints.push_back(return_value);
+	assign0(state);
 }
 
-void CallValue::populateTreeConstraintsForAccessOK(std::list<ap_tcons1_t> & constraints) {
+void CallValue::updateForAccessOK(AbstractState & state) {
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 3);
 	user_pointer_operation_e op = getArgumentUserOperation(0);
-	llvm::Value * ptr = callinst->getArgOperand(1);
-	llvm::Value * size = callinst->getArgOperand(2);
-	populateTreeConstraintsForLiteralSize(ptr, size, op);
+	Value * ptr = getOperandValue(1);
+	Value * sizeValue = getOperandValue(2);
+	ap_texpr1_t * size = sizeValue->createTreeExpression(state);
+	updateForUserMemoryOperation(state, ptr, size, op);
 }
 
-void CallValue::populateTreeConstraintsForUserMemoryOperation(
+void CallValue::updateForUserMemoryOperation(AbstractState & state,
 		const std::string & ptrName, ap_texpr1_t * size,
 		user_pointer_operation_e op) {
-	BasicBlock * bb = getBasicBlock();
-	ValueFactory * valueFactory = ValueFactory::getInstance();
-	AbstractState & abstractState = bb->getAbstractState();
-	MPTItemAbstractState & userBuffers = abstractState.m_mayPointsTo.m_mayPointsTo[ptrName];
+	MPTItemAbstractState & userBuffers = state.m_mayPointsTo.m_mayPointsTo[ptrName];
 	userBuffers.erase("null");
 	userBuffers.erase("kernel");
 	for (auto & userBuffer : userBuffers) {
 		MemoryAccessAbstractValue maav(ptrName, userBuffer, ap_texpr1_copy(size), op);
 		// Placed back in abstractState to be joined at end of BB
-		abstractState.memoryAccessAbstractValues.push_back(maav);
+		state.memoryAccessAbstractValues.push_back(maav);
 	}
 	ap_texpr1_free(size);
 }
 
-void CallValue::populateTreeConstraintsForUserMemoryOperation(
+void CallValue::updateForUserMemoryOperation(AbstractState & state,
 		Value * ptr, ap_texpr1_t * size,
 		user_pointer_operation_e op) {
-	populateTreeConstraintsForUserMemoryOperation(ptr->getName(), size, op);
+	updateForUserMemoryOperation(state, ptr->getName(), size, op);
 }
 
-void CallValue::populateTreeConstraintsForUserMemoryOperation(
-		llvm::Value * llvmptr, ap_texpr1_t * size,
-		user_pointer_operation_e op) {
-	ValueFactory * valueFactory = ValueFactory::getInstance();
-	Value * ptr = valueFactory->getValue(llvmptr);
-	populateTreeConstraintsForUserMemoryOperation(ptr, size, op);
-}
-
-void CallValue::populateTreeConstraintsForGetPutUser(
+void CallValue::updateForGetPutUser(AbstractState & state,
 		user_pointer_operation_e op) {
 	/*
 	 * Update the constraints to include that the pointer was 'read from'
 	 */
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 2);
-	ValueFactory * valueFactory = ValueFactory::getInstance();
 	// Size: Width of first parameter
-	llvm::Value * llvmdest = callinst->getArgOperand(0);
-	Value * dest = valueFactory->getValue(llvmdest);
+	Value * dest = getOperandValue(0);
 	unsigned size = dest->getByteSize();
-	ap_texpr1_t * apsize = getBasicBlock()->getConstantTExpr(size);
+	ap_texpr1_t * apsize = state.m_apronAbstractState.asTexpr((int64_t)size);
 	// Pointer + offset: Second parameter
-	llvm::Value * src = callinst->getArgOperand(1);
-	populateTreeConstraintsForUserMemoryOperation(src, apsize, op);
+	Value * src = getOperandValue(1);
+	updateForUserMemoryOperation(state, src, apsize, op);
 }
 
-void CallValue::populateTreeConstraintsForGetUser(std::list<ap_tcons1_t> & constraints) {
-	populateTreeConstraintsForGetPutUser(user_pointer_operation_read);
+void CallValue::updateForGetUser(AbstractState & state) {
+	updateForGetPutUser(state, user_pointer_operation_read);
 }
 
-void CallValue::populateTreeConstraintsForPutUser(std::list<ap_tcons1_t> & constraints) {
-	populateTreeConstraintsForGetPutUser(user_pointer_operation_write);
+void CallValue::updateForPutUser(AbstractState & state) {
+	updateForGetPutUser(state, user_pointer_operation_write);
 }
 
-void CallValue::populateTreeConstraintsForLiteralSize(llvm::Value * ptr,
-		llvm::Value * llvmsize, user_pointer_operation_e op) {
-	ValueFactory * valueFactory = ValueFactory::getInstance();
-	Value * sizeValue = valueFactory->getValue(llvmsize);
-	ap_texpr1_t * size = sizeValue->createTreeExpression(getBasicBlock()->getAbstractState());
-
-	populateTreeConstraintsForUserMemoryOperation(ptr, size, op);
-}
-
-void CallValue::populateTreeConstraintsForClearUser(std::list<ap_tcons1_t> & constraints) {
+void CallValue::updateForClearUser(AbstractState & state) {
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 2);
-	llvm::Value * ptr = callinst->getArgOperand(0);
-	llvm::Value * size = callinst->getArgOperand(1);
-	populateTreeConstraintsForLiteralSize(ptr, size, user_pointer_operation_write);
+	Value * ptr = getOperandValue(0);
+	Value * sizeValue = getOperandValue(1);
+	ap_texpr1_t * size = sizeValue->createTreeExpression(state);
+	updateForUserMemoryOperation(state, ptr, size, user_pointer_operation_write);
 }
 
-void CallValue::populateTreeConstraintsForCopyToFromUser(user_pointer_operation_e op) {
+void CallValue::updateForCopyToFromUser(AbstractState & state,
+		user_pointer_operation_e op) {
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 3);
-	llvm::Value * ptr = callinst->getArgOperand(0);
-	llvm::Value * size = callinst->getArgOperand(2);
-	populateTreeConstraintsForLiteralSize(ptr, size, op);
+	Value * ptr = getOperandValue(0);
+	Value * sizeValue = getOperandValue(2);
+	ap_texpr1_t * size = sizeValue->createTreeExpression(state);
+	updateForUserMemoryOperation(state, ptr, size, op);
 }
 
-void CallValue::populateTreeConstraintsForCopyToUser(std::list<ap_tcons1_t> & constraints) {
-	populateTreeConstraintsForCopyToFromUser(user_pointer_operation_write);
+void CallValue::updateForCopyToUser(AbstractState & state) {
+	updateForCopyToFromUser(state, user_pointer_operation_write);
 }
 
-void CallValue::populateTreeConstraintsForCopyFromUser(std::list<ap_tcons1_t> & constraints) {
-	populateTreeConstraintsForCopyToFromUser(user_pointer_operation_read);
+void CallValue::updateForCopyFromUser(AbstractState & state) {
+	updateForCopyToFromUser(state, user_pointer_operation_read);
 }
 
-void CallValue::populateTreeConstraintsForStrnlenUser(std::list<ap_tcons1_t> & constraints) {
+void CallValue::updateForStrnlenUser(AbstractState & state) {
 	// TODO Ignores first0
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 3);
-	llvm::Value * ptr = callinst->getArgOperand(0);
-	llvm::Value * size = callinst->getArgOperand(1);
-	populateTreeConstraintsForLiteralSize(ptr, size, user_pointer_operation_read);
+	Value * ptr = getOperandValue(0);
+	Value * sizeValue = getOperandValue(1);
+	ap_texpr1_t * size = sizeValue->createTreeExpression(state);
+	updateForUserMemoryOperation(state, ptr, size, user_pointer_operation_read);
 }
 
-void CallValue::populateTreeConstraintsForStrncpyFromUser(std::list<ap_tcons1_t> & constraints) {
+void CallValue::updateForStrncpyFromUser(AbstractState & state) {
 	// TODO Ignores first0
-	populateTreeConstraintsForCopyFromUser(constraints);
+	updateForCopyFromUser(state);
 }
 
 class LogicalBinaryOperationValue : public BinaryOperationValue {
@@ -1852,6 +1816,11 @@ void Value::havoc(AbstractState & state) {
 	state.m_apronAbstractState.forget(getName());
 }
 
+void Value::assign0(AbstractState & state) {
+	ap_texpr1_t * zero = state.m_apronAbstractState.asTexpr((int64_t)0);
+	state.m_apronAbstractState.assign(getName(), zero);
+}
+
 void Value::populateMayPointsToUserBuffers(MPTItemAbstractState & buffers) {
 	return;
 }
@@ -2029,6 +1998,13 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 	}
 	if (llvm::isa<llvm::ConstantPointerNull>(constant)) {
 		return new ConstantNullValue(constant);
+	}
+	if (llvm::isa<llvm::GlobalVariable>(constant)) {
+		return new Value(constant);
+	}
+	if (llvm::isa<llvm::ConstantExpr>(constant)) {
+		llvm::ConstantExpr & expr = llvm::cast<llvm::ConstantExpr>(*constant);
+		return getValue(expr.getAsInstruction());
 	}
 	return NULL;
 }

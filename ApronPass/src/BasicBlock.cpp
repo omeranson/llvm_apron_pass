@@ -149,25 +149,6 @@ void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
 	getAbstractState().m_apronAbstractState.extendEnvironment(tcons);
 }
 
-void BasicBlock::addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
-		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName) {
-	ap_scalar_t* zero = ApronAbstractState::zero();
-
-	ap_texpr1_t * var_texpr = createUserPointerOffsetTreeExpression(
-			dest, pointerName);
-	ap_environment_t * environment = getEnvironment();
-	ap_texpr1_extend_environment_with(value_texpr, environment);
-	ap_texpr1_extend_environment_with(var_texpr, environment);
-	ap_tcons1_t greaterThan0 = ap_tcons1_make(
-			AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
-	constraints.push_back(greaterThan0);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
-	constraints.push_back(result);
-}
-
 void BasicBlock::updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & otherAS) {
 	Value * terminator = basicBlock.getTerminatorValue();
 	terminator->updateAssumptions(&basicBlock, this, otherAS);
@@ -267,7 +248,6 @@ void BasicBlock::setChanged() {
 bool BasicBlock::update() {
 	++updateCount;
 	/* Process the block. Return true if the block's context is modified.*/
-	std::list<ap_tcons1_t> constraints;
 
 	AbstractState & as = getAbstractState();
 	ApronAbstractState & aas = as.m_apronAbstractState;
@@ -275,10 +255,8 @@ bool BasicBlock::update() {
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
 		llvm::Instruction & inst = *it;
-		processInstruction(constraints, inst);
+		processInstruction(as, inst);
 	}
-
-	applyConstraints(constraints);
 	as.updateUserOperationAbstract1();
 	std::vector<std::string> userBuffers = getFunction()->getUserPointers();
 	bool isReduceChanged = as.reduce(userBuffers);
@@ -325,7 +303,7 @@ ap_abstract1_t BasicBlock::abstractOfTconsList(
 	return abs;
 }
 
-void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
+void BasicBlock::processInstruction(AbstractState & state,
 		llvm::Instruction & inst) {
 	// TODO Circular dependancy
 	ValueFactory * factory = ValueFactory::getInstance();
@@ -337,10 +315,7 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 		return;
 	}
 	if (value->isSkip()) {
-		llvm::errs() << "Skipping set-skipped instruction: " << value->getName() << "\n";
 		return;
-	} else {
-		llvm::errs() << "Applying non-set-skipped instruction: " << value->getName() << "\n";
 	}
 	//const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
 	//llvm::errs() << "Apron: Instruction: "
@@ -350,7 +325,7 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 	forget(value);
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
-	instructionValue->populateTreeConstraints(constraints);
+	instructionValue->update(state);
 }
 
 std::string BasicBlock::toString() {

@@ -43,7 +43,7 @@ protected:
 	BasicBlock(llvm::BasicBlock * basicBlock);
 	virtual void initialiseBlockName();
 
-	virtual void processInstruction(std::list<ap_tcons1_t> & constraints,
+	virtual void processInstruction(AbstractState & state,
 			llvm::Instruction & inst);
 
 	virtual AbstractState getAbstractStateWithAssumptions(BasicBlock & predecessor);
@@ -93,8 +93,6 @@ public:
 			std::list<ap_tcons1_t> & constraints);
 	virtual void applyConstraints(
 			std::list<ap_tcons1_t> & constraints);
-	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
-		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
 
 	virtual AbstractState & getAbstractState();
 	virtual Function * getFunction();
