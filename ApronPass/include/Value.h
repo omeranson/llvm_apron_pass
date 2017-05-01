@@ -57,6 +57,7 @@ public:
 
 	virtual const std::set<std::string> * mayPointsToUserBuffers();
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated);
 
 	virtual unsigned getBitSize();
 	virtual unsigned getByteSize();

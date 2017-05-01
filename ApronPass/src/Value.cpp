@@ -1554,15 +1554,13 @@ void PhiValue::updateAssumptions(BasicBlock * source, BasicBlock * dest, Abstrac
 template <class ConditionalInst>
 class ConditionalMixin {
 public:
-	LogicalBinaryOperationValue & getCondition(llvm::Value * m_value) {
+	Value * getCondition(llvm::Value * m_value) {
 		ConditionalInst * llvmConditional = llvm::dyn_cast<ConditionalInst>(m_value);
 		assert(llvmConditional);
 		llvm::Value * condition = llvmConditional->getCondition();
 		ValueFactory * factory = ValueFactory::getInstance();
 		Value * conditionValue = factory->getValue(condition);
-		LogicalBinaryOperationValue * result =
-				static_cast<LogicalBinaryOperationValue*>(conditionValue);
-		return *result;
+		return conditionValue;
 	}
 };
 
@@ -1597,7 +1595,7 @@ Value * SelectValueInstruction::getFalseValue() {
 std::string SelectValueInstruction::getValueString() {
 	std::ostringstream oss;
 	oss << "(";
-	appendValue(oss, &getCondition(m_value), "<unknown condition>") ;
+	appendValue(oss, getCondition(m_value), "<unknown condition>") ;
 	oss << " ? ";
 	appendValue(oss, getTrueValue(), "<unknown value>") ;
 	oss << " : ";
@@ -1608,8 +1606,8 @@ std::string SelectValueInstruction::getValueString() {
 
 AbstractState SelectValueInstruction::updateJoinMember(AbstractState state,
 		Value * value, bool isNegated) {
-	LogicalBinaryOperationValue & condition = getCondition(m_value);
-	condition.updateConditionalAssumptions(state, isNegated);
+	Value * condition = getCondition(m_value);
+	condition->updateConditionalAssumptions(state, isNegated);
 	state.m_apronAbstractState.finish_meet_aggregate();
 	ap_texpr1_t * texpr = value->createTreeExpression(state);
 	state.m_apronAbstractState.assign(getName(), texpr);
@@ -1723,7 +1721,7 @@ void BranchInstructionValue::updateAssumptions(
 		return;
 	}
 
-	LogicalBinaryOperationValue & condition = getCondition(m_value);
+	Value * condition = getCondition(m_value);
 	bool isNegated;
 	if (isThenSuccessor(dest)) {
 		assert(!isElseSuccessor(dest));
@@ -1734,7 +1732,7 @@ void BranchInstructionValue::updateAssumptions(
 	} else {
 		abort();
 	}
-	condition.updateConditionalAssumptions(state, isNegated);
+	condition->updateConditionalAssumptions(state, isNegated);
 }
 
 class SwitchInstructionValue : public TerminatorInstructionValue {
@@ -1870,6 +1868,40 @@ const std::set<std::string> * Value::mayPointsToUserBuffers() {
 
 void Value::updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
 	return;
+}
+
+void Value::updateConditionalAssumptions(AbstractState & state, bool isNegated) {
+	if (!isPointer()) {
+		if (isNegated) {
+			assign0(state);
+		} else {
+			ap_texpr1_t * zero = state.m_apronAbstractState.asTexpr((int64_t)0);
+			state.m_apronAbstractState.assign(getName(), zero);
+		}
+	} else {
+		MPTItemAbstractState & mptItem = state.m_mayPointsTo.m_mayPointsTo[getName()];
+		bool isNull = mptItem.isProvablyNull();
+		if (isNull) {
+			if (!isNegated) {
+				llvm::errs() << "Setting state to bottom, since " << getName() << " must be null and this negates the assume\n";
+				state.makeBottom();
+			}
+		} else {
+			if (!isNegated) {
+				if (mptItem.isWritable()) {
+					mptItem.clear();
+					mptItem.insert("null");
+				} else if (!mptItem.contains("null")) {
+					llvm::errs() << "Setting state to bottom, since " << getName() << " isn't null and that can't be changed\n";
+					state.makeBottom();
+				}
+			} else {
+				if (mptItem.isWritable()) {
+					mptItem.erase("null");
+				}
+			}
+		}
+	}
 }
 
 std::ostream& operator<<(std::ostream& os, Value& value)
