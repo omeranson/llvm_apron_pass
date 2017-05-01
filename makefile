@@ -14,11 +14,12 @@ C_FILES_DIRECTORY            =$(BASEDIR)/FOLDER_1_INPUT_C_FILES
 LLVM_BITCODE_FILES_DIRECTORY =$(BASEDIR)/FOLDER_2_LLVM_BITCODE_FILES
 PASS_1_DIR                   =$(BASEDIR)/FOLDER_3_DO_INLINE_SELECTED_FUNCTIONS
 PASS_2_DIR                   =$(BASEDIR)/FOLDER_4_DONT_INLINE_SPECIAL_KERNEL_FUNCTIONS
-PASS_3_DIR                   =$(BASEDIR)/FOLDER_5_EXTRACT_GET_USER_AND_PUT_USER
-PASS_4_DIR                   =$(BASEDIR)/FOLDER_6_IGNORE_INLINE_ASM
-PASS_5_DIR                   =$(BASEDIR)/FOLDER_7_IGNORE_EXTRACT_VALUE
-RUN_ANALYSIS_DIR             =$(BASEDIR)/FOLDER_8_RUN_STATIC_ANALYSIS/ApronPass
-APRON_PASS_DIR               =$(BASEDIR)/FOLDER_8_RUN_STATIC_ANALYSIS/ApronPass
+PASS_3_DIR                   =$(BASEDIR)/FOLDER_5_EXTRACT_GET_USER
+PASS_4_DIR                   =$(BASEDIR)/FOLDER_6_EXTRACT_PUT_USER
+PASS_5_DIR                   =$(BASEDIR)/FOLDER_7_IGNORE_INLINE_ASM
+PASS_6_DIR                   =$(BASEDIR)/FOLDER_8_IGNORE_EXTRACT_VALUE
+RUN_ANALYSIS_DIR             =$(BASEDIR)/FOLDER_9_RUN_STATIC_ANALYSIS/ApronPass
+APRON_PASS_DIR               =$(BASEDIR)/FOLDER_9_RUN_STATIC_ANALYSIS/ApronPass
 
 #######################
 # APRON CONFIGURATION #
@@ -121,9 +122,9 @@ all:
 	@echo "\n"		
 	cd $(PASS_3_DIR) && ${MAKE}
 	@echo "\n"
-	@echo "************************************************************"
-	@echo "* Copy the output of PASS(i) to the input of PASS(i+1) ... *"
-	@echo "************************************************************"
+	@echo "**********************************************************"
+	@echo "* Copy the output of PASS(3) to the input of PASS(4) ... *"
+	@echo "**********************************************************"
 	@echo "\n"			
 	cp \
 	$(PASS_3_DIR)/FOLDER_6_OUTPUT/Output.ll \
@@ -135,26 +136,40 @@ all:
 	@echo "\n"		
 	cd $(PASS_4_DIR) && ${MAKE}
 	@echo "\n"
-	@echo "************************************************************"
-	@echo "* Copy the output of PASS(i) to the input of PASS(i+1) ... *"
-	@echo "************************************************************"
+	@echo "**********************************************************"
+	@echo "* Copy the output of PASS(4) to the input of PASS(5) ... *"
+	@echo "**********************************************************"
 	@echo "\n"			
 	cp \
 	$(PASS_4_DIR)/FOLDER_6_OUTPUT/Output.ll \
 	$(PASS_5_DIR)/FOLDER_5_INPUT/Input.ll
 	@echo "\n"
 	@echo "***********************"
-	@echo "* Running Pass(4) ... *"
+	@echo "* Running Pass(5) ... *"
 	@echo "***********************"
 	@echo "\n"		
 	cd $(PASS_5_DIR) && ${MAKE}
 	@echo "\n"
-	@echo "***********************************************************"
-	@echo "* Copy the output of PASS(5) to the input of the analysis *"
-	@echo "***********************************************************"
+	@echo "**********************************************************"
+	@echo "* Copy the output of PASS(4) to the input of PASS(5) ... *"
+	@echo "**********************************************************"
 	@echo "\n"			
 	cp \
 	$(PASS_5_DIR)/FOLDER_6_OUTPUT/Output.ll \
+	$(PASS_6_DIR)/FOLDER_5_INPUT/Input.ll
+	@echo "\n"
+	@echo "***********************"
+	@echo "* Running Pass(6) ... *"
+	@echo "***********************"
+	@echo "\n"		
+	cd $(PASS_6_DIR) && ${MAKE}
+	@echo "\n"
+	@echo "***********************************************************"
+	@echo "* Copy the output of PASS(6) to the input of the analysis *"
+	@echo "***********************************************************"
+	@echo "\n"			
+	cp \
+	$(PASS_6_DIR)/FOLDER_6_OUTPUT/Output.ll \
 	$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag.ll
 	@echo "\n"
 	@echo "************************************"
