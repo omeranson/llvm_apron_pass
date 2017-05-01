@@ -73,6 +73,19 @@ llvm::cl::opt<std::string> SingleFunction("run-on-single-function",
 /**************************/
 namespace
 {
+	template <class T>
+	class CallOnScopeEnd {
+		T m_t;
+	public:
+		CallOnScopeEnd(T t) : m_t(t) {}
+		~CallOnScopeEnd() { m_t(); }
+	};
+
+	template <class T>
+	CallOnScopeEnd<T> callOnScopeEnd(const T t) {
+		return CallOnScopeEnd<T>(t);
+	}
+
     /****************************************************/
     /*                                                  */
     /* OREN ISH SHALOM:                                 */
@@ -133,6 +146,8 @@ namespace
 			llvm::errs() << "Apron: Function: " << F.getName() << "\n";
 		}
 		// Analyze
+		ValueFactory * factory = ValueFactory::getInstance();
+		auto deleteCreatedLLVMValues = callOnScopeEnd(ValueFactory::deleteCreatedInstances);
 		FunctionManager & functionManager = FunctionManager::getInstance();
 		Function * function = functionManager.getFunction(&F);
 		CallGraph funcCallGraph(function);
@@ -166,7 +181,6 @@ namespace
 		if (!llvmValue) {
 			return false;
 		}
-		ValueFactory * factory = ValueFactory::getInstance();
 		Value * val = factory->getValue(llvmValue);
 		if (!val) {
 			return false;

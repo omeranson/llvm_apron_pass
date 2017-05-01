@@ -2004,7 +2004,22 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 	}
 	if (llvm::isa<llvm::ConstantExpr>(constant)) {
 		llvm::ConstantExpr & expr = llvm::cast<llvm::ConstantExpr>(*constant);
-		return getValue(expr.getAsInstruction());
+		llvm::Value * instruction = expr.getAsInstruction();
+		Value * result = getValue(instruction);
+		m_createdInstances.insert(std::make_pair(result, instruction));
+		return result;
 	}
 	return NULL;
+}
+
+void ValueFactory::deleteCreatedInstances() {
+	ValueFactory * instance = getInstance();
+	for (auto & pair : instance->m_createdInstances) {
+		Value * value = pair.first;
+		llvm::Value * llvmValue = pair.second;
+		instance->values.erase(llvmValue);
+		delete value;
+		delete llvmValue;
+	}
+	instance->m_createdInstances.clear();
 }

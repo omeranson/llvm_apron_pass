@@ -26,9 +26,12 @@ protected:
 	Value * createInstructionValue(llvm::Instruction *);
 	Value * createConstantValue(llvm::Constant *);
 	ValueFactory();
+
+	std::map<Value *, llvm::Value *> m_createdInstances;
 public:
 	Value * getValue(llvm::Value *);
 	static ValueFactory * getInstance();
+	static void deleteCreatedInstances();
 };
 
 class Value { 
