@@ -63,6 +63,11 @@ llvm::cl::opt<unsigned, true> WideningThresholdOpt ("widening-threshold",
 		llvm::cl::desc("Widening threshold. (11)"),
 		llvm::cl::location(WideningThreshold),
 		llvm::cl::init(11));
+
+llvm::cl::opt<std::string> SingleFunction("run-on-single-function",
+		llvm::cl::init(""),
+		llvm::cl::desc("Run on the specified function. '' for all (default)"));
+
 /**************************/
 /* NAMESPACE :: anonymous */
 /**************************/
@@ -95,128 +100,111 @@ namespace
     /**********************************************************************/
 	/* OREN ISH SHALOM removed: class Apron : public llvm::FunctionPass   */
     /**********************************************************************/
-	class Apron : public llvm::CallGraphSCCPass {
+	class Apron : public llvm::FunctionPass {
 	private:
 		//map<llvm::BasicBlock *, std::string> basicBlockNames;
 		int blockCount;
 	public:
 		static char ID;
 		/* OREN ISH SHALOM removed : Apron() : blockCount(0), llvm::FunctionPass(ID) {} */
-		Apron() : blockCount(0), llvm::CallGraphSCCPass(ID) {}
+		Apron() : blockCount(0), llvm::FunctionPass(ID) {}
 
-        /***************************************************/
-        /* OREN ISH SHALOM removed:                        */
-        /*                                                 */
-        /* virtual bool runOnFunction(llvm::Function &F)   */
-        /*                                                 */
-        /***************************************************/
         virtual bool runOnSCC(llvm::CallGraphSCC &SCC)
         {
-            /********************************************************************/
-            /* OREN ISH SHALOM added: extract the current function from the SCC */
-            /********************************************************************/
-            /***************************************************/
-            /* OREN ISH SHALOM remarks: I simply l-o-v-e C++11 */
-            /***************************************************/
-            for (llvm::CallGraphNode *CGN : SCC)
-			{
-                /********************************************************************/
-                /* OREN ISH SHALOM added: extract the current function from the SCC */
-                /********************************************************************/
-				if (llvm::Function *F = CGN->getFunction())
-				{
-			        if (F->getName().equals("main"))
-			        {
-				        continue;
-			        }
-				if (F->isDeclaration()) {
-					continue;
-				}
-
-                    /****************************************************************/
-                    /* OREN ISH SHALOM: From here downward, lots of F. to F-> stuff */
-                    /****************************************************************/
-			if (Debug) {
-				llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
-				llvm::errs() << "Apron: Function: ";
-				llvm::errs().write_escaped(F->getName()) << '\n';
+		for (llvm::CallGraphNode *CGN : SCC) {
+			if (llvm::Function *F = CGN->getFunction()) {
+				runOnFunction(*F);
 			}
-			// Analyze
-			FunctionManager & functionManager = FunctionManager::getInstance();
-			Function * function = functionManager.getFunction(F);
-			CallGraph funcCallGraph(function);
-			ChaoticExecution chaoticExecution(funcCallGraph);
-			chaoticExecution.execute();
-			// Print
-			if (Debug) {
-				chaoticExecution.print();
-			}
-
-			// Get 'return' instruction
-			if (Debug) {
-				ap_manager_t * manager = apron_manager;
-				ap_abstract1_t trimmedAbstract1 = function->trimmedLastASAbstractValue();
-				llvm::errs() << "Trimmed AS abstract value: " <<
-						std::make_pair(manager,
-								&trimmedAbstract1);
-				llvm::errs() << "Error states:\n";
-				std::map<std::string, ApronAbstractState> errorStates = function->generateErrorStates();
-				for (auto & state : errorStates) {
-					llvm::errs() << "// Error state for " << state.first << ":\n";
-					llvm::errs() << state.second;
-				}
-			}
-			llvm::ReturnInst * returnInst = function->getReturnInstruction();
-			if (!returnInst) {
-				return false;
-			}
-			// get temporary
-			llvm::Value * llvmValue = returnInst->getReturnValue();
-			if (!llvmValue) {
-				return false;
-			}
-			ValueFactory * factory = ValueFactory::getInstance();
-			Value * val = factory->getValue(llvmValue);
-			if (!val) {
-				return false;
-			}
-			// get temporary's abstract value
-			llvm::BasicBlock * llvmlast = returnInst->getParent();
-			BasicBlock * last = BasicBlockManager::getInstance().getBasicBlock(
-					llvmlast);
-			ap_interval_t * interval = last->getVariableInterval(val);
-                    /*********************************************/
-                    /* OREN ISH SHALOM: Print the way I like it! */
-                    /*********************************************/
-                    std::string abs_path_filename;
-                    llvm::raw_string_ostream abs_path_filename_builder(abs_path_filename);
-                    abs_path_filename_builder << "/tmp/llvm_apron_pass/" << F->getName() << ".txt";
-
-	                /*********************************************************/
-	                /* OREN ISH SHALOM: Write in the human readable format:  */
-	                /*                                                       */
-	                /* MY_FUNCTION_NAME = [45 200], or for another example:  */
-	                /*                                                       */
-	                /* MY_FUNCTION_NAME = [17 +00]                           */
-	                /*                                                       */
-	                /*********************************************************/
-		    std::string EC;
-		    llvm::raw_fd_ostream fl(abs_path_filename_builder.str().c_str(), EC);
-		    fl << F->getName() << " = [ " << *interval->inf << " " << *interval->sup << " ]\n";
-		    fl.close();
-
-                    std::string contract_path_filename;
-                    llvm::raw_string_ostream contract_path_filename_builder(contract_path_filename);
-                    contract_path_filename_builder << "/tmp/llvm_apron_pass/" << F->getName() << ".contract.c";
-		    llvm::raw_fd_ostream fl2(contract_path_filename_builder.str().c_str(), EC);
-		    function->getReturnAbstractState().m_apronAbstractState.renameVarsForC();
-		    fl2 << contract(function);
-		    fl2.close();
-			        return false;
-                }
-            }
-            return false;
 		}
+		return false;
+	}
+
+	virtual bool runOnFunction(llvm::Function & F) {
+		if (F.isDeclaration()) {
+			return false;
+		}
+		if (!SingleFunction.empty()) {
+			if (SingleFunction != F.getName().str()) {
+				return false;
+			}
+		}
+		if (Debug) {
+			llvm::errs() << "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n";
+			llvm::errs() << "Apron: Function: " << F.getName() << "\n";
+		}
+		// Analyze
+		FunctionManager & functionManager = FunctionManager::getInstance();
+		Function * function = functionManager.getFunction(&F);
+		CallGraph funcCallGraph(function);
+		ChaoticExecution chaoticExecution(funcCallGraph);
+		chaoticExecution.execute();
+		// Print
+		if (Debug) {
+			chaoticExecution.print();
+		}
+
+		// Get 'return' instruction
+		if (Debug) {
+			ap_manager_t * manager = apron_manager;
+			ap_abstract1_t trimmedAbstract1 = function->trimmedLastASAbstractValue();
+			llvm::errs() << "Trimmed abstract value: " <<
+				std::make_pair(manager,
+						&trimmedAbstract1);
+			llvm::errs() << "Error states:\n";
+			std::map<std::string, ApronAbstractState> errorStates = function->generateErrorStates();
+			for (auto & state : errorStates) {
+				llvm::errs() << "// Error state for " << state.first << ":\n";
+				llvm::errs() << state.second;
+			}
+		}
+		llvm::ReturnInst * returnInst = function->getReturnInstruction();
+		if (!returnInst) {
+			return false;
+		}
+		// get temporary
+		llvm::Value * llvmValue = returnInst->getReturnValue();
+		if (!llvmValue) {
+			return false;
+		}
+		ValueFactory * factory = ValueFactory::getInstance();
+		Value * val = factory->getValue(llvmValue);
+		if (!val) {
+			return false;
+		}
+		// get temporary's abstract value
+		llvm::BasicBlock * llvmlast = returnInst->getParent();
+		BasicBlock * last = BasicBlockManager::getInstance().getBasicBlock(
+				llvmlast);
+		ap_interval_t * interval = last->getVariableInterval(val);
+		/*********************************************/
+		/* OREN ISH SHALOM: Print the way I like it! */
+		/*********************************************/
+		std::string abs_path_filename;
+		llvm::raw_string_ostream abs_path_filename_builder(abs_path_filename);
+		abs_path_filename_builder << "/tmp/llvm_apron_pass/" << F.getName() << ".txt";
+
+		/*********************************************************/
+		/* OREN ISH SHALOM: Write in the human readable format:  */
+		/*                                                       */
+		/* MY_FUNCTION_NAME = [45 200], or for another example:  */
+		/*                                                       */
+		/* MY_FUNCTION_NAME = [17 +00]                           */
+		/*                                                       */
+		/*********************************************************/
+		std::string EC;
+		llvm::raw_fd_ostream fl(abs_path_filename_builder.str().c_str(), EC);
+		fl << F.getName() << " = [ " << *interval->inf << " " << *interval->sup << " ]\n";
+		fl.close();
+
+		std::string contract_path_filename;
+		llvm::raw_string_ostream contract_path_filename_builder(contract_path_filename);
+		contract_path_filename_builder << "/tmp/llvm_apron_pass/" << F.getName() << ".contract.c";
+		llvm::raw_fd_ostream fl2(contract_path_filename_builder.str().c_str(), EC);
+		function->getReturnAbstractState().m_apronAbstractState.renameVarsForC();
+		fl2 << contract(function);
+		fl2.close();
+		return false;
+	}
 	};
 }
 
