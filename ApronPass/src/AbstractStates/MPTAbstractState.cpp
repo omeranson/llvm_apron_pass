@@ -11,7 +11,7 @@ MPTItemAbstractState::MPTItemAbstractState(
 
 MPTItemAbstractState::MPTItemAbstractState() : m_isWritable(true) {}
 
-const std::set<std::string> & MPTItemAbstractState::getBuffers() {
+const std::set<std::string> & MPTItemAbstractState::getBuffers() const {
 	return m_buffers;
 }
 

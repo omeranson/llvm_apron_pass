@@ -12,7 +12,7 @@ class MPTItemAbstractState {
 public:
 	MPTItemAbstractState();
 	MPTItemAbstractState(const std::set<std::string> & buffers, bool isWritable=true);
-	const std::set<std::string> & getBuffers();
+	const std::set<std::string> & getBuffers() const;
 	void insert(std::string buffer);
 	void erase(std::string buffer);
 	void clear();
