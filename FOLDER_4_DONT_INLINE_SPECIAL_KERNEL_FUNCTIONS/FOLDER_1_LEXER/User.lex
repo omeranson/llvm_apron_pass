@@ -61,7 +61,7 @@ FUNC_NAME1	"define internal fastcc i64 @copy_msghdr_from_user("[^#]*"#"
 /* RULES */
 /*********/
 %%
-"attributes #0 = { "[^\r\n]*[\n\r]*	{
+"attributes #0 = { "[^\r\n]*		{
 										char *p = aatext+strlen("attributes #0 = { ");
 										User_ErrorMsg_Log("%s","attributes #0 = { ");
 										User_ErrorMsg_Log("%s","alwaysinline ");
@@ -76,10 +76,44 @@ FUNC_NAME1	"define internal fastcc i64 @copy_msghdr_from_user("[^#]*"#"
 										User_ErrorMsg_Log("%s","#324");
 										User_ErrorMsg_Log("%s",pp+2);
 									}
-[^\n]*								{User_ErrorMsg_Log("%s", aatext); continue;}
+"define"[^#\r\n]*"("[^)]*")"[^#\r\n]*"#"[^\r\n]*	{
+										FILE *fl;
+										char *p = strchr(aatext,'#');
+										char *q = strchr(aatext,'(');
+										char *r = q-1;
+										char temp[1024];
+										char funcname[256];
+										char filename[256];
+										while (
+											 ((*r) == '_') ||
+											(((*r) >= 'a') && ((*r) <= 'z')) ||
+											(((*r) >= 'A') && ((*r) <= 'Z')) ||
+											(((*r) >= '0') && ((*r) <= '9')))
+										{
+											r--;
+										}
+										r++;
+
+										if (r<q)
+										{
+											memset(funcname,0,sizeof(funcname));
+											strncpy(funcname,r,q-r);
+											sprintf(filename,"/tmp/INLINE_ME/%s.txt",funcname);
+											fl = fopen(filename,"rt");
+											if (fl == NULL)
+											{
+												*(p+1)='1';
+												User_ErrorMsg_Log("%s",aatext);
+											}
+											else
+											{
+												*(p+1)='0';
+												User_ErrorMsg_Log("%s",aatext);
+												fclose(fl);
+											}
+										}
+									}
 [^\r\n]*							{User_ErrorMsg_Log("%s", aatext); continue;}
 "\r"								{User_ErrorMsg_Log("%s", aatext); continue;}
 "\n"								{User_ErrorMsg_Log("%s", aatext); continue;}
-"\r\n"								{User_ErrorMsg_Log("%s", aatext); continue;}
-"\n\r"								{User_ErrorMsg_Log("%s", aatext); continue;}
 
