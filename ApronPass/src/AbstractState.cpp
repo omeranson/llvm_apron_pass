@@ -177,6 +177,8 @@ bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
 	AbstractState prev = *this;
 	for (std::pair<const std::string, MPTItemAbstractState > & pt : m_mayPointsTo.m_mayPointsTo) {
 		if (pt.second.empty()) {
+			llvm::errs() << "Setting state to bottom in reduction, since " <<
+					pt.first << " doesn't point to anything\n";
 			makeBottom();
 			return true;
 		}
