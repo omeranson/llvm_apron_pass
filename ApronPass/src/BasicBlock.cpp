@@ -197,10 +197,15 @@ void BasicBlock::updateAbstractStateMetWithIncomingPhis(
 		llvm::Value * incoming = phi->getIncomingValueForBlock(
 				basicBlock.getLLVMBasicBlock());
 		Value * incomingValue = factory->getValue(incoming);
-		MPTItemAbstractState &dest =
-				otherAS.m_mayPointsTo.m_mayPointsTo[phiValue->getName()];
-		dest.clear();
-		incomingValue->populateMayPointsToUserBuffers(dest);
+		const std::string & phiname = phiValue->getName();
+		otherAS.m_mayPointsTo.forget(phiname);
+		const std::set<std::string> * buffers = incomingValue->mayPointsToUserBuffers();
+		if (buffers) {
+			auto & dest = otherAS.m_mayPointsTo.extend(phiname);
+			for (const std::string & buffer : *buffers) {
+				dest.insert(buffer);
+			}
+		}
 	}
 }
 
