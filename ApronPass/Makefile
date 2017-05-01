@@ -21,3 +21,4 @@ all: ${OBJS} libapronpass.so
 clean:
 	@ echo '[RM]	[${OBJS} libapronpass.so]'
 	@ rm -f ${OBJS} libapronpass.so
+	@ ${MAKE} -C adaptors clean
