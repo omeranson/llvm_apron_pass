@@ -84,10 +84,6 @@ public:
 	virtual ap_texpr1_t* getConstantTExpr(unsigned);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
-	virtual ap_abstract1_t abstractOfTconsList(
-			std::list<ap_tcons1_t> & constraints);
-	virtual void applyConstraints(
-			std::list<ap_tcons1_t> & constraints);
 
 	virtual AbstractState & getAbstractState();
 	virtual Function * getFunction();

@@ -262,27 +262,6 @@ Value * BasicBlock::getTerminatorValue() {
 	return factory->getValue(terminator);
 }
 
-void BasicBlock::applyConstraints(
-		std::list<ap_tcons1_t> & constraints) {
-	if (constraints.empty()) {
-		return;
-	}
-	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	ap_tcons1_array_t array = createTcons1Array(getEnvironment(), constraints);
-	aas.meet(array);
-}
-
-ap_abstract1_t BasicBlock::abstractOfTconsList(
-		std::list<ap_tcons1_t> & constraints) {
-	if (constraints.empty()) {
-		return ap_abstract1_bottom(getManager(), getEnvironment());
-	}
-	ap_tcons1_array_t array = createTcons1Array(getEnvironment(), constraints);
-	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
-			getManager(), getEnvironment(), &array);
-	return abs;
-}
-
 void BasicBlock::processInstruction(AbstractState & state,
 		llvm::Instruction & inst) {
 	// TODO Circular dependancy (Still?)
