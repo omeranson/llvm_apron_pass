@@ -1486,20 +1486,8 @@ void PhiValue::updateMayPointsToAssumptions(AbstractState & state, Value * incom
 	// Assign offsets of one to the other
 	// set pt
 	std::string & name = getName();
-	std::string incomingName = incomingValue->getName();
-	MPTItemAbstractState *srcUserPointers = state.m_mayPointsTo.find(incomingName);
-	if (!srcUserPointers) {
-		state.m_mayPointsTo.forget(name);
-		return;
-	}
-	state.m_mayPointsTo.extend(name) = *srcUserPointers;
-	for (auto & srcPtrName : *srcUserPointers) {
-		const std::string & offsetName = AbstractState::generateOffsetName(name, srcPtrName);
-		state.m_apronAbstractState.forget(offsetName);
-		const std::string & incomingOffsetName = AbstractState::generateOffsetName(incomingName, srcPtrName);
-		ap_texpr1_t * incomingOffsetTexpr = state.m_apronAbstractState.asTexpr(incomingOffsetName);
-		state.m_apronAbstractState.assign(offsetName, incomingOffsetTexpr);
-	}
+	std::string & incomingName = incomingValue->getName();
+	state.assignPtrToPtr(name, incomingName);
 }
 
 void PhiValue::updateNumericalAssumptions(AbstractState & state, Value * incomingValue) {
@@ -1642,14 +1630,8 @@ ap_texpr1_t * CastOperationValue::createRHSTreeExpression(AbstractState & state)
 
 void CastOperationValue::update(AbstractState & state) {
 	if (isPointer()) {
-		MPTAbstractState & mpt = state.m_mayPointsTo;
 		Value * src = getOperandValue(0);
-		MPTItemAbstractState * pt = mpt.find(src->getName());
-		if (pt) {
-			mpt.extend(getName()) = *pt;
-		} else {
-			mpt.forget(getName());
-		}
+		state.assignPtrToPtr(getName(), src->getName());
 	}
 	UnaryOperationValue::update(state);
 }

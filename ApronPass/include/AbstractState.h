@@ -131,6 +131,7 @@ public:
 	virtual bool join(AbstractState &);
 	virtual bool meet(AbstractState &);
 	virtual bool reduce(std::vector<std::string> & userBuffers);
+	virtual void assignPtrToPtr(const std::string & dest, const std::string & src);
 	// TODO(oanson) The following functions are missing
 	//virtual bool meet(AbstractState &);
 	//virtual bool unify(AbstractState &);
