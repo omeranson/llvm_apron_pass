@@ -143,9 +143,7 @@ void AbstractState::updateUserOperationAbstract1() {
 		values.push_back(apronState);
 	}
 	memoryAccessAbstractValues.clear();
-	ApronAbstractState aas = ApronAbstractState::bottom();
-	aas.join(values);
-	m_apronAbstractState = aas;
+	m_apronAbstractState.join(values);
 }
 
 bool AbstractState::join(AbstractState &other)
