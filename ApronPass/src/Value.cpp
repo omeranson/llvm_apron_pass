@@ -2016,8 +2016,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	case llvm::BinaryOperator::Call:
 		return new CallValue(instruction);
 	case llvm::BinaryOperator::Shl:
+		return new SHLOperationValue(instruction);
 	case llvm::BinaryOperator::LShr:
-		return new SHROperationValue(instruction);
 	case llvm::BinaryOperator::AShr:
 		return new SHROperationValue(instruction);
 	//case llvm::BinaryOperator::VAArg:
