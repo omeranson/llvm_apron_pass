@@ -89,14 +89,8 @@ bool ApronAbstractState::widen(const ApronAbstractState & other) {
 	if (!ap_abstract1_is_leq(apron_manager, &this_abst, &other_abst)) {
 		other_abst = ap_abstract1_join(apron_manager, true, &other_abst, &this_abst);
 	}
-	if (!ap_abstract1_is_leq(apron_manager, &this_abst, &other_abst)) {
-		llvm::errs() << "Warning: Widening with something not geq (even after join!)\n";
-	}
 	m_abstract1 = ap_abstract1_widening(apron_manager,
 			&this_abst, &other_abst);
-	if (!ap_abstract1_is_leq(apron_manager, &prev, &m_abstract1)) {
-		llvm::errs() << "Warning: Widening is not geq than prev\n";
-	}
 	bool isChanged = (*this != prev);
 	ap_abstract1_clear(apron_manager, &other_abst);
 	ap_abstract1_clear(apron_manager, &this_abst);
