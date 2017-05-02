@@ -246,7 +246,9 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
 		s << preamble(&call);
 	}
-	s << depth << function->getReturnTypeString() << " res;\n";
+	const std::string & returnValueName = function->getReturnValueName();
+	std::string renamedRetValName = apronAbstractState.renameVarForC(returnValueName);
+	s << depth << function->getReturnTypeString() << " " << renamedRetValName << "res;\n";
 	s << depth << "bool b;\n";
 	s << depth << "int idx;\n";
 	ApronAbstractState::Variables variables =
@@ -288,23 +290,13 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	}
 	// Postconditions
 	s << "\t// Postconditions\n";
-	ap_abstract1_t retvalAbstract1 = function->trimmedLastASAbstractValue();
-	llvm::ReturnInst * returnInst = function->getReturnInstruction();
-	llvm::Value * returnValue = returnInst->getReturnValue();
-	ValueFactory * factory = ValueFactory::getInstance();
-	Value * returnValueValue = factory->getValue(returnValue);
-	std::string & returnValueName = returnValueValue->getName();
-	ap_var_t oldName = (ap_var_t)returnValueName.c_str();
-	ap_var_t newName = (ap_var_t)"res";
-	ap_abstract1_t retvalAbstract1_renamed = ap_abstract1_rename_array(
-			manager, false, &retvalAbstract1,
-			&oldName, &newName, 1);
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1_renamed);
+	ap_abstract1_t retvalAbstract1 = apronAbstractState.m_abstract1;
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1);
 	s << depth << "HAVOC(b);\n";
-	s << depth << "HAVOC(res);\n";
+	s << depth << "HAVOC(" << renamedRetValName << ");\n";
 	s << depth << "if " << Conjunction("b", &array) << " {\n";
 	++depth;
-	s << depth << "return res;\n";
+	s << depth << "return " << renamedRetValName << ";\n";
 	--depth;
 	s << depth << "}\n";
 

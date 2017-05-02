@@ -53,6 +53,14 @@ BasicBlock * Function::getReturnBasicBlock() {
 	return basicBlockManager.getBasicBlock(basicBlock);
 }
 
+const std::string & Function::getReturnValueName() {
+	llvm::ReturnInst * returnInst = getReturnInstruction();
+	llvm::Value * returnValue = returnInst->getReturnValue();
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * returnValueValue = factory->getValue(returnValue);
+	return returnValueValue->getName();
+}
+
 bool Function::isVarInOut(const char * varname) {
 	// Return true iff:
 	// 	varname is argument

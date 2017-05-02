@@ -42,6 +42,7 @@ public:
 	std::string getSignature();
 	std::string getTypeString(llvm::Type * type);
 	std::string getReturnTypeString();
+	const std::string & getReturnValueName();
 	const std::vector<ImportIovecCall> & getImportIovecCalls();
 	const std::vector<CopyMsghdrFromUserCall> & getCopyMsghdrFromUserCalls();
 	BasicBlock * getRoot() const;
