@@ -59,7 +59,6 @@ public:
 	virtual llvm::BasicBlock * getLLVMBasicBlock();
 	virtual Value * getTerminatorValue();
 	virtual void update(AbstractState & state);
-	virtual void makeTop();
 
 	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
 		const std::string & valueName, const std::string & bufname);

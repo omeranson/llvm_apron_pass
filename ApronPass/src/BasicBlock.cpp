@@ -256,11 +256,6 @@ void BasicBlock::update(AbstractState & state) {
 	}
 }
 
-void BasicBlock::makeTop() {
-	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	aas = ApronAbstractState::top();
-}
-
 Value * BasicBlock::getTerminatorValue() {
 	llvm::BasicBlock * llvmThis = getLLVMBasicBlock();
 	llvm::Instruction * terminator = llvmThis->getTerminator();
