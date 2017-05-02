@@ -115,6 +115,7 @@ inline stream & operator<<(stream & s,
 	s << depth << "warn(\"Invalid pointer " << name << "\");\n";
 	--depth;
 	s << depth << "}\n";
+	ap_tcons1_array_clear(&array);
 	return s;
 }
 
@@ -184,6 +185,7 @@ inline stream & operator<<(stream & s,
 	s << depth << "HAVOC_SIZE(" << name << ", " << last_name << ");\n";
 	--depth;
 	s << depth << "}\n";
+	ap_tcons1_array_clear(&array);
 	return s;
 }
 
@@ -265,6 +267,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 		ap_tcons1_array_t minimized_array = ap_abstract1_to_tcons_array(
 				apron_manager, &minimizedErrorState.m_abstract1);
 		s << depth << "// " << Conjunction(&minimized_array) << "\n";
+		ap_tcons1_array_clear(&minimized_array);
 		s << precondition(&errorStatePair);
 	}
 	for (const ImportIovecCall & call : importIovecCalls) {
@@ -299,6 +302,8 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "return " << renamedRetValName << ";\n";
 	--depth;
 	s << depth << "}\n";
+	ap_tcons1_array_clear(&array);
+	ap_abstract1_clear(apron_manager, &retvalAbstract1);
 
 	// Postamble
 	s << depth << "assume(0);\n";

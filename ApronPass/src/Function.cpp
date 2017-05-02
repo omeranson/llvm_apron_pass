@@ -110,7 +110,7 @@ ap_abstract1_t Function::trimmedLastASAbstractValue() {
 	}
 	ap_abstract1_t result = ap_abstract1_forget_array(manager, false, &asAbstract1,
 			forgetVars.data(), forgetVars.size(), false);
-	result = ap_abstract1_minimize_environment(manager, false, &result);
+	result = ap_abstract1_minimize_environment(manager, true, &result);
 	return result;
 }
 

@@ -250,7 +250,6 @@ void BasicBlock::update(AbstractState & state) {
 	state.updateUserOperationAbstract1();
 	std::vector<std::string> userBuffers = getFunction()->getUserPointers();
 	bool isReduceChanged = state.reduce(userBuffers);
-	m_updatedStates.push_back(std::make_pair(prev.m_apronAbstractState, state.m_apronAbstractState));
 	if (Debug) {
 		llvm::errs() << getName() << ": Update: " << prev << " -> " << state;
 	}

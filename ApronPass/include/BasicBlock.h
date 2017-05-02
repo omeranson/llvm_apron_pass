@@ -49,8 +49,6 @@ protected:
 	virtual void updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
 	virtual void updateAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
 public:
-	std::vector<std::pair<ApronAbstractState, ApronAbstractState> > m_updatedStates;
-
 	unsigned updateCount;
 	unsigned joinCount;
 	virtual std::string getName();

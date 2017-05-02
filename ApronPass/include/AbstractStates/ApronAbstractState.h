@@ -29,6 +29,9 @@ public:
 	ap_abstract1_t m_abstract1;
 	ApronAbstractState(const ap_abstract1_t & abst);
 	ApronAbstractState(const ap_abstract1_t * abst);
+	ApronAbstractState(const ApronAbstractState& other);
+	ApronAbstractState & operator=(const ApronAbstractState& other);
+	~ApronAbstractState();
 
 	static ApronAbstractState top();
 	static ApronAbstractState bottom();
