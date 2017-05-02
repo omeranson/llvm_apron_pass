@@ -189,7 +189,7 @@ void BasicBlock::updateAbstractStateMetWithIncomingPhis(
 		Value * incomingValue = factory->getValue(incoming);
 		const std::string & phiname = phiValue->getName();
 		otherAS.m_mayPointsTo.forget(phiname);
-		const std::set<std::string> * buffers = incomingValue->mayPointsToUserBuffers();
+		const std::set<std::string> * buffers = incomingValue->mayPointsToUserBuffers(otherAS);
 		if (buffers) {
 			auto & dest = otherAS.m_mayPointsTo.extend(phiname);
 			for (const std::string & buffer : *buffers) {

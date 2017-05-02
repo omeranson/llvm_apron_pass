@@ -250,7 +250,7 @@ public:
 	}
 	virtual std::string getValueString();
 	virtual std::string toString() ;
-	virtual const std::set<std::string> * mayPointsToUserBuffers();
+	virtual const std::set<std::string> * mayPointsToUserBuffers(AbstractState & state);
 };
 std::string VariableValue::getValueString() {
 	return getName();
@@ -270,7 +270,7 @@ Function * VariableValue::getFunction() {
 	return manager.getFunction(function);
 }
 
-const std::set<std::string> * VariableValue::mayPointsToUserBuffers() {
+const std::set<std::string> * VariableValue::mayPointsToUserBuffers(AbstractState & state) {
 	return &userPointers;
 }
 
@@ -292,10 +292,8 @@ ap_texpr1_t * InstructionValue::createRHSTreeExpression(AbstractState & state) {
 	abort();
 }
 
-const std::set<std::string> * InstructionValue::mayPointsToUserBuffers() {
-	BasicBlock * basicBlock = getBasicBlock();
-	AbstractState & as = basicBlock->getAbstractState();
-	MPTItemAbstractState * asbuffers = as.m_mayPointsTo.find(getName());
+const std::set<std::string> * InstructionValue::mayPointsToUserBuffers(AbstractState & state) {
+	MPTItemAbstractState * asbuffers = state.m_mayPointsTo.find(getName());
 	if (!asbuffers) {
 		return 0;
 	}
@@ -637,7 +635,7 @@ public:
 	ConstantNullValue(llvm::Value * value) : ConstantValue(value), mayPointsTo({"null"}) {
 		llvm::errs() << "Null ptr: llvm name: " << value->getName() << " my name: " << getName() << "\n";
 	}
-	virtual const std::set<std::string> * mayPointsToUserBuffers() {
+	virtual const std::set<std::string> * mayPointsToUserBuffers(AbstractState & state) {
 		return &mayPointsTo;
 	}
 };
@@ -1639,7 +1637,7 @@ bool CastOperationValue::isSkip() {
 
 ap_texpr1_t * CastOperationValue::createRHSTreeExpression(AbstractState & state) {
 	Value * value = getOperandValue(0);
-	return value->createTreeExpression(getBasicBlock()->getAbstractState());
+	return value->createTreeExpression(state);
 }
 
 void CastOperationValue::update(AbstractState & state) {
@@ -1831,7 +1829,7 @@ void Value::assign0(AbstractState & state) {
 	state.m_apronAbstractState.assign(getName(), zero);
 }
 
-const std::set<std::string> * Value::mayPointsToUserBuffers() {
+const std::set<std::string> * Value::mayPointsToUserBuffers(AbstractState & state) {
 	return 0;
 }
 
