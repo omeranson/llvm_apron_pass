@@ -531,63 +531,71 @@ class SHROperationValue : public BinaryOperationValue {
 protected:
 	virtual std::string getOperationSymbol()  { return " >> "; }
 	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MOD; }
-	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
+	virtual bool updateByInverseMultiplication(AbstractState & state);
+	virtual bool updateByInverseOfSHL(AbstractState & state);
 public:
 	SHROperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 	virtual void update(AbstractState & state);
 };
 
-// XXX Pull into abstract class over this and SHROperationValue
-ap_texpr1_t * SHROperationValue::createRHSTreeExpression(AbstractState & state) {
-	ap_texpr1_t * op0_texpr = createOperandTreeExpression(state, 0);
-	ap_texpr1_t * op1_texpr = createOperandTreeExpression(state, 1);
-	// TODO Handle reals
-	// Align environments
-	state.m_apronAbstractState.extendEnvironment(op0_texpr);
-	state.m_apronAbstractState.extendEnvironment(op1_texpr);
-	ap_texpr1_t * two = state.m_apronAbstractState.asTexpr((int64_t)2);
-	ap_texpr1_t * op1_shl = ap_texpr1_binop(
-			AP_TEXPR_POW, two, op1_texpr,
+bool SHROperationValue::updateByInverseMultiplication(AbstractState & state) {
+	llvm::Value * count = asInstruction()->getOperand(1);
+	llvm::ConstantInt * countAsConst = llvm::dyn_cast<llvm::ConstantInt>(count);
+	if (!countAsConst) {
+		return false;
+	}
+	const llvm::APInt & apint = countAsConst->getValue();
+	uint64_t svalue = apint.getZExtValue();
+	uint64_t coeff = (1ll << svalue);
+	ap_texpr1_t * thisExpr = state.m_apronAbstractState.asTexpr(getName());
+	ap_texpr1_t * coeffTexpr = state.m_apronAbstractState.asTexpr((int64_t)coeff);
+	Value * source = getOperandValue(0);
+	ap_texpr1_t * sourceExpr = state.m_apronAbstractState.asTexpr(source->getName());
+	ap_texpr1_t * left = ap_texpr1_binop(
+			AP_TEXPR_MUL, coeffTexpr, thisExpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_DIV, op0_texpr, op1_shl,
+	ap_texpr1_t * expr = ap_texpr1_binop(
+			AP_TEXPR_SUB, left, sourceExpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
-	return texpr;
+	ap_tcons1_t cons = ap_tcons1_make(AP_CONS_EQ, expr, state.m_apronAbstractState.zero());
+	state.m_apronAbstractState.meet(cons);
+	return true;
+}
+
+bool SHROperationValue::updateByInverseOfSHL(AbstractState & state) {
+	Value * countValue = getOperandValue(1);
+	llvm::Value * source = asInstruction()->getOperand(0);
+	llvm::BinaryOperator * sourceBO = llvm::dyn_cast<llvm::BinaryOperator>(source);
+	if (!sourceBO) {
+		return false;
+	}
+	if (sourceBO->getOpcode() != llvm::Instruction::Shl) {
+		return false;
+	}
+	InstructionValue * sourceValue = static_cast<InstructionValue*>(getOperandValue(0));
+	Value * shlCountValue = sourceValue->getOperandValue(1);
+	ap_texpr1_t * countExpr = countValue->createTreeExpression(state);
+	ap_texpr1_t * shlCountExpr = shlCountValue->createTreeExpression(state);
+	bool iseq = ap_texpr1_equal(countExpr, shlCountExpr);
+	ap_texpr1_free(countExpr);
+	ap_texpr1_free(shlCountExpr);
+	if (!iseq) {
+		return false;
+	}
+	Value * sourceSourceValue = sourceValue->getOperandValue(0);
+	ap_texpr1_t * sourceSourceExpr = sourceSourceValue->createTreeExpression(state);
+	state.m_apronAbstractState.assign(getName(), sourceSourceExpr);
+	return true;
 }
 
 void SHROperationValue::update(AbstractState & state) {
-	do {
-		Value * countValue = getOperandValue(1);
-		if (!countValue->isConstant()) {
-			break;
-		}
-		llvm::Value * source = asInstruction()->getOperand(0);
-		llvm::BinaryOperator * sourceBO = llvm::dyn_cast<llvm::BinaryOperator>(source);
-		if (!sourceBO) {
-			break;
-		}
-		if (sourceBO->getOpcode() != llvm::Instruction::Shl) {
-			break;
-		}
-		InstructionValue * sourceValue = static_cast<InstructionValue*>(getOperandValue(0));
-		Value * shlCountValue = sourceValue->getOperandValue(1);
-		if (!shlCountValue->isConstant()) {
-			break;
-		}
-		ap_texpr1_t * countExpr = countValue->createTreeExpression(state);
-		ap_texpr1_t * shlCountExpr = shlCountValue->createTreeExpression(state);
-		bool iseq = ap_texpr1_equal(countExpr, shlCountExpr);
-		ap_texpr1_free(countExpr);
-		ap_texpr1_free(shlCountExpr);
-		if (!iseq) {
-			break;
-		}
-		Value * sourceSourceValue = sourceValue->getOperandValue(0);
-		ap_texpr1_t * sourceSourceExpr = sourceSourceValue->createTreeExpression(state);
-		state.m_apronAbstractState.assign(getName(), sourceSourceExpr);
+	if (updateByInverseOfSHL(state)) {
 		return;
-	} while (0);
-	BinaryOperationValue::update(state);
+	}
+	if (updateByInverseMultiplication(state)) {
+		return;
+	}
+	havoc(state);
 }
 
 class ConstantValue : public Value {
