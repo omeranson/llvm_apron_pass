@@ -656,6 +656,7 @@ protected:
 	bool isDebugFunction(const std::string & funcName) const;
 	bool isKernelUserMemoryOperation(const std::string & funcName) const;
 
+	virtual void updateForAccount(AbstractState & state);
 	virtual void updateForAccessOK(AbstractState & state);
 	virtual void updateForGetUser(AbstractState & state);
 	virtual void updateForPutUser(AbstractState & state);
@@ -775,6 +776,9 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("copy_msghdr_from_user" == funcName) {
 		return true;
 	}
+	if ("account" == funcName) {
+		return true;
+	}
 	return false;
 }
 
@@ -836,6 +840,10 @@ void CallValue::update(AbstractState & state) {
 		}
 		if ("copy_msghdr_from_user" == funcName) {
 			updateForCopyMsghdrFromUser(state);
+			return;
+		}
+		if ("account" == funcName) {
+			updateForAccount(state);
 			return;
 		}
 	}
@@ -903,6 +911,17 @@ void CallValue::updateForCopyMsghdrFromUser(
 	state.m_copyMsghdrFromUserCalls.push_back(
 			CopyMsghdrFromUserCall(op, getArgumentName(1)));
 	assign0(state);
+}
+
+void CallValue::updateForAccount(AbstractState & state) {
+	Value * limit = getOperandValue(1);
+	ap_texpr1_t * this_texpr = state.m_apronAbstractState.asTexpr(getName());
+	ap_texpr1_t * other_texpr = state.m_apronAbstractState.asTexpr(limit->getName());
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+				AP_TEXPR_SUB, other_texpr, this_texpr,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
+	state.m_apronAbstractState.meet(cons);
 }
 
 void CallValue::updateForAccessOK(AbstractState & state) {
