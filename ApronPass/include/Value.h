@@ -49,6 +49,7 @@ public:
 	virtual std::string toString();
 	virtual bool isSkip();
 	virtual bool isPointer();
+	virtual bool isConstant() const;
 
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);

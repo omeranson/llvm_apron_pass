@@ -534,6 +534,7 @@ protected:
 	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 public:
 	SHROperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
+	virtual void update(AbstractState & state);
 };
 
 // XXX Pull into abstract class over this and SHROperationValue
@@ -554,6 +555,41 @@ ap_texpr1_t * SHROperationValue::createRHSTreeExpression(AbstractState & state) 
 	return texpr;
 }
 
+void SHROperationValue::update(AbstractState & state) {
+	do {
+		Value * countValue = getOperandValue(1);
+		if (!countValue->isConstant()) {
+			break;
+		}
+		llvm::Value * source = asInstruction()->getOperand(0);
+		llvm::BinaryOperator * sourceBO = llvm::dyn_cast<llvm::BinaryOperator>(source);
+		if (!sourceBO) {
+			break;
+		}
+		if (sourceBO->getOpcode() != llvm::Instruction::Shl) {
+			break;
+		}
+		InstructionValue * sourceValue = static_cast<InstructionValue*>(getOperandValue(0));
+		Value * shlCountValue = sourceValue->getOperandValue(1);
+		if (!shlCountValue->isConstant()) {
+			break;
+		}
+		ap_texpr1_t * countExpr = countValue->createTreeExpression(state);
+		ap_texpr1_t * shlCountExpr = shlCountValue->createTreeExpression(state);
+		bool iseq = ap_texpr1_equal(countExpr, shlCountExpr);
+		ap_texpr1_free(countExpr);
+		ap_texpr1_free(shlCountExpr);
+		if (!iseq) {
+			break;
+		}
+		Value * sourceSourceValue = sourceValue->getOperandValue(0);
+		ap_texpr1_t * sourceSourceExpr = sourceSourceValue->createTreeExpression(state);
+		state.m_apronAbstractState.assign(getName(), sourceSourceExpr);
+		return;
+	} while (0);
+	BinaryOperationValue::update(state);
+}
+
 class ConstantValue : public Value {
 protected:
 	virtual std::string getValueString() ;
@@ -561,10 +597,15 @@ protected:
 	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state)=0;
 public:
 	ConstantValue(llvm::Value * value) : Value(value) {}
+	virtual bool isConstant() const;
 };
 
 std::string ConstantValue::getValueString()  {
 	return getConstantString();
+}
+
+bool ConstantValue::isConstant() const {
+	return true;
 }
 
 class ConstantIntValue : public ConstantValue {
@@ -1875,6 +1916,10 @@ void Value::updateConditionalAssumptions(AbstractState & state, bool isNegated) 
 			}
 		}
 	}
+}
+
+bool Value::isConstant() const {
+	return false;
 }
 
 std::ostream& operator<<(std::ostream& os, Value& value)
