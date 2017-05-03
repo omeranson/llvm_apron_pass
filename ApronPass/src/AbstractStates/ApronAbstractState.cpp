@@ -36,6 +36,7 @@ ApronAbstractState::ApronAbstractState(const ApronAbstractState& other) :
 		m_abstract1(ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1)) {}
 
 ApronAbstractState & ApronAbstractState::operator=(const ApronAbstractState& other) {
+	ap_abstract1_clear(apron_manager, &m_abstract1);
 	m_abstract1 = ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1);
 	return *this;
 }
