@@ -1822,7 +1822,12 @@ ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
 }
 
 void Value::havoc(AbstractState & state) {
-	state.m_apronAbstractState.forget(getName());
+	std::string & name = getName();
+	if (state.m_apronAbstractState.isKnown(getName())) {
+		state.m_apronAbstractState.forget(name);
+	} else {
+		state.m_apronAbstractState.extend(name);
+	}
 }
 
 void Value::assign0(AbstractState & state) {
