@@ -99,8 +99,11 @@ void LoadValue::update(AbstractState & state) {
 	MPTAbstractState & mptas = state.m_mayPointsTo;
 	MPTItemAbstractState * pt = mptas.find(srcValue->getName());
 	if (!pt) {
-		// Value is top. Do nothing
+		// Value is top.
 		llvm::errs() << "WARNING: Direct load from top pointer: " << srcValue->getName() << "\n";
+		if (!isPointer()) {
+			havoc(state);
+		}
 		return;
 	}
 	pt->erase("null");
@@ -113,6 +116,8 @@ void LoadValue::update(AbstractState & state) {
 		if (!pt->contains("kernel")) {
 			pt->erase("kernel");
 		}
+	} else {
+		havoc(state);
 	}
 	if (!pt->isProvablyKernel()) {
 		llvm::errs() << "WARNING: Direct load from user pointer: " << srcValue->getName() << "\n";
