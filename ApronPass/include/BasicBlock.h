@@ -58,13 +58,6 @@ public:
 	virtual Value * getTerminatorValue();
 	virtual void update(AbstractState & state);
 
-	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
-		const std::string & valueName, const std::string & bufname);
-	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
-		Value * value, const std::string & bufname);
-	virtual ap_texpr1_t * createUserPointerLastTreeExpression(
-		const std::string & bufname, user_pointer_operation_e op);
-
 	virtual bool join(BasicBlock & basicBlock, AbstractState & state);
 	virtual bool isTop(ap_abstract1_t & value);
 	virtual bool isBottom(ap_abstract1_t & value);

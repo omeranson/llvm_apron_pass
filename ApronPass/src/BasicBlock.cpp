@@ -154,23 +154,6 @@ void BasicBlock::updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, Abs
 	}
 }
 
-ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
-		Value * value, const std::string & bufname) {
-	return createUserPointerOffsetTreeExpression(value->getName(), bufname);
-}
-
-ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
-		const std::string & valueName, const std::string & bufname) {
-	const std::string & generatedName = AbstractState::generateOffsetName(valueName, bufname);
-	return getVariableTExpr(generatedName);
-}
-
-ap_texpr1_t * BasicBlock::createUserPointerLastTreeExpression(
-		const std::string & bufname, user_pointer_operation_e op) {
-	const std::string & generatedName = AbstractState::generateLastName(bufname, op);
-	return getVariableTExpr(generatedName);
-}
-
 void BasicBlock::updateAbstractStateMetWithIncomingPhis(
 		BasicBlock & basicBlock, AbstractState & otherAS) {
 	llvm::BasicBlock * llvmBB = getLLVMBasicBlock();
