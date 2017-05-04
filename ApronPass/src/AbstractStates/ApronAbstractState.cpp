@@ -91,7 +91,7 @@ bool ApronAbstractState::widen(const ApronAbstractState & other) {
 	if (Debug) {
 		llvm::errs() << "Widening: " << &this_abst << " and " << &other_abst;
 	}
-	changeToLeastCommonEnv(this_abst, other_abst, false);
+	changeToLeastCommonEnv(this_abst, other_abst, true);
 
 	if (!ap_abstract1_is_leq(apron_manager, &this_abst, &other_abst)) {
 		other_abst = ap_abstract1_join(apron_manager, true, &other_abst, &this_abst);
