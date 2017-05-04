@@ -76,6 +76,10 @@ bool Function::isVarInOut(const char * varname) {
 			varname[strlen(varname)-1] == ')') {
 		return true;
 	}
+	if ((strncmp(varname, "offset(", sizeof("offset(")-1) == 0) &&
+			varname[strlen(varname)-1] == ')') {
+		return true;
+	}
 	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
 	for (const llvm::Argument & argument : arguments) {
 		if (argument.getName() == varname) {
