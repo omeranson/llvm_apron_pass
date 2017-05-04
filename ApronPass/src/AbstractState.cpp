@@ -71,13 +71,11 @@ bool meetVectors(std::vector<T> & dest, const std::vector<T> & src) {
 AbstractState::AbstractState(std::vector<std::string> & userBuffers) :
 		m_apronAbstractState(ApronAbstractState::top()),
 		m_mayPointsTo(userBuffers) {
-	ap_scalar_t* zero = ApronAbstractState::zero();
 	m_apronAbstractState.start_meet_aggregate();
 	for (const std::string & buffer : userBuffers) {
 		const std::string & offsetName = generateOffsetName(buffer, buffer);
-		ap_texpr1_t * offsetTexpr = m_apronAbstractState.asTexpr(offsetName);
-		ap_tcons1_t offsetGeq0 = ap_tcons1_make(AP_CONS_SUPEQ, offsetTexpr, zero);
-		m_apronAbstractState.meet(offsetGeq0);
+		ap_texpr1_t * zero = m_apronAbstractState.asTexpr((int64_t)0);
+		m_apronAbstractState.assign(offsetName, zero);
 	}
 	m_apronAbstractState.finish_meet_aggregate();
 }
@@ -118,32 +116,22 @@ void AbstractState::updateUserOperationAbstract1() {
 		apronState.forget(lastName);
 		apronState.extend(lastName);
 		ap_texpr1_t * offset = apronState.asTexpr(offsetName);
-		ap_texpr1_t * last = apronState.asTexpr(lastName);
-
-		apronState.start_meet_aggregate();
-		// last >= offset
-		ap_texpr1_t * startOffset = ap_texpr1_binop(
-				AP_TEXPR_SUB, ap_texpr1_copy(last), ap_texpr1_copy(offset),
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_tcons1_t lastGeqOffset = ap_tcons1_make(AP_CONS_SUPEQ, startOffset, zero);
-		apronState.meet(lastGeqOffset);
 
 		// last <= offset + size
 		apronState.extendEnvironment(maav.size);
 		ap_texpr1_t * end = ap_texpr1_binop(
 				AP_TEXPR_ADD, offset, maav.size,
 				AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_texpr1_t * endOffset = ap_texpr1_binop(
-				AP_TEXPR_SUB, end, last,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_tcons1_t lastLeqEnd = ap_tcons1_make(AP_CONS_SUPEQ, endOffset, zero);
-		apronState.meet(lastLeqEnd);
-		apronState.finish_meet_aggregate();
+		apronState.assign(lastName, end);
 
 		values.push_back(apronState);
 	}
 	memoryAccessAbstractValues.clear();
-	m_apronAbstractState.join(values);
+	if (size == 1) {
+		m_apronAbstractState = values[0];
+	} else {
+		m_apronAbstractState.join(values);
+	}
 }
 
 bool AbstractState::join(AbstractState &other)

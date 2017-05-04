@@ -161,8 +161,6 @@ bool StoreValue::isSkip() {
 class GepValue : public InstructionValue {
 public:
 	virtual llvm::GetElementPtrInst * asGetElementPtrInst();
-	virtual void addOffsetConstraint(AbstractState & state,
-		ap_texpr1_t * value_texpr, const std::string & pointerName);
 public:
 	GepValue (llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
@@ -183,25 +181,6 @@ std::string GepValue::getValueString() {
 	Value * offset = factory->getValue(gepi->getOperand(1));
 	rso << "&" << *pointer << "[" << *offset << "]";
 	return rso.str();
-}
-
-void GepValue::addOffsetConstraint(AbstractState & state,
-		ap_texpr1_t * value_texpr, const std::string & pointerName) {
-	ap_scalar_t* zero = ApronAbstractState::zero();
-
-	const std::string & offsetName = AbstractState::generateOffsetName(
-			getName(), pointerName);
-	ap_texpr1_t * var_texpr = state.m_apronAbstractState.asTexpr(offsetName);
-	state.m_apronAbstractState.extendEnvironment(value_texpr);
-	state.m_apronAbstractState.extendEnvironment(var_texpr);
-	ap_tcons1_t greaterThan0 = ap_tcons1_make(
-			AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
-	state.m_apronAbstractState.meet(greaterThan0);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t leqSource = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
-	state.m_apronAbstractState.meet(leqSource);
 }
 
 void GepValue::update(AbstractState & state) {
@@ -236,7 +215,9 @@ void GepValue::update(AbstractState & state) {
 				offset_texpr_copy, offset_var_texpr,
 				AP_RTYPE_INT, AP_RDIR_ZERO);
 		assert(value_texpr);
-		addOffsetConstraint(state, value_texpr, srcPtrName);
+		const std::string & offsetName = AbstractState::generateOffsetName(
+				getName(), srcPtrName);
+		state.m_apronAbstractState.assign(offsetName, value_texpr);
 	}
 	ap_texpr1_free(offset_texpr);
 }
