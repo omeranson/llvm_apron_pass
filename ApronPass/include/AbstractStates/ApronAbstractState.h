@@ -9,15 +9,12 @@
 #include <ap_tcons1.h>
 #include <ap_texpr1.h>
 
-extern unsigned WideningThreshold;
-
 class ApronAbstractState {
 protected:
 	ApronAbstractState();
 	bool m_isMeetAggregate = false;
 	std::vector<ap_tcons1_t> m_meetAggregates;
 	int joinCount = 0;
-	int m_wideningThreshold = WideningThreshold;
 
 public:
 // XXX(oanson) The functions in this public block should be made protected once possible

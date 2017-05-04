@@ -105,9 +105,6 @@ bool ApronAbstractState::widen(const ApronAbstractState & other) {
 }
 
 bool ApronAbstractState::join(const ApronAbstractState & other) {
-	if (++joinCount >= m_wideningThreshold) {
-		return widen(other);
-	}
 	ap_abstract1_t prev = ap_abstract1_copy(apron_manager, &m_abstract1);
 	ap_abstract1_t other_abst = ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1);
 	changeToLeastCommonEnv(m_abstract1, other_abst, true);

@@ -45,7 +45,6 @@ protected:
 	virtual void processInstruction(AbstractState & state,
 			llvm::Instruction & inst);
 
-	virtual AbstractState getAbstractStateWithAssumptions(BasicBlock & predecessor, AbstractState & state);
 	virtual void updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
 	virtual void updateAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
 public:
@@ -58,7 +57,7 @@ public:
 	virtual Value * getTerminatorValue();
 	virtual void update(AbstractState & state);
 
-	virtual bool join(BasicBlock & basicBlock, AbstractState & state);
+	virtual AbstractState getAbstractStateWithAssumptions(BasicBlock & predecessor, AbstractState & state);
 	virtual bool isTop(ap_abstract1_t & value);
 	virtual bool isBottom(ap_abstract1_t & value);
 	virtual bool isTop();

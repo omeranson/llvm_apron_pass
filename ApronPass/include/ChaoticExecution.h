@@ -12,11 +12,13 @@ class ChaoticExecution {
 private:
 	CallGraph & callGraph;
 	std::set<BasicBlock *> seen;
+	std::map<BasicBlock *, int> m_joinCount;
 
 	bool isSeen(BasicBlock * block);
 	void see(BasicBlock * block);
 	void populateWithSuccessors(
 		std::list<BasicBlock *> & worklist, BasicBlock * block, AbstractState & state);
+	bool join(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 public:
 	ChaoticExecution(CallGraph & callGraph);
 

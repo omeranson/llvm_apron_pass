@@ -190,17 +190,6 @@ AbstractState BasicBlock::getAbstractStateWithAssumptions(
 	return otherAS;
 }
 
-bool BasicBlock::join(BasicBlock & basicBlock, AbstractState & state) {
-	AbstractState prev = getAbstractState();
-	AbstractState otherAS = getAbstractStateWithAssumptions(basicBlock, state);
-	bool isChanged = m_abstractState.join(otherAS);
-	llvm::errs() << getName() << ": Joined from " << basicBlock.getName() << ":\n";
-	llvm::errs() << "Prev: " << prev << "Other: " << otherAS << " New: " << getAbstractState();
-	llvm::errs() << "isChanged: " << isChanged << " and " << bool(prev != getAbstractState()) << "\n";
-	return isChanged;
-}
-
-
 bool BasicBlock::isTop(ap_abstract1_t & value) {
 	return ap_abstract1_is_top(getManager(), &value);
 }

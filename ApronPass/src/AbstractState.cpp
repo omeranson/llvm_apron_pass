@@ -159,6 +159,19 @@ bool AbstractState::join(AbstractState &other)
 	return isChanged;
 }
 
+bool AbstractState::widen(AbstractState &other)
+{
+	bool isChanged = false;
+	// Join 'May' reference
+	isChanged = m_mayPointsTo.join(other.m_mayPointsTo) || isChanged;
+	// Join (Apron) analysis of integers
+	isChanged = m_apronAbstractState.widen(other.m_apronAbstractState) || isChanged;
+	// Join (Apron) analysis of (user) read/write/last0 pointers
+	isChanged = joinVectors(m_importedIovecCalls, other.m_importedIovecCalls) || isChanged;
+	isChanged = joinVectors(m_copyMsghdrFromUserCalls, other.m_copyMsghdrFromUserCalls) || isChanged;
+	return isChanged;
+}
+
 bool AbstractState::meet(AbstractState & other) {
 	bool isChanged = false;
 	// Meet 'May' reference

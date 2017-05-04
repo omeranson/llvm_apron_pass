@@ -3,6 +3,7 @@
 #include <ChaoticExecution.h>
 
 extern unsigned UpdateCountMax;
+extern unsigned WideningThreshold;
 
 ChaoticExecution::ChaoticExecution(CallGraph & callGraph) :
 		callGraph(callGraph) {}
@@ -44,12 +45,29 @@ void ChaoticExecution::execute() {
 void ChaoticExecution::populateWithSuccessors(
 		std::list<BasicBlock *> & worklist, BasicBlock * block, AbstractState & state) {
 	for (BasicBlock * succ : callGraph.successors(block)) {
-		bool isSuccModified = succ->join(*block, state);
+		bool isSuccModified = join(block, succ, state);
 		if (!isSuccModified) {
 			continue;
 		}
 		worklist.push_back(succ);
 	}
+}
+
+bool ChaoticExecution::join(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
+	int & joinCount = m_joinCount[dest];
+	++joinCount;
+	AbstractState prev = dest->getAbstractState();
+	AbstractState incoming = dest->getAbstractStateWithAssumptions(*source, state);
+	bool isChanged;
+	if (joinCount >= WideningThreshold) {
+		isChanged = dest->getAbstractState().widen(incoming);
+	} else {
+		isChanged = dest->getAbstractState().join(incoming);
+	}
+	llvm::errs() << dest->getName() << ": Joined from " << source->getName() << ":\n";
+	llvm::errs() << "Prev: " << prev << "Other: " << incoming << " New: " << dest->getAbstractState();
+	llvm::errs() << "isChanged: " << isChanged << " and " << bool(prev != dest->getAbstractState()) << "\n";
+	return isChanged;
 }
 
 void ChaoticExecution::print() {

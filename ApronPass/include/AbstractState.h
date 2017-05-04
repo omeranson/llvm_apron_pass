@@ -129,6 +129,7 @@ public:
 	void updateUserOperationAbstract1();
 	// General commands
 	virtual bool join(AbstractState &);
+	virtual bool widen(AbstractState &);
 	virtual bool meet(AbstractState &);
 	virtual bool reduce(std::vector<std::string> & userBuffers);
 	virtual void assignPtrToPtr(const std::string & dest, const std::string & src);
