@@ -30,7 +30,7 @@ public:
 	bool isUserPointer(std::string & ptrname);
 	std::vector<std::string> getUserPointers();
 	// Kept for debug purposes only
-	virtual ap_abstract1_t trimmedLastASAbstractValue();
+	virtual ap_abstract1_t trimAbstractValue(AbstractState & state);
 	virtual AbstractState & getReturnAbstractState();
 	virtual llvm::ReturnInst * getReturnInstruction();
 	virtual BasicBlock * getReturnBasicBlock();

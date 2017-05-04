@@ -161,11 +161,6 @@ namespace
 		// Get 'return' instruction
 		if (Debug) {
 			ap_manager_t * manager = apron_manager;
-			ap_abstract1_t trimmedAbstract1 = function->trimmedLastASAbstractValue();
-			llvm::errs() << "Trimmed abstract value: " <<
-				std::make_pair(manager,
-						&trimmedAbstract1);
-			ap_abstract1_clear(apron_manager, &trimmedAbstract1);
 			llvm::errs() << "Error states:\n";
 			std::map<std::string, ApronAbstractState> errorStates = function->generateErrorStates();
 			for (auto & state : errorStates) {

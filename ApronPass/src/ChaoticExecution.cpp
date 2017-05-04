@@ -61,5 +61,7 @@ void ChaoticExecution::print() {
 	std::set<BasicBlock *>::iterator it;
 	for (it = seen.begin(); it != seen.end(); it++) {
 		llvm::errs() << (*it)->toString() << "\n";
+		ap_abstract1_t abst = ((*it)->getFunction()->trimAbstractValue((*it)->getAbstractState()));
+		llvm::errs() << "Trimmed: " << (ap_abstract1_t*)&abst;
 	}
 }

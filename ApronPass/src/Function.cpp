@@ -90,10 +90,8 @@ bool Function::isVarInOut(const char * varname) {
 	return false;
 }
 
-ap_abstract1_t Function::trimmedLastASAbstractValue() {
-	BasicBlock * returnBasicBlock = getReturnBasicBlock();
-	AbstractState & as = returnBasicBlock->getAbstractState();
-	ApronAbstractState apronAbstractState = as.m_apronAbstractState;
+ap_abstract1_t Function::trimAbstractValue(AbstractState & state) {
+	ApronAbstractState apronAbstractState = state.m_apronAbstractState;
 	ap_abstract1_t & asAbstract1 = apronAbstractState.m_abstract1;
 	ap_manager_t * manager = apron_manager;
 	ap_environment_t * environment = ap_abstract1_environment(manager, &asAbstract1);
