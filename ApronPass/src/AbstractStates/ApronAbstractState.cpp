@@ -41,6 +41,12 @@ ApronAbstractState & ApronAbstractState::operator=(const ApronAbstractState& oth
 	return *this;
 }
 
+ApronAbstractState & ApronAbstractState::operator=(const ap_abstract1_t& other) {
+	ap_abstract1_clear(apron_manager, &m_abstract1);
+	m_abstract1 = other;
+	return *this;
+}
+
 ApronAbstractState::~ApronAbstractState() {
 	ap_abstract1_clear(apron_manager, &m_abstract1);
 }

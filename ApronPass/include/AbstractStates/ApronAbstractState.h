@@ -31,6 +31,7 @@ public:
 	ApronAbstractState(const ap_abstract1_t * abst);
 	ApronAbstractState(const ApronAbstractState& other);
 	ApronAbstractState & operator=(const ApronAbstractState& other);
+	ApronAbstractState & operator=(const ap_abstract1_t& other);
 	~ApronAbstractState();
 
 	static ApronAbstractState top();
