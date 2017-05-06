@@ -1,9 +1,37 @@
+#include <unordered_set>
+#include <list>
+
 #include <BasicBlock.h>
 #include <CallGraph.h>
 #include <ChaoticExecution.h>
 
 extern unsigned UpdateCountMax;
 extern unsigned WideningThreshold;
+
+template <class T>
+class UniqueQueue {
+protected:
+	std::list<T> m_queue;
+	std::unordered_set<T> m_uniq;
+public:
+	void push(T & t) {
+		auto p = m_uniq.insert(t);
+		if (p.second) {
+			m_queue.push_back(t);
+		}
+	}
+
+	T pop() {
+		T result = m_queue.front();
+		m_queue.pop_front();
+		m_uniq.erase(result);
+		return result;
+	}
+
+	bool empty() {
+		return m_queue.empty();
+	}
+};
 
 ChaoticExecution::ChaoticExecution(CallGraph & callGraph) :
 		callGraph(callGraph) {}
@@ -17,15 +45,14 @@ void ChaoticExecution::see(BasicBlock * block) {
 }
 
 void ChaoticExecution::execute() {
-	std::list<BasicBlock *> worklist;
+	UniqueQueue<BasicBlock *> worklist;
 	BasicBlock * root = callGraph.getRoot();
 	std::vector<std::string> userPointers = root->getFunction()->getUserPointers();
 	AbstractState state(userPointers);
 	root->getAbstractState() = state;
-	worklist.push_front(root);
+	worklist.push(root);
 	while (!worklist.empty()) {
-		BasicBlock * block = worklist.front();
-		worklist.pop_front();
+		BasicBlock * block = worklist.pop();
 		bool wasSeen = isSeen(block);
 		see(block);
 		if (UpdateCountMax != 0) {
@@ -43,13 +70,13 @@ void ChaoticExecution::execute() {
 }
 
 void ChaoticExecution::populateWithSuccessors(
-		std::list<BasicBlock *> & worklist, BasicBlock * block, AbstractState & state) {
+		UniqueQueue<BasicBlock *> & worklist, BasicBlock * block, AbstractState & state) {
 	for (BasicBlock * succ : callGraph.successors(block)) {
 		bool isSuccModified = join(block, succ, state);
 		if (!isSuccModified) {
 			continue;
 		}
-		worklist.push_back(succ);
+		worklist.push(succ);
 	}
 }
 

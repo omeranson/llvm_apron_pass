@@ -8,6 +8,9 @@ class CallGraph;
 class BasicBlock;
 class AbstractState;
 
+template <class T>
+class UniqueQueue;
+
 class ChaoticExecution {
 private:
 	CallGraph & callGraph;
@@ -17,7 +20,7 @@ private:
 	bool isSeen(BasicBlock * block);
 	void see(BasicBlock * block);
 	void populateWithSuccessors(
-		std::list<BasicBlock *> & worklist, BasicBlock * block, AbstractState & state);
+		UniqueQueue<BasicBlock *> & worklist, BasicBlock * block, AbstractState & state);
 	bool join(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 public:
 	ChaoticExecution(CallGraph & callGraph);
