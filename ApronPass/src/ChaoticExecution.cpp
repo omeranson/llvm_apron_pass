@@ -86,12 +86,14 @@ bool ChaoticExecution::join(BasicBlock * source, BasicBlock * dest, AbstractStat
 	AbstractState prev = dest->getAbstractState();
 	AbstractState incoming = dest->getAbstractStateWithAssumptions(*source, state);
 	bool isChanged;
+	bool isJoin = true;
 	if (joinCount >= WideningThreshold) {
 		isChanged = dest->getAbstractState().widen(incoming);
+		isJoin = false;
 	} else {
 		isChanged = dest->getAbstractState().join(incoming);
 	}
-	llvm::errs() << dest->getName() << ": Joined from " << source->getName() << ":\n";
+	llvm::errs() << dest->getName() << ": " << (isJoin ? "Joined" : "Widened") << " from " << source->getName() << ":\n";
 	llvm::errs() << "Prev: " << prev << "Other: " << incoming << " New: " << dest->getAbstractState();
 	llvm::errs() << "isChanged: " << isChanged << " and " << bool(prev != dest->getAbstractState()) << "\n";
 	return isChanged;

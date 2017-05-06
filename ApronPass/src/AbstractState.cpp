@@ -127,11 +127,13 @@ void AbstractState::updateUserOperationAbstract1() {
 		values.push_back(apronState);
 	}
 	memoryAccessAbstractValues.clear();
-	if (size == 1) {
-		m_apronAbstractState = values[0];
-	} else {
-		m_apronAbstractState.join(values);
+	llvm::errs() << "AbstractState::updateUserOperationAbstract1: Joining the following values into " << m_apronAbstractState;
+	for (auto & value : values) {
+		llvm::errs() << value;
 	}
+	m_apronAbstractState.join(values);
+	llvm::errs() << "Result: " << m_apronAbstractState;
+	llvm::errs() << "---------------------------------------------------------------------------------------\n";
 }
 
 bool AbstractState::join(AbstractState &other)

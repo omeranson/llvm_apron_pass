@@ -134,9 +134,10 @@ bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
 		return false;
 	}
 	ApronAbstractState prev = *this;
-	unsigned size = others.size();
+	unsigned size = others.size() + 1;
 	std::vector<ap_environment_t*> envs;
 	envs.reserve(size);
+	envs.push_back(getEnvironment());
 	for (const ApronAbstractState & aas : others) {
 		envs.push_back(aas.getEnvironment());
 	}
@@ -145,17 +146,18 @@ bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
 			envs.data(), envs.size(), &ptdimchange);
 	std::vector<ap_abstract1_t> values;
 	values.reserve(size);
+	values.push_back(ap_abstract1_change_environment(apron_manager,
+				true, &m_abstract1, environment, true));
 	for (const ApronAbstractState & aas : others) {
-		envs.push_back(aas.getEnvironment());
 		values.push_back(ap_abstract1_change_environment(apron_manager,
 				false, (ap_abstract1_t*)&aas.m_abstract1, environment, true));
 	}
-	ap_abstract1_t abstract1 = ap_abstract1_join_array(apron_manager,
+	m_abstract1 = ap_abstract1_join_array(apron_manager,
 			values.data(), values.size());
 	for (ap_abstract1_t & value : values) {
 		ap_abstract1_clear(apron_manager, &value);
 	}
-	return join(abstract1);
+	return (prev == *this);
 }
 
 void ApronAbstractState::assign(const std::string & var, ap_texpr1_t * value) {
