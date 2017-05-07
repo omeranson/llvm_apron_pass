@@ -76,7 +76,8 @@ all:
 	@echo "* copies of the same original c file read_write.c  *"
 	@echo "****************************************************"
 	@echo "\n"
-	cp ${C_FILES_DIRECTORY}/${SYSCALL}.c Input.c
+	cp ${C_FILES_DIRECTORY}/${SYSCALL}.c ${inputc}.c
+	cp ${LLVM_BITCODE_FILES_DIRECTORY}/${SYSCALL}.bc ${inputbc}.bc
 	@echo "\n"
 	@echo "*****************************************************"
 	@echo "* Use the original c file to detect functions that  *"
