@@ -45,6 +45,7 @@ SYSCALL?=read
 inputc =$(C_FILES_DIRECTORY)/Input
 inputbc=$(LLVM_BITCODE_FILES_DIRECTORY)/Input
 inputTagbc=$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag
+inputreadybc=$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady
 
 ###############
 # DIRECTORIES #
@@ -57,29 +58,25 @@ all:
 	@echo "\n"
 	rm -rf /tmp/INLINE_ME/*
 	@echo "\n"
+	@echo "*************************************************************"
+	@echo "* Before you start, make a human readable copy of the input *"
+	@echo "*************************************************************"
+	@echo "\n"
+	llvm-dis -o=${inputbc}.ll ${inputbc}.bc
+	@echo "\n"
 	@echo "*********************************************"
 	@echo "* Compile Combined Static Analysis Pass ... *"
 	@echo "*********************************************"
 	@echo "\n"
 	cd $(RUN_ANALYSIS_DIR) && $(MAKE)
 	@echo "\n"
-	@echo "*******************"
-	@echo "* Run O3 Pass ... *"
-	@echo "*******************"
+	@echo "****************************************************"
+	@echo "* Every syscall has its own c file with that name. *"
+	@echo "* For example, read.c and write.c are actually two *"
+	@echo "* copies of the same original c file read_write.c  *"
+	@echo "****************************************************"
 	@echo "\n"
-	opt -O3 ${inputbc}.bc -o ${inputbc}.O3.bc
-	@echo "\n"
-	@echo "*****************************"
-	@echo "* Run Merge Return Pass ... *"
-	@echo "*****************************"
-	@echo "\n"
-	opt -mergereturn ${inputbc}.O3.bc -o ${inputbc}.O3.MergeReturn.bc
-	@echo "\n"
-	@echo "**************************"
-	@echo "* Run Instnamer Pass ... *"
-	@echo "**************************"
-	@echo "\n"
-	opt -instnamer ${inputbc}.O3.MergeReturn.bc -o ${inputbc}.O3.MergeReturn.InstNamer.bc
+	cp ${C_FILES_DIRECTORY}/${SYSCALL}.c Input.c
 	@echo "\n"
 	@echo "*****************************************************"
 	@echo "* Use the original c file to detect functions that  *"
@@ -100,7 +97,7 @@ all:
 	@echo "* 'cause I love human readable text files :]]     ... *"
 	@echo "*******************************************************"
 	@echo "\n"
-	#llvm-dis -o=$(PASS_2_DIR)/FOLDER_5_INPUT/Input.ll ${inputbc}.O3.MergeReturn.InstNamer.bc
+	llvm-dis -o=$(PASS_2_DIR)/FOLDER_5_INPUT/Input.ll ${inputbc}.bc
 	@echo "\n"
 	@echo "***********************"
 	@echo "* Running Pass(2) ... *"
@@ -195,6 +192,24 @@ all:
 	llvm-dis -o=\
 	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.ll \
 	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.bc	
+	@echo "\n"
+	@echo "*******************"
+	@echo "* Run O3 Pass ... *"
+	@echo "*******************"
+	@echo "\n"
+	opt -O3 ${inputreadybc}.bc -o ${inputreadybc}.O3.bc
+	@echo "\n"
+	@echo "*****************************"
+	@echo "* Run Merge Return Pass ... *"
+	@echo "*****************************"
+	@echo "\n"
+	opt -mergereturn ${inputreadybc}.O3.bc -o ${inputreadybc}.O3.MergeReturn.bc
+	@echo "\n"
+	@echo "**************************"
+	@echo "* Run Instnamer Pass ... *"
+	@echo "**************************"
+	@echo "\n"
+	opt -instnamer ${inputreadybc}.O3.MergeReturn.bc -o ${inputreadybc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"
 	@echo "*************************************************************"
 	@echo "* Syscall function to Analyze and create a contract for ... *"
