@@ -12,6 +12,7 @@ BASEDIR = $(shell pwd)
 ###############
 C_FILES_DIRECTORY            =$(BASEDIR)/FOLDER_1_INPUT_C_FILES
 LLVM_BITCODE_FILES_DIRECTORY =$(BASEDIR)/FOLDER_2_LLVM_BITCODE_FILES
+LLVM_BC_SYSCALLS_DIRECTORY   =$(BASEDIR)/FOLDER_2_LLVM_BITCODE_FILES/ALL_SYSCALLS
 PASS_1_DIR                   =$(BASEDIR)/FOLDER_3_DO_INLINE_SELECTED_FUNCTIONS
 PASS_2_DIR                   =$(BASEDIR)/FOLDER_4_DONT_INLINE_SPECIAL_KERNEL_FUNCTIONS
 PASS_3_DIR                   =$(BASEDIR)/FOLDER_5_EXTRACT_GET_USER
@@ -77,7 +78,7 @@ all:
 	@echo "****************************************************"
 	@echo "\n"
 	cp ${C_FILES_DIRECTORY}/${SYSCALL}.c ${inputc}.c
-	cp ${LLVM_BITCODE_FILES_DIRECTORY}/${SYSCALL}.bc ${inputbc}.bc
+	cp ${LLVM_BC_SYSCALLS_DIRECTORY}/${SYSCALL}.bc ${inputbc}.bc
 	@echo "\n"
 	@echo "*****************************************************"
 	@echo "* Use the original c file to detect functions that  *"
