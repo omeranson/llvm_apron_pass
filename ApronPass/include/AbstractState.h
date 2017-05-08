@@ -21,16 +21,24 @@ typedef enum {
 	user_pointer_operation_count
 } user_pointer_operation_e;
 
+typedef enum {
+	memory_operation_state_bottom,
+	memory_operation_state_success,
+	memory_operation_state_failure,
+	memory_operation_state_top
+} memory_operation_state_e;
+
 extern ap_manager_t * apron_manager;
 
 class MemoryAccessAbstractValue {
 public:
+	std::string var;
 	std::string pointer;
 	std::string buffer;
 	ap_texpr1_t * size;
 	user_pointer_operation_e operation;
 
-	MemoryAccessAbstractValue(const std::string & pointer, const std::string & buffer,
+	MemoryAccessAbstractValue(const std::string & var, const std::string & pointer, const std::string & buffer,
 			ap_texpr1_t * size, user_pointer_operation_e operation);
 };
 
@@ -117,10 +125,14 @@ public:
 	ApronAbstractState m_apronAbstractState;
 	// (Apron) analysis of (user) read/write/last0 pointers
 	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
+	memory_operation_state_e m_mos = memory_operation_state_bottom;
+	bool isHasMemoryOperation = false;
 	static const std::string & generateOffsetName(
 			const std::string & valueName, const std::string & bufname);
 	static const std::string & generateLastName(
 			const std::string & bufname, user_pointer_operation_e op);
+	static const std::string & generateSizeName(
+			const std::string & bufname);
 
 	std::vector<ImportIovecCall> m_importedIovecCalls;
 	std::vector<CopyMsghdrFromUserCall> m_copyMsghdrFromUserCalls;
@@ -129,10 +141,12 @@ public:
 	void updateUserOperationAbstract1();
 	// General commands
 	virtual bool join(AbstractState &);
+	bool joinMemoryOperationState(const memory_operation_state_e & other);
 	virtual bool widen(AbstractState &);
 	virtual bool meet(AbstractState &);
 	virtual bool reduce(std::vector<std::string> & userBuffers);
 	virtual void assignPtrToPtr(const std::string & dest, const std::string & src);
+	virtual void updateByMemoryOperation(MemoryAccessAbstractValue & maav);
 	// TODO(oanson) The following functions are missing
 	//virtual bool meet(AbstractState &);
 	//virtual bool unify(AbstractState &);
@@ -155,7 +169,26 @@ inline stream & operator<<(stream & s, AbstractState & as) {
 		}
 		s << "],";
 	}
-	s << "},abstract1:{" << &as.m_apronAbstractState.m_abstract1 << "}}";
+	s << "},abstract1:{" << &as.m_apronAbstractState.m_abstract1 << "},mos:" << as.m_mos << "}";
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, memory_operation_state_e op) {
+	switch (op) {
+	case memory_operation_state_bottom:
+		s << "bottom";
+		break;
+	case memory_operation_state_success:
+		s << "success";
+		break;
+	case memory_operation_state_failure:
+		s << "failure";
+		break;
+	case memory_operation_state_top:
+		s << "top";
+		break;
+	}
 	return s;
 }
 

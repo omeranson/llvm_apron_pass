@@ -530,13 +530,20 @@ bool SHROperationValue::updateByInverseMultiplication(AbstractState & state) {
 	if (!countAsConst) {
 		return false;
 	}
+	bool isKnown = state.m_apronAbstractState.isKnown(getName());
+	const std::string * name = &getName();
+	if (isKnown) {
+		static const std::string tmpname = "__tmp_updateByInverseMultiplication";
+		name = &tmpname;
+		state.m_apronAbstractState.extend(tmpname);
+	}
 	const llvm::APInt & apint = countAsConst->getValue();
 	uint64_t svalue = apint.getZExtValue();
 	uint64_t coeff = (1ll << svalue);
-	ap_texpr1_t * thisExpr = state.m_apronAbstractState.asTexpr(getName());
+	ap_texpr1_t * thisExpr = state.m_apronAbstractState.asTexpr(*name);
 	ap_texpr1_t * coeffTexpr = state.m_apronAbstractState.asTexpr((int64_t)coeff);
 	Value * source = getOperandValue(0);
-	ap_texpr1_t * sourceExpr = state.m_apronAbstractState.asTexpr(source->getName());
+	ap_texpr1_t * sourceExpr = source->createTreeExpression(state);
 	ap_texpr1_t * left = ap_texpr1_binop(
 			AP_TEXPR_MUL, coeffTexpr, thisExpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
@@ -545,6 +552,10 @@ bool SHROperationValue::updateByInverseMultiplication(AbstractState & state) {
 			AP_RTYPE_INT, AP_RDIR_ZERO);
 	ap_tcons1_t cons = ap_tcons1_make(AP_CONS_EQ, expr, state.m_apronAbstractState.zero());
 	state.m_apronAbstractState.meet(cons);
+	if (isKnown) {
+		state.m_apronAbstractState.forget(getName());
+		state.m_apronAbstractState.rename(*name, getName());
+	}
 	return true;
 }
 
@@ -949,14 +960,25 @@ void CallValue::updateForCopyMsghdrFromUser(
 }
 
 void CallValue::updateForAccount(AbstractState & state) {
+	bool isKnown = state.m_apronAbstractState.isKnown(getName());
+	const std::string * name = &getName();
+	if (isKnown) {
+		static const std::string tmpname = "__tmp_updateForAccount";
+		name = &tmpname;
+		state.m_apronAbstractState.extend(tmpname);
+	}
 	Value * limit = getOperandValue(1);
-	ap_texpr1_t * this_texpr = state.m_apronAbstractState.asTexpr(getName());
-	ap_texpr1_t * other_texpr = state.m_apronAbstractState.asTexpr(limit->getName());
+	ap_texpr1_t * this_texpr = state.m_apronAbstractState.asTexpr(*name);
+	ap_texpr1_t * other_texpr = limit->createTreeExpression(state);
 	ap_texpr1_t * texpr = ap_texpr1_binop(
 				AP_TEXPR_SUB, other_texpr, this_texpr,
 				AP_RTYPE_INT, AP_RDIR_ZERO);
 	ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
 	state.m_apronAbstractState.meet(cons);
+	if (isKnown) {
+		state.m_apronAbstractState.forget(getName());
+		state.m_apronAbstractState.rename(*name, getName());
+	}
 }
 
 void CallValue::updateForAccessOK(AbstractState & state) {
@@ -976,11 +998,12 @@ void CallValue::updateForUserMemoryOperation(AbstractState & state,
 	userBuffers.erase("null");
 	userBuffers.erase("kernel");
 	for (auto & userBuffer : userBuffers) {
-		MemoryAccessAbstractValue maav(ptrName, userBuffer, ap_texpr1_copy(size), op);
+		MemoryAccessAbstractValue maav(getName(), ptrName, userBuffer, ap_texpr1_copy(size), op);
 		// Placed back in abstractState to be joined at end of BB
 		state.memoryAccessAbstractValues.push_back(maav);
 	}
 	ap_texpr1_free(size);
+	havoc(state);
 }
 
 void CallValue::updateForUserMemoryOperation(AbstractState & state,
@@ -1579,7 +1602,8 @@ protected:
 	virtual Value * getTrueValue();
 	virtual Value * getFalseValue();
 	virtual AbstractState updateJoinMember(AbstractState state,
-		Value * value, bool isNegate);
+		Value * value, bool isNegate, bool isKnown);
+	virtual const std::string & getTemporaryName();
 public:
 	SelectValueInstruction(llvm::Value * value) : InstructionValue(value) {}
 	virtual std::string getValueString();
@@ -1613,13 +1637,22 @@ std::string SelectValueInstruction::getValueString() {
 	return oss.str();
 }
 
+const std::string & SelectValueInstruction::getTemporaryName() {
+	static const std::string tempName = "__tmp_Var_SELECT";
+	return tempName;
+}
+
 AbstractState SelectValueInstruction::updateJoinMember(AbstractState state,
-		Value * value, bool isNegated) {
+		Value * value, bool isNegated, bool isKnown) {
+	const std::string * name = &getName();
+	if (isKnown) {
+		name = &getTemporaryName();
+	}
 	Value * condition = getCondition(m_value);
 	condition->updateConditionalAssumptions(state, isNegated);
 	state.m_apronAbstractState.finish_meet_aggregate();
 	ap_texpr1_t * texpr = value->createTreeExpression(state);
-	state.m_apronAbstractState.assign(getName(), texpr);
+	state.m_apronAbstractState.assign(*name, texpr);
 	return state;
 }
 
@@ -1633,10 +1666,23 @@ void SelectValueInstruction::update(AbstractState & state) {
 	// 	Assign False value
 	// Join clones
 	// Meet original state with clones
-	AbstractState trueState = updateJoinMember(state, getTrueValue(), false);
-	AbstractState falseState = updateJoinMember(state, getFalseValue(), true);
-	trueState.join(falseState);
-	state.meet(trueState);
+	Value * trueValue = getTrueValue();
+	Value * falseValue = getFalseValue();
+	bool isKnown = state.m_apronAbstractState.isKnown(getName());
+//	if (trueValue->isConstant()) {
+//		state.m_apronAbstractState.assign(getName(), falseValue->createTreeExpression(state));
+//	} else if (falseValue->isConstant()) {
+//		state.m_apronAbstractState.assign(getName(), trueValue->createTreeExpression(state));
+//	} else {
+		AbstractState trueState = updateJoinMember(state, trueValue, false, isKnown);
+		AbstractState falseState = updateJoinMember(state, falseValue, true, isKnown);
+		trueState.join(falseState);
+		state.meet(trueState);
+		if (isKnown) {
+			state.m_apronAbstractState.forget(getName());
+			state.m_apronAbstractState.rename(getTemporaryName(), getName());
+		}
+//	}
 }
 
 bool SelectValueInstruction::isSkip() {
@@ -1696,6 +1742,8 @@ protected:
 	virtual bool isElseSuccessor(BasicBlock * basicBlock);
 	virtual bool isThenSuccessor(BasicBlock * basicBlock);
 
+	void handleBufferAccessConstraints(BasicBlock * source, BasicBlock * dest,
+			AbstractState & state);
 public:
 	BranchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
@@ -1736,8 +1784,49 @@ void BranchInstructionValue::updateAssumptions(
 		abort();
 	}
 	condition->updateConditionalAssumptions(state, isNegated);
+	// We assume that the condition contains the result of the memory
+	// operation, if there was one in the basic block
+	if (state.isHasMemoryOperation) {
+		handleBufferAccessConstraints(source, dest, state);
+		state.isHasMemoryOperation = false;
+		state.memoryAccessAbstractValues.clear();
+	}
 }
 
+void BranchInstructionValue::handleBufferAccessConstraints(
+		BasicBlock * source, BasicBlock * dest, AbstractState & state) {
+	for (MemoryAccessAbstractValue & maav : state.memoryAccessAbstractValues) {
+		const std::string & varname = maav.var;
+		if (state.m_apronAbstractState.isPosssiblyNotZero(varname)) {
+			// Error state
+			//ap_texpr1_t * diff = ap_texpr1_binop(
+			//		AP_TEXPR_SUB, lastExpr, sizeExpr,
+			//		AP_RTYPE_INT, AP_RDIR_ZERO);
+			//cons = ap_tcons1_make(AP_CONS_SUP, diff, state.m_apronAbstractState.zero());
+			state.joinMemoryOperationState(memory_operation_state_failure);
+		} else {
+			// Success state
+			if ((state.m_mos == memory_operation_state_failure) ||
+					(state.m_mos == memory_operation_state_top)) {
+				state.makeBottom();
+			} else {
+				const std::string & lastName = state.generateLastName(maav.buffer, maav.operation);
+				const std::string & sizeName = state.generateSizeName(maav.buffer);
+				state.m_apronAbstractState.extend(lastName);
+				state.m_apronAbstractState.extend(sizeName);
+				ap_texpr1_t * lastExpr = state.m_apronAbstractState.asTexpr(lastName);
+				ap_texpr1_t * sizeExpr = state.m_apronAbstractState.asTexpr(sizeName);
+				ap_tcons1_t cons;
+				ap_texpr1_t * diff = ap_texpr1_binop(
+						AP_TEXPR_SUB, sizeExpr, lastExpr,
+						AP_RTYPE_INT, AP_RDIR_ZERO);
+				cons = ap_tcons1_make(AP_CONS_SUPEQ, diff, state.m_apronAbstractState.zero());
+				state.m_apronAbstractState.meet(cons);
+				state.joinMemoryOperationState(memory_operation_state_success);
+			}
+		}
+	}
+}
 class SwitchInstructionValue : public TerminatorInstructionValue {
 protected:
 	llvm::SwitchInst * asSwitchInst();

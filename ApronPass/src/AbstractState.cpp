@@ -21,9 +21,9 @@ public:
 	}
 };
 
-MemoryAccessAbstractValue::MemoryAccessAbstractValue(const std::string & pointer, const std::string & buffer,
+MemoryAccessAbstractValue::MemoryAccessAbstractValue(const std::string & var, const std::string & pointer, const std::string & buffer,
 		ap_texpr1_t * size, user_pointer_operation_e operation)
-		: pointer(pointer), buffer(buffer), size(size), operation(operation) {}
+		: var(var), pointer(pointer), buffer(buffer), size(size), operation(operation) {}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -94,46 +94,74 @@ const std::string & AbstractState::generateLastName(const std::string & bufname,
 	return rso.uniq_str();
 }
 
+const std::string & AbstractState::generateSizeName(const std::string & bufname) {
+	static std::set<std::string> names;
+	raw_uniq_string_ostream rso(names);
+	rso << "size(" << bufname << ")";
+	return rso.uniq_str();
+}
+
 ap_manager_t * AbstractState::getManager() const {
 	return apron_manager;
+}
+
+void AbstractState::updateByMemoryOperation(MemoryAccessAbstractValue & maav) {
+	const std::string & offsetName = generateOffsetName(maav.pointer, maav.buffer);
+	const std::string & lastName = generateLastName(maav.buffer, maav.operation);
+	bool isLastKnown = m_apronAbstractState.isKnown(lastName);
+
+	m_apronAbstractState.extend(offsetName);
+	m_apronAbstractState.extend(lastName);
+	ap_texpr1_t * offset = m_apronAbstractState.asTexpr(offsetName);
+
+	// last <= offset + size
+	m_apronAbstractState.extendEnvironment(maav.size);
+	ap_texpr1_t * last_value = ap_texpr1_binop(
+			AP_TEXPR_ADD, offset, maav.size,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+
+	if (!m_apronAbstractState.isKnown(lastName)) {
+		m_apronAbstractState.assign(lastName, last_value);
+	} else {
+		ap_texpr1_t * difference = ap_texpr1_binop(
+				AP_TEXPR_SUB, m_apronAbstractState.asTexpr(lastName), ap_texpr1_copy(last_value),
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, difference, m_apronAbstractState.zero());
+		if (!ap_abstract1_sat_tcons(apron_manager, &m_apronAbstractState.m_abstract1, &cons)) {
+			m_apronAbstractState.assign(lastName, last_value);
+		}
+		ap_tcons1_clear(&cons);
+	}
 }
 
 void AbstractState::updateUserOperationAbstract1() {
 	if (memoryAccessAbstractValues.empty()) {
 		return;
 	}
-	ap_scalar_t* zero = ApronAbstractState::zero();
-
-	ap_manager_t * manager = getManager();
-	// Construct the environment
-	unsigned size = memoryAccessAbstractValues.size();
-	std::vector<ApronAbstractState> values;
+	isHasMemoryOperation = true;
 	for (MemoryAccessAbstractValue & maav : memoryAccessAbstractValues) {
-		const std::string & offsetName = generateOffsetName(maav.pointer, maav.buffer);
-		const std::string & lastName = generateLastName(maav.buffer, maav.operation);
-		ApronAbstractState apronState = m_apronAbstractState;
-		apronState.extend(offsetName);
-		apronState.forget(lastName);
-		apronState.extend(lastName);
-		ap_texpr1_t * offset = apronState.asTexpr(offsetName);
-
-		// last <= offset + size
-		apronState.extendEnvironment(maav.size);
-		ap_texpr1_t * end = ap_texpr1_binop(
-				AP_TEXPR_ADD, offset, maav.size,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-		apronState.assign(lastName, end);
-
-		values.push_back(apronState);
+		updateByMemoryOperation(maav);
 	}
-	memoryAccessAbstractValues.clear();
-	llvm::errs() << "AbstractState::updateUserOperationAbstract1: Joining the following values into " << m_apronAbstractState;
-	for (auto & value : values) {
-		llvm::errs() << value;
+	llvm::errs() << "AbstractState::updateUserOperationAbstract1: Result: " << m_apronAbstractState;
+}
+
+bool AbstractState::joinMemoryOperationState(const memory_operation_state_e & other) {
+	if (other == m_mos) {
+		return false;
 	}
-	m_apronAbstractState.join(values);
-	llvm::errs() << "Result: " << m_apronAbstractState;
-	llvm::errs() << "---------------------------------------------------------------------------------------\n";
+	if (m_mos == memory_operation_state_top) {
+		return false;
+	}
+	if (other == memory_operation_state_bottom) {
+		return false;
+	}
+	if (m_mos == memory_operation_state_bottom) {
+		m_mos = other;
+		return true;
+	}
+	// Not equal, not top, nor bottom, so I must change to top
+	m_mos = memory_operation_state_top;
+	return true;
 }
 
 bool AbstractState::join(AbstractState &other)
@@ -146,6 +174,7 @@ bool AbstractState::join(AbstractState &other)
 	// Join (Apron) analysis of (user) read/write/last0 pointers
 	isChanged = joinVectors(m_importedIovecCalls, other.m_importedIovecCalls) || isChanged;
 	isChanged = joinVectors(m_copyMsghdrFromUserCalls, other.m_copyMsghdrFromUserCalls) || isChanged;
+	isChanged = joinMemoryOperationState(other.m_mos) || isChanged;
 	return isChanged;
 }
 
@@ -235,4 +264,5 @@ void AbstractState::makeBottom() {
 	memoryAccessAbstractValues.clear();
 	m_importedIovecCalls.clear();
 	m_copyMsghdrFromUserCalls.clear();
+	m_mos = memory_operation_state_bottom;
 }

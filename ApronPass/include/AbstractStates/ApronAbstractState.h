@@ -51,6 +51,7 @@ public:
 	virtual void finish_meet_aggregate();
 	virtual void makeTop();
 	virtual void makeBottom();
+	virtual void rename(const std::string & orig, const std::string & new_);
 	virtual std::string renameVarForC(const std::string & varName);
 	virtual std::map<std::string, std::string> renameVarsForC();
 
@@ -61,6 +62,8 @@ public:
 	virtual bool operator==(const ApronAbstractState &) const;
 	virtual bool operator!=(const ApronAbstractState &) const;
 	virtual bool operator<=(const ApronAbstractState &) const;
+	virtual bool isSat(ap_tcons1_t & cons) const;
+	virtual bool isPosssiblyNotZero(const std::string & var) const;
 	virtual ap_texpr1_t * asTexpr(const std::string & var);
 	virtual ap_texpr1_t * asTexpr(int64_t value);
 	virtual ap_texpr1_t * asTexpr(double value);

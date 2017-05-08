@@ -62,11 +62,8 @@ ApronAbstractState ApronAbstractState::bottom() {
 }
 
 ap_scalar_t * ApronAbstractState::zero() {
-	static ap_scalar_t* zero = 0;
-	if (!zero) {
-		zero = ap_scalar_alloc ();
-		ap_scalar_set_int(zero, 0);
-	}
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
 	return zero;
 }
 
@@ -88,9 +85,6 @@ bool ApronAbstractState::widen(const ApronAbstractState & other) {
 	ap_abstract1_t prev = ap_abstract1_copy(apron_manager, &m_abstract1);
 	ap_abstract1_t other_abst = ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1);
 	ap_abstract1_t this_abst = ap_abstract1_copy(apron_manager, &m_abstract1);
-	if (Debug) {
-		llvm::errs() << "Widening: " << &this_abst << " and " << &other_abst;
-	}
 	changeToLeastCommonEnv(this_abst, other_abst, true);
 
 	if (!ap_abstract1_is_leq(apron_manager, &this_abst, &other_abst)) {
@@ -161,10 +155,19 @@ bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
 }
 
 void ApronAbstractState::assign(const std::string & var, ap_texpr1_t * value) {
-	extend(var, false);
 	ap_var_t apvar = (ap_var_t)var.c_str();
-	m_abstract1 = ap_abstract1_assign_texpr(apron_manager, true,
-			&m_abstract1, apvar, value, NULL);
+	if (!isKnown(var)) {
+		extend(var, false);
+		m_abstract1 = ap_abstract1_assign_texpr(apron_manager, true,
+				&m_abstract1, apvar, value, NULL);
+	} else {
+		static const std::string tmp_name = "__tmp_apron_ppl_varname";
+		extend(tmp_name);
+		ap_var_t aptmpvar = (ap_var_t)tmp_name.c_str();
+		m_abstract1 = ap_abstract1_assign_texpr(apron_manager, true,
+				&m_abstract1, aptmpvar, value, NULL);
+		rename(tmp_name, var);
+	}
 }
 
 void ApronAbstractState::extend(const std::string & var, bool isBottom) {
@@ -242,6 +245,21 @@ void ApronAbstractState::makeTop() {
 void ApronAbstractState::makeBottom() {
 	*this = ApronAbstractState::bottom();
 	m_meetAggregates.clear();
+}
+
+void ApronAbstractState::rename(const std::string & orig, const std::string & new_) {
+	ap_var_t origapvar = (ap_var_t)orig.c_str();
+	ap_var_t newapvar = (ap_var_t)new_.c_str();
+	if (isKnown(new_)) {
+		forget(new_);
+		ap_environment_t * environment = ap_environment_remove(
+				getEnvironment(), &newapvar, 1);
+		m_abstract1 = ap_abstract1_change_environment(apron_manager, true,
+				&m_abstract1, environment, false);
+	}
+	m_abstract1 = ap_abstract1_rename_array(
+			apron_manager, true, &m_abstract1,
+			&origapvar, &newapvar, 1);
 }
 
 std::string ApronAbstractState::renameVarForC(const std::string & varName) {
@@ -334,6 +352,23 @@ bool ApronAbstractState::operator<=(const ApronAbstractState & other) const {
 			(ap_abstract1_t*)&other.m_abstract1);
 	ap_abstract1_clear(apron_manager, &this_abst);
 	return isLeq;
+}
+
+bool ApronAbstractState::isSat(ap_tcons1_t & cons) const {
+	bool isSat = !!(ap_abstract1_sat_tcons(apron_manager, (ap_abstract1_t*)&m_abstract1, &cons));
+	ap_tcons1_clear(&cons);
+	return isSat;
+}
+
+bool ApronAbstractState::isPosssiblyNotZero(const std::string & var) const {
+	if (!isKnown(var)) {
+		llvm::errs() << "isPosssiblyNotZero: " << var << " is not known\n";
+		return true;
+	}
+	ap_var_t apvar = (ap_var_t)var.c_str();
+	ap_texpr1_t * apvarexpr = ap_texpr1_var(getEnvironment(), apvar);
+	ap_tcons1_t isZero = ap_tcons1_make(AP_CONS_EQ, apvarexpr, zero());
+	return !(isSat(isZero));
 }
 
 ap_texpr1_t * ApronAbstractState::asTexpr(const std::string & var) {
