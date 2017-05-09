@@ -1738,9 +1738,6 @@ protected:
 	virtual bool isSuccessorByIndex(BasicBlock * basicBlock, int idx);
 	virtual bool isElseSuccessor(BasicBlock * basicBlock);
 	virtual bool isThenSuccessor(BasicBlock * basicBlock);
-
-	void handleBufferAccessConstraints(BasicBlock * source, BasicBlock * dest,
-			AbstractState & state);
 public:
 	BranchInstructionValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
@@ -1781,49 +1778,8 @@ void BranchInstructionValue::updateAssumptions(
 		abort();
 	}
 	condition->updateConditionalAssumptions(state, isNegated);
-	// We assume that the condition contains the result of the memory
-	// operation, if there was one in the basic block
-	if (state.m_isHasMemoryOperation) {
-		handleBufferAccessConstraints(source, dest, state);
-		state.m_isHasMemoryOperation = false;
-		state.memoryAccessAbstractValues.clear();
-	}
 }
 
-void BranchInstructionValue::handleBufferAccessConstraints(
-		BasicBlock * source, BasicBlock * dest, AbstractState & state) {
-	for (MemoryAccessAbstractValue & maav : state.memoryAccessAbstractValues) {
-		const std::string & varname = maav.var;
-		if (state.m_apronAbstractState.isPosssiblyNotZero(varname)) {
-			// Error state
-			//ap_texpr1_t * diff = ap_texpr1_binop(
-			//		AP_TEXPR_SUB, lastExpr, sizeExpr,
-			//		AP_RTYPE_INT, AP_RDIR_ZERO);
-			//cons = ap_tcons1_make(AP_CONS_SUP, diff, state.m_apronAbstractState.zero());
-			state.joinMemoryOperationState(memory_operation_state_failure);
-		} else {
-			// Success state
-			if ((state.m_mos == memory_operation_state_failure) ||
-					(state.m_mos == memory_operation_state_top)) {
-				state.makeBottom();
-			} else {
-				const std::string & lastName = state.generateLastName(maav.buffer, maav.operation);
-				const std::string & sizeName = state.generateSizeName(maav.buffer);
-				state.m_apronAbstractState.extend(lastName);
-				state.m_apronAbstractState.extend(sizeName);
-				ap_texpr1_t * lastExpr = state.m_apronAbstractState.asTexpr(lastName);
-				ap_texpr1_t * sizeExpr = state.m_apronAbstractState.asTexpr(sizeName);
-				ap_tcons1_t cons;
-				ap_texpr1_t * diff = ap_texpr1_binop(
-						AP_TEXPR_SUB, sizeExpr, lastExpr,
-						AP_RTYPE_INT, AP_RDIR_ZERO);
-				cons = ap_tcons1_make(AP_CONS_SUPEQ, diff, state.m_apronAbstractState.zero());
-				state.m_apronAbstractState.meet(cons);
-				state.joinMemoryOperationState(memory_operation_state_success);
-			}
-		}
-	}
-}
 class SwitchInstructionValue : public TerminatorInstructionValue {
 protected:
 	llvm::SwitchInst * asSwitchInst();

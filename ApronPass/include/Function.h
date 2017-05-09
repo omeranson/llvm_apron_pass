@@ -35,7 +35,7 @@ public:
 	bool isUserPointer(std::string & ptrname);
 	std::vector<std::string> getUserPointers();
 	std::vector<std::string> getConstrainedUserPointers(AbstractState & state);
-	std::map<BasicBlock *, AbstractState> m_memOpsAbstractStates;
+	std::map<BasicBlock *, AbstractState> m_successMemOpsAbstractStates;
 	// Kept for debug purposes only
 	virtual ap_abstract1_t trimAbstractValue(AbstractState & state);
 	virtual AbstractState & getReturnAbstractState();
@@ -48,7 +48,9 @@ public:
 	virtual bool isReturnValue(const char * varname);
 	virtual bool isFunctionParameter(const char * varname);
 	virtual ApronAbstractState minimize(ApronAbstractState & state);
-	virtual std::map<std::string, ApronAbstractState> getErrorStates();
+	virtual std::multimap<std::string, ApronAbstractState> getErrorStates();
+	virtual void insertErrorState(std::multimap<std::string, ApronAbstractState> & states,
+		const ApronAbstractState & baseState, const std::string & userBuffer, user_pointer_operation_e op);
 	virtual ApronAbstractState getSuccessState();
 	virtual const std::string & getName() const;
 	virtual std::vector<std::pair<std::string, std::string> > getArgumentStrings();

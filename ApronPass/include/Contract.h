@@ -200,7 +200,7 @@ inline stream & operator<<(stream & s, Conjunction contract) {
 }
 
 template <class stream>
-bool defineVar(stream & s, std::string & variable, std::set<std::string> & predefined) {
+bool defineVar(stream & s, const std::string & variable, std::set<std::string> & predefined) {
 	if (!predefined.insert(variable).second) {
 		return false;
 	}
@@ -234,7 +234,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	++depth;
 	s << depth << "// Preamble\n";
 	std::vector<std::string> userPointers = function->getUserPointers();
-	std::map<std::string, ApronAbstractState> errorStates = function->getErrorStates();
+	std::multimap<std::string, ApronAbstractState> errorStates = function->getErrorStates();
 	ApronAbstractState successState = function->getSuccessState();
 
 	AbstractState & abstractState = function->getReturnAbstractState();
@@ -266,6 +266,12 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	defineVars(s, function, minimizedSuccessState, defined_vars);
 	defineVars(s, function, minimizedReturnState, defined_vars);
 	defineVar(s, renamedRetValName, defined_vars);
+	for (std::string & userPointer : userPointers) {
+		const std::string & lastread = AbstractState::generateLastName(userPointer, user_pointer_operation_read);
+		const std::string & lastwrite = AbstractState::generateLastName(userPointer, user_pointer_operation_read);
+		defineVar(s, lastread, defined_vars);
+		defineVar(s, lastwrite, defined_vars);
+	}
 	// Preconditions
 	// Standard variables
 	s << depth << "// Preconditions\n";

@@ -171,10 +171,13 @@ namespace
 		if (Debug) {
 			ap_manager_t * manager = apron_manager;
 			llvm::errs() << "Error states:\n";
-			std::map<std::string, ApronAbstractState> errorStates = function->getErrorStates();
+			std::multimap<std::string, ApronAbstractState> errorStates = function->getErrorStates();
 			for (auto & state : errorStates) {
+				ApronAbstractState & apstate = state.second;
+				ApronAbstractState minimizedState = function->minimize(apstate);
 				llvm::errs() << "// Error state for " << state.first << ":\n";
-				llvm::errs() << state.second;
+				llvm::errs() << apstate << "\n";
+				llvm::errs() << minimizedState << "\n";
 			}
 			ApronAbstractState successState = function->getSuccessState();
 			ApronAbstractState minimizedSuccessState = function->minimize(successState);

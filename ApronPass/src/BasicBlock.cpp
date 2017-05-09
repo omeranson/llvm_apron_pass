@@ -221,8 +221,8 @@ void BasicBlock::update(AbstractState & state) {
 	}
 	Function * function = getFunction();
 	if (!state.memoryAccessAbstractValues.empty()) {
-		function->m_memOpsAbstractStates[this] = state;
-		AbstractState & copy = function->m_memOpsAbstractStates[this];
+		function->m_successMemOpsAbstractStates[this] = state;
+		AbstractState & copy = function->m_successMemOpsAbstractStates[this];
 		state.memoryAccessAbstractValues.clear();
 		copy.updateUserOperationAbstract1();
 		if (Debug) {

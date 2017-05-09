@@ -196,19 +196,37 @@ void Function::pushBackIfConstrainsUserPointers(
 	}
 }
 
-std::map<std::string, ApronAbstractState> Function::getErrorStates() {
+void Function::insertErrorState(std::multimap<std::string, ApronAbstractState> & states,
+		const ApronAbstractState & baseState, const std::string & userBuffer, user_pointer_operation_e op) {
+	const std::string & lastName = AbstractState::generateLastName(userBuffer, op);
+	if (!baseState.isKnown(lastName)) {
+		return;
+	}
+	auto copypair = states.insert(std::make_pair(
+			userBuffer, baseState));
+	ApronAbstractState & copy = copypair->second;
+	// Add constraint: last() > size
+	const std::string & sizeName = AbstractState::generateSizeName(userBuffer);
+	copy.extend(lastName);
+	copy.extend(sizeName);
+	ap_texpr1_t * lastExpr = copy.asTexpr(lastName);
+	ap_texpr1_t * sizeExpr = copy.asTexpr(sizeName);
+	ap_texpr1_t * diff = ap_texpr1_binop(
+			AP_TEXPR_SUB, lastExpr, sizeExpr,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t cons= ap_tcons1_make(AP_CONS_SUP, diff, copy.zero());
+	copy.meet(cons);
+}
+
+std::multimap<std::string, ApronAbstractState> Function::getErrorStates() {
+	std::multimap<std::string, ApronAbstractState> result;
 	std::vector<std::string> userBuffers = getUserPointers();
-	std::map<std::string, ApronAbstractState> result;
-	BasicBlockManager & basicBlockManager = BasicBlockManager::getInstance();
-	for (llvm::BasicBlock & llvmbb : *m_function) {
-		BasicBlock * bb = basicBlockManager.getBasicBlock(&llvmbb);
-		AbstractState & state = bb->getAbstractState();
-		if ((state.m_mos != memory_operation_state_top) &&
-				(state.m_mos != memory_operation_state_failure)) {
-			// Not a failure
-			continue;
+	for (auto & memOpsState : m_successMemOpsAbstractStates) {
+		for (std::string & userBuffer : userBuffers) {
+			insertErrorState(result, memOpsState.second.m_apronAbstractState, userBuffer, user_pointer_operation_write);
+			insertErrorState(result, memOpsState.second.m_apronAbstractState, userBuffer, user_pointer_operation_read);
 		}
-		pushBackIfConstrainsUserPointers(result, state, userBuffers);
+
 	}
 	return result;
 }
@@ -217,7 +235,7 @@ std::map<std::string, ApronAbstractState> Function::getErrorStates() {
 ApronAbstractState Function::getSuccessState() {
 	ApronAbstractState result = ApronAbstractState::bottom();
 	std::vector<ApronAbstractState> successStates;
-	for (auto & memOpsState : m_memOpsAbstractStates) {
+	for (auto & memOpsState : m_successMemOpsAbstractStates) {
 		successStates.push_back(memOpsState.second.m_apronAbstractState);
 	}
 	result.join(successStates);
