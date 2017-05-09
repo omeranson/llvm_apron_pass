@@ -177,7 +177,8 @@ namespace
 				llvm::errs() << state.second;
 			}
 			ApronAbstractState successState = function->getSuccessState();
-			llvm::errs() << "Success state: " << &successState << "\n";
+			ApronAbstractState minimizedSuccessState = function->minimize(successState);
+			llvm::errs() << "Success state: " << &successState << "\n" << minimizedSuccessState << "\n";
 		}
 		llvm::ReturnInst * returnInst = function->getReturnInstruction();
 		if (!returnInst) {

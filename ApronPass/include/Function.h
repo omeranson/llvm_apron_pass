@@ -45,6 +45,7 @@ public:
 	virtual bool isSizeVariable(const char * varname);
 	virtual bool isLastVariable(const char * varname);
 	virtual bool isOffsetVariable(const char * varname);
+	virtual bool isReturnValue(const char * varname);
 	virtual bool isFunctionParameter(const char * varname);
 	virtual ApronAbstractState minimize(ApronAbstractState & state);
 	virtual std::map<std::string, ApronAbstractState> getErrorStates();

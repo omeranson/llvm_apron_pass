@@ -114,6 +114,12 @@ bool Function::isFunctionParameter(const char * varname) {
 	return false;
 }
 
+bool Function::isReturnValue(const char * varname) {
+	llvm::ReturnInst * returnInst = getReturnInstruction();
+	llvm::Value * returnValue = returnInst->getReturnValue();
+	return (returnValue && (returnValue->getName() == varname));
+}
+
 bool Function::isVarInOut(const char * varname) {
 	// Return true iff:
 	// 	varname is argument
@@ -121,14 +127,10 @@ bool Function::isVarInOut(const char * varname) {
 	// 	varname is size(*)
 	// 	varname is the return value
 	// XXX Memoize this value?
-	llvm::ReturnInst * returnInst = getReturnInstruction();
-	llvm::Value * returnValue = returnInst->getReturnValue();
-	if (returnValue && returnValue->getName() == varname) {
-		return true;
-	}
 	return isSizeVariable(varname) ||
 			// isOffsetVariable(varname) ||
 			isLastVariable(varname) ||
+			isReturnValue(varname) ||
 			isFunctionParameter(varname);
 }
 

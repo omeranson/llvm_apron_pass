@@ -200,6 +200,32 @@ inline stream & operator<<(stream & s, Conjunction contract) {
 }
 
 template <class stream>
+bool defineVar(stream & s, std::string & variable, std::set<std::string> & predefined) {
+	if (!predefined.insert(variable).second) {
+		return false;
+	}
+	s << havoc(&variable);
+	return true;
+}
+
+template <class stream>
+void defineVars(stream & s, Function * function, ApronAbstractState & state, std::set<std::string> & predefined) {
+	ApronAbstractState::Variables variables =
+			ApronAbstractState::Variables(state);
+	for (std::string variable : variables) {
+		bool isLast = function->isLastVariable(variable.c_str());
+		bool isRet = function->isReturnValue(variable.c_str());
+		if (!(isLast || isRet)) {
+			continue;
+		}
+		std::string newVarName = state.renameVarForC(variable);
+		if (defineVar(s, newVarName, predefined) && isLast) {
+			s << depth << "assume(" << newVarName << " >= 0);\n";
+		}
+	}
+}
+
+template <class stream>
 inline stream & operator<<(stream & s, Contract<Function> contract) {
 	Function * function = (Function*)contract.t;
 	// Preamble
@@ -226,28 +252,20 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 		s << preamble(&call);
 	}
 	const std::string & returnValueName = function->getReturnValueName();
-	std::string renamedRetValName = apronAbstractState.renameVarForC(returnValueName);
+	ApronAbstractState minimizedReturnState = function->minimize(apronAbstractState);
+	auto returnStateRenames = minimizedReturnState.renameVarsForC();
+	std::string renamedRetValName = returnStateRenames[returnValueName];
+	if (renamedRetValName.empty()) {
+		renamedRetValName = minimizedReturnState.renameVarForC(returnValueName);
+	}
 	s << depth << "bool b;\n";
 	s << depth << "int idx;\n";
-	ApronAbstractState::Variables variables =
-			ApronAbstractState::Variables(apronAbstractState);
-	std::vector<std::string> filteredVariables;
-	for (std::string variable : variables) {
-		if (!function->isVarInOut(variable.c_str())) {
-			continue;
-		}
-		if (function->isSizeVariable(variable.c_str())) {
-			continue;
-		}
-		if (function->isFunctionParameter(variable.c_str())) {
-			continue;
-		}
-		std::string newVarName = apronAbstractState.renameVarForC(variable);
-		s << havoc(&newVarName);
-		if (function->isLastVariable(variable.c_str())) {
-			s << depth << "assume(" << variable << " >= 0);\n";
-		}
-	}
+	std::set<std::string> defined_vars;
+	ApronAbstractState minimizedSuccessState = function->minimize(successState);
+	auto successStateRenames = minimizedSuccessState.renameVarsForC();
+	defineVars(s, function, minimizedSuccessState, defined_vars);
+	defineVars(s, function, minimizedReturnState, defined_vars);
+	defineVar(s, renamedRetValName, defined_vars);
 	// Preconditions
 	// Standard variables
 	s << depth << "// Preconditions\n";
@@ -272,17 +290,15 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	// 	For each buf : user buffer
 	// 		HAVOC(buf, last(buf,write))
 	s << depth << "// Modifications\n";
-	ApronAbstractState minimizedSuccessState = function->minimize(successState);
-	auto renames = minimizedSuccessState.renameVarsForC();
 	ap_tcons1_array_t minimized_array = ap_abstract1_to_tcons_array(
 				apron_manager, &minimizedSuccessState.m_abstract1);
 	s << depth << "if " << Conjunction(&minimized_array) << "{\n";
 	ap_tcons1_array_clear(&minimized_array);
 	++depth;
 	for (std::string & userPointer : userPointers) {
-		auto it = renames.find(userPointer);
+		auto it = successStateRenames.find(userPointer);
 		std::string * renamedVar = 0;
-		if (it == renames.end()) {
+		if (it == successStateRenames.end()) {
 			renamedVar = &userPointer;
 		} else {
 			renamedVar = &it->second;
@@ -300,8 +316,6 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "}\n";
 	// Postconditions
 	s << "\t// Postconditions\n";
-	ApronAbstractState minimizedReturnState = function->minimize(apronAbstractState);
-	minimizedReturnState.renameVarsForC();
 	ap_abstract1_t retvalAbstract1 = minimizedReturnState.m_abstract1;
 	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1);
 	s << depth << "HAVOC(b);\n";
