@@ -362,7 +362,6 @@ bool ApronAbstractState::isSat(ap_tcons1_t & cons) const {
 
 bool ApronAbstractState::isPosssiblyNotZero(const std::string & var) const {
 	if (!isKnown(var)) {
-		llvm::errs() << "isPosssiblyNotZero: " << var << " is not known\n";
 		return true;
 	}
 	ap_var_t apvar = (ap_var_t)var.c_str();
@@ -370,6 +369,16 @@ bool ApronAbstractState::isPosssiblyNotZero(const std::string & var) const {
 	ap_tcons1_t isZero = ap_tcons1_make(AP_CONS_EQ, apvarexpr, zero());
 	return !(isSat(isZero));
 }
+
+bool ApronAbstractState::isConstrained(const std::string & var) const {
+	if (!isKnown(var)) {
+		return false;
+	}
+	ap_var_t apvar = (ap_var_t)var.c_str();
+	return !ap_abstract1_is_variable_unconstrained(apron_manager,
+			(ap_abstract1_t*)&m_abstract1, apvar);
+}
+
 
 ap_texpr1_t * ApronAbstractState::asTexpr(const std::string & var) {
 	extend(var);

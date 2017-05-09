@@ -67,6 +67,7 @@ public:
 	virtual ap_texpr1_t * asTexpr(const std::string & var);
 	virtual ap_texpr1_t * asTexpr(int64_t value);
 	virtual ap_texpr1_t * asTexpr(double value);
+	virtual bool isConstrained(const std::string & var) const;
 
 	class Variables {
 		ap_environment_t * env;
