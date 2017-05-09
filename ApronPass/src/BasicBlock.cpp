@@ -263,8 +263,6 @@ void BasicBlock::processInstruction(AbstractState & state,
 			//// << scope->getFilename() << ": "
 			//<< debugLoc.getLine() << ": "
 			//<< value->toString() << "\n";
-	// TODO Is this needed?
-	state.m_apronAbstractState.forget(value->getName());
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->update(state);

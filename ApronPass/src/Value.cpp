@@ -201,8 +201,6 @@ void GepValue::update(AbstractState & state) {
 	}
 	MPTItemAbstractState & dest = state.m_mayPointsTo.m_mayPointsTo[getName()];
 	dest.clear();
-	const std::string & offsetName = state.generateOffsetName(getName(), pointerName);
-	state.m_apronAbstractState.forget(offsetName); // XXX is this needed?
 	ap_texpr1_t * offset_texpr = offset->createTreeExpression(state);
 	for (auto & srcPtrName : *srcUserPointers) {
 		dest.insert(srcPtrName);
@@ -1570,7 +1568,6 @@ void PhiValue::updateMayPointsToAssumptions(AbstractState & state, Value * incom
 void PhiValue::updateNumericalAssumptions(AbstractState & state, Value * incomingValue) {
 	std::string & name = getName();
 	ap_texpr1_t * value_texpr = incomingValue->createTreeExpression(state);
-	state.m_apronAbstractState.forget(name);
 	state.m_apronAbstractState.assign(name, value_texpr);
 }
 
