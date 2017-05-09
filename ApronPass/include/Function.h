@@ -35,6 +35,7 @@ public:
 	bool isUserPointer(std::string & ptrname);
 	std::vector<std::string> getUserPointers();
 	std::vector<std::string> getConstrainedUserPointers(AbstractState & state);
+	std::map<BasicBlock *, AbstractState> m_memOpsAbstractStates;
 	// Kept for debug purposes only
 	virtual ap_abstract1_t trimAbstractValue(AbstractState & state);
 	virtual AbstractState & getReturnAbstractState();

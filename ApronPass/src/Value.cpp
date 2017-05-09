@@ -1786,9 +1786,9 @@ void BranchInstructionValue::updateAssumptions(
 	condition->updateConditionalAssumptions(state, isNegated);
 	// We assume that the condition contains the result of the memory
 	// operation, if there was one in the basic block
-	if (state.isHasMemoryOperation) {
+	if (state.m_isHasMemoryOperation) {
 		handleBufferAccessConstraints(source, dest, state);
-		state.isHasMemoryOperation = false;
+		state.m_isHasMemoryOperation = false;
 		state.memoryAccessAbstractValues.clear();
 	}
 }

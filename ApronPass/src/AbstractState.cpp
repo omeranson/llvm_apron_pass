@@ -138,11 +138,10 @@ void AbstractState::updateUserOperationAbstract1() {
 	if (memoryAccessAbstractValues.empty()) {
 		return;
 	}
-	isHasMemoryOperation = true;
+	m_isHasMemoryOperation = true;
 	for (MemoryAccessAbstractValue & maav : memoryAccessAbstractValues) {
 		updateByMemoryOperation(maav);
 	}
-	llvm::errs() << "AbstractState::updateUserOperationAbstract1: Result: " << m_apronAbstractState;
 }
 
 bool AbstractState::joinMemoryOperationState(const memory_operation_state_e & other) {

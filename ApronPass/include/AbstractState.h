@@ -126,7 +126,7 @@ public:
 	// (Apron) analysis of (user) read/write/last0 pointers
 	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
 	memory_operation_state_e m_mos = memory_operation_state_bottom;
-	bool isHasMemoryOperation = false;
+	bool m_isHasMemoryOperation = false;
 	static const std::string & generateOffsetName(
 			const std::string & valueName, const std::string & bufname);
 	static const std::string & generateLastName(

@@ -16,7 +16,7 @@ __attribute__((always_inline)) long extract_random(char __user *buf, uint count,
  char tmp[RNDSIZE];
  char *q = buf;
  uint i;
- long n = count;
+ long n = min(count,BUFSIZE);
  while (n) {
   // ...  
   extract_buf(tmp);

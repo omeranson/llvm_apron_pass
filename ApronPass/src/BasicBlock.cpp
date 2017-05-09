@@ -219,8 +219,17 @@ void BasicBlock::update(AbstractState & state) {
 		llvm::Instruction & inst = *it;
 		processInstruction(state, inst);
 	}
-	state.updateUserOperationAbstract1();
-	std::vector<std::string> userBuffers = getFunction()->getUserPointers();
+	Function * function = getFunction();
+	if (!state.memoryAccessAbstractValues.empty()) {
+		function->m_memOpsAbstractStates[this] = state;
+		AbstractState & copy = function->m_memOpsAbstractStates[this];
+		state.memoryAccessAbstractValues.clear();
+		copy.updateUserOperationAbstract1();
+		if (Debug) {
+			llvm::errs() << getName() << ": State with memory: " << copy << "\n";
+		}
+	}
+	std::vector<std::string> userBuffers = function->getUserPointers();
 	bool isReduceChanged = state.reduce(userBuffers);
 	if (Debug) {
 		llvm::errs() << getName() << ": Update: " << prev << " -> " << state;

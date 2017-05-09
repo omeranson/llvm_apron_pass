@@ -127,7 +127,7 @@ bool Function::isVarInOut(const char * varname) {
 		return true;
 	}
 	return isSizeVariable(varname) ||
-			isOffsetVariable(varname) ||
+			// isOffsetVariable(varname) ||
 			isLastVariable(varname) ||
 			isFunctionParameter(varname);
 }
@@ -215,18 +215,8 @@ std::map<std::string, ApronAbstractState> Function::getErrorStates() {
 ApronAbstractState Function::getSuccessState() {
 	ApronAbstractState result = ApronAbstractState::bottom();
 	std::vector<ApronAbstractState> successStates;
-	BasicBlockManager & basicBlockManager = BasicBlockManager::getInstance();
-	for (llvm::BasicBlock & llvmbb : *m_function) {
-		BasicBlock * bb = basicBlockManager.getBasicBlock(&llvmbb);
-		AbstractState & state = bb->getAbstractState();
-		if (state.m_mos != memory_operation_state_success) {
-			continue;
-		}
-		std::vector<std::string> constrainedBuffers = getConstrainedUserPointers(state);
-		if (constrainedBuffers.empty()) {
-			continue;
-		}
-		successStates.push_back(state.m_apronAbstractState);
+	for (auto & memOpsState : m_memOpsAbstractStates) {
+		successStates.push_back(memOpsState.second.m_apronAbstractState);
 	}
 	result.join(successStates);
 	return result;

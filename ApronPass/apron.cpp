@@ -245,6 +245,10 @@ namespace
 					return runOnAlias(*alias);
 				}
 			}
+			return false;
+		}
+		for (auto & function : module) {
+			runOnFunction(function);
 		}
 		return false;
 	}
