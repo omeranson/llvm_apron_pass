@@ -381,11 +381,26 @@ void Alias::populateUserPointers() {
 }
 
 llvm::FunctionType * Alias::getFunctionType() {
-	llvm::Instruction * bitCastInst = llvm::dyn_cast<llvm::ConstantExpr>(m_alias->getAliasee())->getAsInstruction();
-	llvm::Type * type = bitCastInst->getType();
-	llvm::FunctionType * ftype = llvm::dyn_cast<llvm::FunctionType>(type->getPointerElementType());
-	delete bitCastInst;
-	return ftype;
+	llvm::FunctionType * ftype;
+	llvm::GlobalValue * asGlobVal = m_alias->getAliasedGlobal();
+	if (asGlobVal) {
+		llvm::Function * function = llvm::dyn_cast<llvm::Function>(asGlobVal);
+		if (function) {
+			return function->getFunctionType();
+		}
+		abort();
+	}
+	llvm::Value * aliasee = m_alias->getAliasee();
+
+	llvm::ConstantExpr * asConstExpr = llvm::dyn_cast<llvm::ConstantExpr>(aliasee);
+	if (asConstExpr) {
+		llvm::Instruction * bitCastInst = asConstExpr->getAsInstruction();
+		llvm::Type * type = bitCastInst->getType();
+		llvm::FunctionType * ftype = llvm::dyn_cast<llvm::FunctionType>(type->getPointerElementType());
+		delete bitCastInst;
+		return ftype;
+	}
+	abort();
 }
 
 std::vector<std::pair<std::string, std::string> > Alias::getArgumentStrings() {
