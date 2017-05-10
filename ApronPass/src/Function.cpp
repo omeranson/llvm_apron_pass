@@ -45,9 +45,28 @@ Function * FunctionManager::getFunction(llvm::GlobalAlias * alias) {
 	return result;
 }
 
-Function::Function(llvm::Function * function) : m_function(function), m_name(function->getName()) {}
+Function::Function(llvm::Function * function) : m_function(function), m_name(function->getName()),
+		m_returnValueState(ApronAbstractState::bottom()) {
+	populateUserPointers();
+}
+
+void Function::populateUserPointers() {
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	for (const llvm::Argument & argument : arguments) {
+		if (argument.getType()->isPointerTy()) {
+			std::string name = argument.getName().str();
+			m_userPointers.insert(name);
+		}
+	}
+	llvm::errs() << "User pointers (function):\n";
+	for (const std::string & ptr : m_userPointers) {
+		llvm::errs() << "\t" << ptr << "\n";
+	}
+}
+
 bool Function::isUserPointer(std::string & ptrname) {
-	return ptrname.find("buf") == 0;
+	//return ptrname.find("buf") == 0;
+	return (m_userPointers.count(ptrname) == 1);
 }
 
 llvm::ReturnInst * Function::getReturnInstruction() {
@@ -78,6 +97,10 @@ const std::string & Function::getReturnValueName() {
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * returnValueValue = factory->getValue(returnValue);
 	return returnValueValue->getName();
+}
+
+ApronAbstractState & Function::getReturnValue() {
+	return m_returnValueState;
 }
 
 bool Function::isSizeVariable(const char * varname) {
@@ -164,12 +187,8 @@ AbstractState & Function::getReturnAbstractState() {
 
 std::vector<std::string> Function::getUserPointers() {
 	std::vector<std::string> result;
-	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
-	for (const llvm::Argument & argument : arguments) {
-		std::string name = argument.getName().str();
-		if (isUserPointer(name)) {
-			result.push_back(name);
-		}
+	for (const std::string & buffer : m_userPointers) {
+		result.push_back(buffer);
 	}
 	return result;
 }
@@ -338,22 +357,46 @@ BasicBlock * Function::getRoot() const {
 }
 
 Alias::Alias(llvm::GlobalAlias * alias, llvm::Function * function) :
-		Function(function), m_alias(alias) {
+		m_alias(alias), Function(function) {
 	m_name = alias->getName();
+	m_userPointers.clear();
+	populateUserPointers();
+}
+
+void Alias::populateUserPointers() {
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	llvm::FunctionType * ftype = getFunctionType();
+	int idx = 0;
+	for (const llvm::Argument & argument : arguments) {
+		if (ftype->getParamType(idx)->isPointerTy()) {
+			std::string name = argument.getName().str();
+			m_userPointers.insert(name);
+		}
+		idx++;
+	}
+	llvm::errs() << "User pointers (alias):\n";
+	for (const std::string & ptr : m_userPointers) {
+		llvm::errs() << "\t" << ptr << "\n";
+	}
+}
+
+llvm::FunctionType * Alias::getFunctionType() {
+	llvm::Instruction * bitCastInst = llvm::dyn_cast<llvm::ConstantExpr>(m_alias->getAliasee())->getAsInstruction();
+	llvm::Type * type = bitCastInst->getType();
+	llvm::FunctionType * ftype = llvm::dyn_cast<llvm::FunctionType>(type->getPointerElementType());
+	delete bitCastInst;
+	return ftype;
 }
 
 std::vector<std::pair<std::string, std::string> > Alias::getArgumentStrings() {
 	std::vector<std::pair<std::string, std::string> > result;
 	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
-	llvm::Instruction * bitCastInst = llvm::dyn_cast<llvm::ConstantExpr>(m_alias->getAliasee())->getAsInstruction();
-	llvm::Type * type = bitCastInst->getType();
+	llvm::FunctionType * ftype = getFunctionType();
 	int idx = 0;
-	llvm::FunctionType * ftype = llvm::dyn_cast<llvm::FunctionType>(type->getPointerElementType());
 	for (const llvm::Argument & argument : arguments) {
 		result.push_back(std::make_pair(getTypeString(ftype->getParamType(idx)), argument.getName()));
 		idx++;
 	}
-	delete bitCastInst;
 	return result;
 }
 

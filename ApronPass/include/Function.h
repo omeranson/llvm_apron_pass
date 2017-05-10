@@ -30,17 +30,21 @@ protected:
 			std::map<std::string, ApronAbstractState> & result,
 			AbstractState & state,
 			std::vector<std::string> & userBuffers);
+	virtual void populateUserPointers();
 public:
 	Function(llvm::Function * function);
 	bool isUserPointer(std::string & ptrname);
 	std::vector<std::string> getUserPointers();
 	std::vector<std::string> getConstrainedUserPointers(AbstractState & state);
 	std::map<BasicBlock *, AbstractState> m_successMemOpsAbstractStates;
+	std::set<std::string> m_userPointers;
+	ApronAbstractState m_returnValueState;
 	// Kept for debug purposes only
 	virtual ap_abstract1_t trimAbstractValue(AbstractState & state);
 	virtual AbstractState & getReturnAbstractState();
 	virtual llvm::ReturnInst * getReturnInstruction();
 	virtual BasicBlock * getReturnBasicBlock();
+	virtual ApronAbstractState & getReturnValue();
 	virtual bool isVarInOut(const char * varname);
 	virtual bool isSizeVariable(const char * varname);
 	virtual bool isLastVariable(const char * varname);
@@ -66,6 +70,8 @@ public:
 class Alias : public Function {
 protected:
 	llvm::GlobalAlias * m_alias;
+	virtual llvm::FunctionType * getFunctionType();
+	virtual void populateUserPointers();
 public:
 	Alias(llvm::GlobalAlias * alias, llvm::Function * function);
 	virtual std::vector<std::pair<std::string, std::string> > getArgumentStrings();

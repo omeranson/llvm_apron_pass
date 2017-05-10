@@ -73,6 +73,7 @@ AbstractState::AbstractState(std::vector<std::string> & userBuffers) :
 		m_mayPointsTo(userBuffers) {
 	m_apronAbstractState.start_meet_aggregate();
 	for (const std::string & buffer : userBuffers) {
+		llvm::errs() << "Addung user buffer: " << buffer << "\n";
 		const std::string & offsetName = generateOffsetName(buffer, buffer);
 		ap_texpr1_t * zero = m_apronAbstractState.asTexpr((int64_t)0);
 		m_apronAbstractState.assign(offsetName, zero);

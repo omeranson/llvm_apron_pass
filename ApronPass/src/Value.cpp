@@ -319,6 +319,14 @@ protected:
 public:
 	ReturnInstValue(llvm::Value * value) : TerminatorInstructionValue(value) {}
 	virtual std::string toString() ;
+	virtual bool isSkip() { return false; }
+	virtual void update(AbstractState & state) {
+		//ApronAbstractState copy = state.m_apronAbstractState;
+		Function * function = getFunction();
+		//ApronAbstractState minimized = function->minimize(copy);
+		//function->m_returnValueState.join(minimized);
+		function->m_returnValueState = state.m_apronAbstractState;
+	}
 };
 
 llvm::ReturnInst * ReturnInstValue::asReturnInst()  {
@@ -808,6 +816,9 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("copy_from_user" == funcName) {
 		return true;
 	}
+	if ("_copy_from_user" == funcName) {
+		return true;
+	}
 	if ("strnlen_user" == funcName) {
 		return true;
 	}
@@ -867,6 +878,10 @@ void CallValue::update(AbstractState & state) {
 			return;
 		}
 		if ("copy_from_user" == funcName) {
+			updateForCopyFromUser(state);
+			return;
+		}
+		if ("_copy_from_user" == funcName) {
 			updateForCopyFromUser(state);
 			return;
 		}
@@ -1047,7 +1062,7 @@ void CallValue::updateForCopyToFromUser(AbstractState & state,
 		user_pointer_operation_e op) {
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 3);
-	Value * ptr = getOperandValue(0);
+	Value * ptr = getOperandValue(op == user_pointer_operation_write ? 0 : 1);
 	Value * sizeValue = getOperandValue(2);
 	ap_texpr1_t * size = sizeValue->createTreeExpression(state);
 	updateForUserMemoryOperation(state, ptr, size, op);

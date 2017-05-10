@@ -237,8 +237,6 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	std::multimap<std::string, ApronAbstractState> errorStates = function->getErrorStates();
 	ApronAbstractState successState = function->getSuccessState();
 
-	AbstractState & abstractState = function->getReturnAbstractState();
-	ApronAbstractState & apronAbstractState = abstractState.m_apronAbstractState;
 	const std::vector<ImportIovecCall> & importIovecCalls = function->getImportIovecCalls();
 	const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls =
 			function->getCopyMsghdrFromUserCalls();
@@ -252,7 +250,8 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 		s << preamble(&call);
 	}
 	const std::string & returnValueName = function->getReturnValueName();
-	ApronAbstractState minimizedReturnState = function->minimize(apronAbstractState);
+	ApronAbstractState & returnState = function->getReturnValue();
+	ApronAbstractState minimizedReturnState = function->minimize(returnState);
 	auto returnStateRenames = minimizedReturnState.renameVarsForC();
 	std::string renamedRetValName = returnStateRenames[returnValueName];
 	if (renamedRetValName.empty()) {
@@ -310,7 +309,9 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 			renamedVar = &it->second;
 		}
 		const std::string & last_name = AbstractState::generateLastName(*renamedVar, user_pointer_operation_write);
-		s << depth << "HAVOC_SIZE(" << *renamedVar << ", " << last_name << ");\n";
+		if (successState.isKnown(last_name)) {
+			s << depth << "HAVOC_SIZE(" << *renamedVar << ", " << last_name << ");\n";
+		}
 	}
 	for (const ImportIovecCall & call : importIovecCalls) {
 		s << modification(&call);
