@@ -8,6 +8,7 @@
 #include <ap_environment.h>
 
 extern ap_manager_t * apron_manager;
+extern bool Debug;
 
 // In place
 void changeToLeastCommonEnv(ap_abstract1_t & a1, ap_abstract1_t & a2, bool isBottom) {
@@ -19,9 +20,9 @@ void changeToLeastCommonEnv(ap_abstract1_t & a1, ap_abstract1_t & a2, bool isBot
 			&dimchange1, &dimchange2);
 
 	a1 = ap_abstract1_change_environment(
-			apron_manager, false, &a1, environment, isBottom);
+			apron_manager, true, &a1, environment, isBottom);
 	a2 = ap_abstract1_change_environment(
-			apron_manager, false, &a2, environment, isBottom);
+			apron_manager, true, &a2, environment, isBottom);
 }
 
 
@@ -31,6 +32,25 @@ ApronAbstractState::ApronAbstractState(const ap_abstract1_t & abst) :
 ApronAbstractState::ApronAbstractState(const ap_abstract1_t * abst) :
 		m_abstract1(*abst) {}
 
+ApronAbstractState::ApronAbstractState(const ApronAbstractState& other) :
+		m_abstract1(ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1)) {}
+
+ApronAbstractState & ApronAbstractState::operator=(const ApronAbstractState& other) {
+	ap_abstract1_clear(apron_manager, &m_abstract1);
+	m_abstract1 = ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1);
+	return *this;
+}
+
+ApronAbstractState & ApronAbstractState::operator=(const ap_abstract1_t& other) {
+	ap_abstract1_clear(apron_manager, &m_abstract1);
+	m_abstract1 = other;
+	return *this;
+}
+
+ApronAbstractState::~ApronAbstractState() {
+	ap_abstract1_clear(apron_manager, &m_abstract1);
+}
+
 ApronAbstractState ApronAbstractState::top() {
 	ap_abstract1_t abst = ap_abstract1_top(apron_manager, ap_environment_alloc_empty());
 	return abst;
@@ -39,6 +59,12 @@ ApronAbstractState ApronAbstractState::top() {
 ApronAbstractState ApronAbstractState::bottom() {
 	ap_abstract1_t abst = ap_abstract1_bottom(apron_manager, ap_environment_alloc_empty());
 	return abst;
+}
+
+ap_scalar_t * ApronAbstractState::zero() {
+	ap_scalar_t* zero = ap_scalar_alloc ();
+	ap_scalar_set_int(zero, 0);
+	return zero;
 }
 
 ap_environment_t * ApronAbstractState::getEnvironment() const {
@@ -55,60 +81,46 @@ void ApronAbstractState::extendEnvironment(ap_tcons1_t * tcons) {
 	assert(!failed);
 }
 
-bool ApronAbstractState::join(const ApronAbstractState & other) {
-	++joinCount;
-	if (other.isBottom()) {
-		return false;
-	}
-	if (other.isTop()) {
-		bool result = isTop();
-		m_abstract1 = other.m_abstract1;
-		return result;
-	}
-	if (isBottom()) {
-		// other is *not* bottom
-		m_abstract1 = other.m_abstract1;
-		return true;
-	}
-	ap_abstract1_t prev = m_abstract1;
-	ap_abstract1_t this_abst = m_abstract1;
-	ap_abstract1_t other_abst = other.m_abstract1;
+bool ApronAbstractState::widen(const ApronAbstractState & other) {
+	ap_abstract1_t prev = ap_abstract1_copy(apron_manager, &m_abstract1);
+	ap_abstract1_t other_abst = ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1);
+	ap_abstract1_t this_abst = ap_abstract1_copy(apron_manager, &m_abstract1);
 	changeToLeastCommonEnv(this_abst, other_abst, true);
 
-	if ((joinCount % m_wideningThreshold) == 0) {
-		llvm::errs() << "Widening:\n";
-		m_abstract1 = ap_abstract1_widening(apron_manager,
-				&this_abst, &other_abst);
-	} else {
-		m_abstract1 = ap_abstract1_join(apron_manager, false,
-				&this_abst, &other_abst);
+	if (!ap_abstract1_is_leq(apron_manager, &this_abst, &other_abst)) {
+		other_abst = ap_abstract1_join(apron_manager, true, &other_abst, &this_abst);
 	}
-	return (*this != prev);
+	m_abstract1 = ap_abstract1_widening(apron_manager,
+			&this_abst, &other_abst);
+	bool isChanged = (*this != prev);
+	ap_abstract1_clear(apron_manager, &other_abst);
+	ap_abstract1_clear(apron_manager, &this_abst);
+	return isChanged;
+}
+
+bool ApronAbstractState::join(const ApronAbstractState & other) {
+	ap_abstract1_t prev = ap_abstract1_copy(apron_manager, &m_abstract1);
+	ap_abstract1_t other_abst = ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1);
+	changeToLeastCommonEnv(m_abstract1, other_abst, true);
+
+	m_abstract1 = ap_abstract1_join(apron_manager, true,
+			&m_abstract1, &other_abst);
+	bool isChanged = (*this != ApronAbstractState(prev));
+	ap_abstract1_clear(apron_manager, &other_abst);
+	return isChanged;
 }
 
 bool ApronAbstractState::meet(const ApronAbstractState & other) {
-	if (isBottom()) {
-		return false;
-	}
-	if (other.isTop()) {
-		return false;
-	}
-	if (other.isBottom()) {
-		m_abstract1 = other.m_abstract1;
-		return true;
-	}
-	if (isTop()) {
-		// other is *not* top
-		m_abstract1 = other.m_abstract1;
-		return true;
-	}
-	ap_abstract1_t prev = m_abstract1;
-	ap_abstract1_t this_abst = m_abstract1;
-	ap_abstract1_t other_abst = other.m_abstract1;
-	changeToLeastCommonEnv(this_abst, other_abst, true);
-	m_abstract1 = ap_abstract1_meet(apron_manager, false,
+	ap_abstract1_t prev = ap_abstract1_copy(apron_manager, &m_abstract1);
+	ap_abstract1_t this_abst = ap_abstract1_copy(apron_manager, &m_abstract1);
+	ap_abstract1_t other_abst = ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1);
+	changeToLeastCommonEnv(this_abst, other_abst, false);
+	ap_abstract1_clear(apron_manager, &m_abstract1);
+	m_abstract1 = ap_abstract1_meet(apron_manager, true,
 			&this_abst, &other_abst);
-	return (*this != prev);
+	bool isChanged = (*this != ApronAbstractState(prev));
+	ap_abstract1_clear(apron_manager, &other_abst);
+	return isChanged;
 }
 
 bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
@@ -116,9 +128,10 @@ bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
 		return false;
 	}
 	ApronAbstractState prev = *this;
-	unsigned size = others.size();
+	unsigned size = others.size() + 1;
 	std::vector<ap_environment_t*> envs;
 	envs.reserve(size);
+	envs.push_back(getEnvironment());
 	for (const ApronAbstractState & aas : others) {
 		envs.push_back(aas.getEnvironment());
 	}
@@ -127,22 +140,34 @@ bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
 			envs.data(), envs.size(), &ptdimchange);
 	std::vector<ap_abstract1_t> values;
 	values.reserve(size);
+	values.push_back(ap_abstract1_change_environment(apron_manager,
+				true, &m_abstract1, environment, true));
 	for (const ApronAbstractState & aas : others) {
-		envs.push_back(aas.getEnvironment());
-		ap_abstract1_t abstract1_copy = aas.m_abstract1;
 		values.push_back(ap_abstract1_change_environment(apron_manager,
-				false, &abstract1_copy, environment, true));
+				false, (ap_abstract1_t*)&aas.m_abstract1, environment, true));
 	}
-	ap_abstract1_t abstract1 = ap_abstract1_join_array(apron_manager,
+	m_abstract1 = ap_abstract1_join_array(apron_manager,
 			values.data(), values.size());
-	return join(abstract1);
+	for (ap_abstract1_t & value : values) {
+		ap_abstract1_clear(apron_manager, &value);
+	}
+	return (prev == *this);
 }
 
 void ApronAbstractState::assign(const std::string & var, ap_texpr1_t * value) {
-	extend(var, false);
 	ap_var_t apvar = (ap_var_t)var.c_str();
-	m_abstract1 = ap_abstract1_assign_texpr(apron_manager, false,
-			&m_abstract1, apvar, value, NULL);
+	if (!isKnown(var)) {
+		extend(var, false);
+		m_abstract1 = ap_abstract1_assign_texpr(apron_manager, true,
+				&m_abstract1, apvar, value, NULL);
+	} else {
+		static const std::string tmp_name = "__tmp_apron_ppl_varname";
+		extend(tmp_name);
+		ap_var_t aptmpvar = (ap_var_t)tmp_name.c_str();
+		m_abstract1 = ap_abstract1_assign_texpr(apron_manager, true,
+				&m_abstract1, aptmpvar, value, NULL);
+		rename(tmp_name, var);
+	}
 }
 
 void ApronAbstractState::extend(const std::string & var, bool isBottom) {
@@ -152,7 +177,7 @@ void ApronAbstractState::extend(const std::string & var, bool isBottom) {
 	ap_environment_t * environment = ap_abstract1_environment(apron_manager, &m_abstract1);
 	ap_var_t apvar = (ap_var_t)strdup(var.c_str());
 	environment = ap_environment_add(environment, &apvar, 1, NULL, 0);
-	m_abstract1 = ap_abstract1_change_environment(apron_manager, false,
+	m_abstract1 = ap_abstract1_change_environment(apron_manager, true,
 			&m_abstract1, environment, isBottom);
 }
 
@@ -171,7 +196,7 @@ void ApronAbstractState::minimize(const std::string & var) {
 }
 
 void ApronAbstractState::minimize() {
-	m_abstract1 = ap_abstract1_minimize_environment(apron_manager, false,
+	m_abstract1 = ap_abstract1_minimize_environment(apron_manager, true,
 			&m_abstract1);
 }
 
@@ -222,6 +247,21 @@ void ApronAbstractState::makeBottom() {
 	m_meetAggregates.clear();
 }
 
+void ApronAbstractState::rename(const std::string & orig, const std::string & new_) {
+	ap_var_t origapvar = (ap_var_t)orig.c_str();
+	ap_var_t newapvar = (ap_var_t)new_.c_str();
+	if (isKnown(new_)) {
+		forget(new_);
+		ap_environment_t * environment = ap_environment_remove(
+				getEnvironment(), &newapvar, 1);
+		m_abstract1 = ap_abstract1_change_environment(apron_manager, true,
+				&m_abstract1, environment, false);
+	}
+	m_abstract1 = ap_abstract1_rename_array(
+			apron_manager, true, &m_abstract1,
+			&origapvar, &newapvar, 1);
+}
+
 std::string ApronAbstractState::renameVarForC(const std::string & varName) {
 	std::string newName = varName;
 	bool startOfSym = true;
@@ -264,14 +304,14 @@ std::map<std::string, std::string> ApronAbstractState::renameVarsForC() {
 		assert(!collision);
 	}
 	m_abstract1 = ap_abstract1_rename_array(
-			apron_manager, false, &m_abstract1,
+			apron_manager, true, &m_abstract1,
 			oldnames.data(), newnames.data(), env_size);
 	return renameMap;
 }
 
 void ApronAbstractState::meet(ap_tcons1_array_t & tconsarray) {
 	m_abstract1 = ap_abstract1_meet_tcons_array(
-			apron_manager, false, &m_abstract1, &tconsarray);
+			apron_manager, true, &m_abstract1, &tconsarray);
 }
 
 bool ApronAbstractState::isTop() const {
@@ -298,6 +338,47 @@ bool ApronAbstractState::operator==(const ApronAbstractState &other) const {
 bool ApronAbstractState::operator!=(const ApronAbstractState &other) const {
 	return !(*this == other);
 }
+
+bool ApronAbstractState::operator<=(const ApronAbstractState & other) const {
+	ap_environment_t * my_env = (ap_environment_t*)getEnvironment();
+	ap_environment_t * other_env = (ap_environment_t*)other.getEnvironment();
+	if (!ap_environment_is_leq(my_env, other_env)) {
+		return false;
+	}
+	ap_abstract1_t this_abst = ap_abstract1_change_environment(
+			apron_manager, false,
+			(ap_abstract1_t*)&m_abstract1, other_env, true);
+	bool isLeq = ap_abstract1_is_leq(apron_manager, &this_abst,
+			(ap_abstract1_t*)&other.m_abstract1);
+	ap_abstract1_clear(apron_manager, &this_abst);
+	return isLeq;
+}
+
+bool ApronAbstractState::isSat(ap_tcons1_t & cons) const {
+	bool isSat = !!(ap_abstract1_sat_tcons(apron_manager, (ap_abstract1_t*)&m_abstract1, &cons));
+	ap_tcons1_clear(&cons);
+	return isSat;
+}
+
+bool ApronAbstractState::isPosssiblyNotZero(const std::string & var) const {
+	if (!isKnown(var)) {
+		return true;
+	}
+	ap_var_t apvar = (ap_var_t)var.c_str();
+	ap_texpr1_t * apvarexpr = ap_texpr1_var(getEnvironment(), apvar);
+	ap_tcons1_t isZero = ap_tcons1_make(AP_CONS_EQ, apvarexpr, zero());
+	return !(isSat(isZero));
+}
+
+bool ApronAbstractState::isConstrained(const std::string & var) const {
+	if (!isKnown(var)) {
+		return false;
+	}
+	ap_var_t apvar = (ap_var_t)var.c_str();
+	return !ap_abstract1_is_variable_unconstrained(apron_manager,
+			(ap_abstract1_t*)&m_abstract1, apvar);
+}
+
 
 ap_texpr1_t * ApronAbstractState::asTexpr(const std::string & var) {
 	extend(var);

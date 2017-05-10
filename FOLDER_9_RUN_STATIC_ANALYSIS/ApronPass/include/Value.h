@@ -26,9 +26,12 @@ protected:
 	Value * createInstructionValue(llvm::Instruction *);
 	Value * createConstantValue(llvm::Constant *);
 	ValueFactory();
+
+	std::map<Value *, llvm::Value *> m_createdInstances;
 public:
 	Value * getValue(llvm::Value *);
 	static ValueFactory * getInstance();
+	static void deleteCreatedInstances();
 };
 
 class Value { 
@@ -46,15 +49,16 @@ public:
 	virtual std::string toString();
 	virtual bool isSkip();
 	virtual bool isPointer();
+	virtual bool isConstant() const;
 
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
-	virtual ap_tcons1_t getValueEq0Tcons(
-			BasicBlock * basicBlock);
 	virtual void havoc(AbstractState & state);
+	virtual void assign0(AbstractState & state);
 
-	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
+	virtual const std::set<std::string> * mayPointsToUserBuffers(AbstractState & state);
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
+	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated);
 
 	virtual unsigned getBitSize();
 	virtual unsigned getByteSize();
@@ -73,21 +77,16 @@ protected:
 public:
 	InstructionValue(llvm::Value * value) : Value(value) {}
 	virtual void update(AbstractState & state);
-	// @deprecated
-	virtual void populateTreeConstraints(
-			std::list<ap_tcons1_t> & constraints);
 	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 	virtual Value * getOperandValue(int idx);
-	virtual void populateMayPointsToUserBuffers(MPTItemAbstractState & buffers);
+	virtual const std::set<std::string> * mayPointsToUserBuffers(AbstractState & state);
 	virtual bool isSkip();
-	virtual void forget();
 };
 
 class TerminatorInstructionValue : public InstructionValue {
 public:
 	TerminatorInstructionValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual bool isSkip();
-	virtual ap_tcons1_array_t getBasicBlockConstraints(BasicBlock * basicBlock);
 };
 
 #endif

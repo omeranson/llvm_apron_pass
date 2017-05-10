@@ -21,9 +21,9 @@ public:
 	}
 };
 
-MemoryAccessAbstractValue::MemoryAccessAbstractValue(const std::string & pointer, const std::string & buffer,
+MemoryAccessAbstractValue::MemoryAccessAbstractValue(const std::string & var, const std::string & pointer, const std::string & buffer,
 		ap_texpr1_t * size, user_pointer_operation_e operation)
-		: pointer(pointer), buffer(buffer), size(size), operation(operation) {}
+		: var(var), pointer(pointer), buffer(buffer), size(size), operation(operation) {}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -31,19 +31,51 @@ AbstractState::AbstractState() : m_apronAbstractState(ApronAbstractState::bottom
 	m_mayPointsTo.m_mayPointsTo["null"].insert("null");
 }
 
+template <class T>
+bool inVector(const std::vector<T> & v, const T & item) {
+	for (const T & t : v) {
+		if (t == item) {
+			return true;
+		}
+	}
+	return false;
+}
+
+template <class T>
+bool joinVectors(std::vector<T> & dest, const std::vector<T> & src) {
+	bool isChanged = false;
+	for (const T & item : src) {
+		if (!inVector(dest, item)) {
+			dest.push_back(item);
+			isChanged = true;
+		}
+	}
+	return isChanged;
+}
+
+template <class T>
+bool meetVectors(std::vector<T> & dest, const std::vector<T> & src) {
+	bool isChanged = false;
+	for (auto it = dest.begin(), ie = dest.end();
+			it != ie; it++) {
+		if (!inVector(src, *it)) {
+			it = dest.erase(it);
+			isChanged = true;
+		}
+	}
+	return isChanged;
+}
+
 // This is the constructor used for the root abstract state - which is Top,
 // and not Bottom
 AbstractState::AbstractState(std::vector<std::string> & userBuffers) :
 		m_apronAbstractState(ApronAbstractState::top()),
 		m_mayPointsTo(userBuffers) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
 	m_apronAbstractState.start_meet_aggregate();
 	for (const std::string & buffer : userBuffers) {
 		const std::string & offsetName = generateOffsetName(buffer, buffer);
-		ap_texpr1_t * offsetTexpr = m_apronAbstractState.asTexpr(offsetName);
-		ap_tcons1_t offsetGeq0 = ap_tcons1_make(AP_CONS_SUPEQ, offsetTexpr, zero);
-		m_apronAbstractState.meet(offsetGeq0);
+		ap_texpr1_t * zero = m_apronAbstractState.asTexpr((int64_t)0);
+		m_apronAbstractState.assign(offsetName, zero);
 	}
 	m_apronAbstractState.finish_meet_aggregate();
 }
@@ -62,58 +94,73 @@ const std::string & AbstractState::generateLastName(const std::string & bufname,
 	return rso.uniq_str();
 }
 
+const std::string & AbstractState::generateSizeName(const std::string & bufname) {
+	static std::set<std::string> names;
+	raw_uniq_string_ostream rso(names);
+	rso << "size(" << bufname << ")";
+	return rso.uniq_str();
+}
+
 ap_manager_t * AbstractState::getManager() const {
 	return apron_manager;
+}
+
+void AbstractState::updateByMemoryOperation(MemoryAccessAbstractValue & maav) {
+	const std::string & offsetName = generateOffsetName(maav.pointer, maav.buffer);
+	const std::string & lastName = generateLastName(maav.buffer, maav.operation);
+	bool isLastKnown = m_apronAbstractState.isKnown(lastName);
+
+	m_apronAbstractState.extend(offsetName);
+	m_apronAbstractState.extend(lastName);
+	ap_texpr1_t * offset = m_apronAbstractState.asTexpr(offsetName);
+
+	// last <= offset + size
+	m_apronAbstractState.extendEnvironment(maav.size);
+	ap_texpr1_t * last_value = ap_texpr1_binop(
+			AP_TEXPR_ADD, offset, maav.size,
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+
+	if (!m_apronAbstractState.isKnown(lastName)) {
+		m_apronAbstractState.assign(lastName, last_value);
+	} else {
+		ap_texpr1_t * difference = ap_texpr1_binop(
+				AP_TEXPR_SUB, m_apronAbstractState.asTexpr(lastName), ap_texpr1_copy(last_value),
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, difference, m_apronAbstractState.zero());
+		if (!ap_abstract1_sat_tcons(apron_manager, &m_apronAbstractState.m_abstract1, &cons)) {
+			m_apronAbstractState.assign(lastName, last_value);
+		}
+		ap_tcons1_clear(&cons);
+	}
 }
 
 void AbstractState::updateUserOperationAbstract1() {
 	if (memoryAccessAbstractValues.empty()) {
 		return;
 	}
-	// TODO definitely make into a global
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-
-	ap_manager_t * manager = getManager();
-	// Construct the environment
-	unsigned size = memoryAccessAbstractValues.size();
-	std::vector<ApronAbstractState> values;
+	m_isHasMemoryOperation = true;
 	for (MemoryAccessAbstractValue & maav : memoryAccessAbstractValues) {
-		const std::string & offsetName = generateOffsetName(maav.pointer, maav.buffer);
-		const std::string & lastName = generateLastName(maav.buffer, maav.operation);
-		ApronAbstractState apronState = m_apronAbstractState;
-		apronState.extend(offsetName);
-		apronState.forget(lastName);
-		apronState.extend(lastName);
-		ap_texpr1_t * offset = apronState.asTexpr(offsetName);
-		ap_texpr1_t * last = apronState.asTexpr(lastName);
-
-		apronState.start_meet_aggregate();
-		// last >= offset
-		ap_texpr1_t * startOffset = ap_texpr1_binop(
-				AP_TEXPR_SUB, ap_texpr1_copy(last), ap_texpr1_copy(offset),
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_tcons1_t lastGeqOffset = ap_tcons1_make(AP_CONS_SUPEQ, startOffset, zero);
-		apronState.meet(lastGeqOffset);
-
-		// last <= offset + size
-		apronState.extendEnvironment(maav.size);
-		ap_texpr1_t * end = ap_texpr1_binop(
-				AP_TEXPR_ADD, offset, maav.size,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_texpr1_t * endOffset = ap_texpr1_binop(
-				AP_TEXPR_SUB, end, last,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_tcons1_t lastLeqEnd = ap_tcons1_make(AP_CONS_SUPEQ, endOffset, zero);
-		apronState.meet(lastLeqEnd);
-		apronState.finish_meet_aggregate();
-
-		values.push_back(apronState);
+		updateByMemoryOperation(maav);
 	}
-	memoryAccessAbstractValues.clear();
-	ApronAbstractState aas = ApronAbstractState::bottom();
-	aas.join(values);
-	m_apronAbstractState = aas;
+}
+
+bool AbstractState::joinMemoryOperationState(const memory_operation_state_e & other) {
+	if (other == m_mos) {
+		return false;
+	}
+	if (m_mos == memory_operation_state_top) {
+		return false;
+	}
+	if (other == memory_operation_state_bottom) {
+		return false;
+	}
+	if (m_mos == memory_operation_state_bottom) {
+		m_mos = other;
+		return true;
+	}
+	// Not equal, not top, nor bottom, so I must change to top
+	m_mos = memory_operation_state_top;
+	return true;
 }
 
 bool AbstractState::join(AbstractState &other)
@@ -124,7 +171,34 @@ bool AbstractState::join(AbstractState &other)
 	// Join (Apron) analysis of integers
 	isChanged = m_apronAbstractState.join(other.m_apronAbstractState) || isChanged;
 	// Join (Apron) analysis of (user) read/write/last0 pointers
-	// TODO(oanson) TBD
+	isChanged = joinVectors(m_importedIovecCalls, other.m_importedIovecCalls) || isChanged;
+	isChanged = joinVectors(m_copyMsghdrFromUserCalls, other.m_copyMsghdrFromUserCalls) || isChanged;
+	isChanged = joinMemoryOperationState(other.m_mos) || isChanged;
+	return isChanged;
+}
+
+bool AbstractState::widen(AbstractState &other)
+{
+	bool isChanged = false;
+	// Join 'May' reference
+	isChanged = m_mayPointsTo.join(other.m_mayPointsTo) || isChanged;
+	// Join (Apron) analysis of integers
+	isChanged = m_apronAbstractState.widen(other.m_apronAbstractState) || isChanged;
+	// Join (Apron) analysis of (user) read/write/last0 pointers
+	isChanged = joinVectors(m_importedIovecCalls, other.m_importedIovecCalls) || isChanged;
+	isChanged = joinVectors(m_copyMsghdrFromUserCalls, other.m_copyMsghdrFromUserCalls) || isChanged;
+	return isChanged;
+}
+
+bool AbstractState::meet(AbstractState & other) {
+	bool isChanged = false;
+	// Meet 'May' reference
+	isChanged = m_mayPointsTo.meet(other.m_mayPointsTo) || isChanged;
+	// Meet (Apron) analysis of integers
+	isChanged = m_apronAbstractState.meet(other.m_apronAbstractState) || isChanged;
+	// Join (Apron) analysis of (user) read/write/last0 pointers
+	isChanged = meetVectors(m_importedIovecCalls, other.m_importedIovecCalls) || isChanged;
+	isChanged = meetVectors(m_copyMsghdrFromUserCalls, other.m_copyMsghdrFromUserCalls) || isChanged;
 	return isChanged;
 }
 
@@ -132,6 +206,8 @@ bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
 	AbstractState prev = *this;
 	for (std::pair<const std::string, MPTItemAbstractState > & pt : m_mayPointsTo.m_mayPointsTo) {
 		if (pt.second.empty()) {
+			llvm::errs() << "Setting state to bottom in reduction, since " <<
+					pt.first << " doesn't point to anything\n";
 			makeBottom();
 			return true;
 		}
@@ -147,6 +223,36 @@ bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
 	return (prev.m_apronAbstractState != m_apronAbstractState);
 }
 
+void AbstractState::assignPtrToPtr(const std::string & dest, const std::string & src) {
+	MPTItemAbstractState *srcBuffers = m_mayPointsTo.find(src);
+	if (!srcBuffers) {
+		m_mayPointsTo.forget(dest);
+		return;
+	}
+	m_mayPointsTo.extend(dest) = *srcBuffers;
+	for (auto & buffer : *srcBuffers) {
+		const std::string & destOffsetName = AbstractState::generateOffsetName(
+				dest, buffer);
+		m_apronAbstractState.forget(destOffsetName);
+		const std::string & srcOffsetName = AbstractState::generateOffsetName(
+				src, buffer);
+		ap_texpr1_t * srcOffsetTexpr =
+				m_apronAbstractState.asTexpr(srcOffsetName);
+		m_apronAbstractState.assign(destOffsetName, srcOffsetTexpr);
+	}
+}
+
+bool AbstractState::operator==(const AbstractState & other) const {
+	return ((m_mayPointsTo == other.m_mayPointsTo) &&
+			(m_apronAbstractState == other.m_apronAbstractState) &&
+			(m_importedIovecCalls == other.m_importedIovecCalls) &&
+			(m_copyMsghdrFromUserCalls == other.m_copyMsghdrFromUserCalls));
+}
+
+bool AbstractState::operator!=(const AbstractState & other) const {
+	return !(*this == other);
+}
+
 void AbstractState::makeTop() {
 	assert(0 && "TODO: Not yet implemented");
 }
@@ -157,4 +263,5 @@ void AbstractState::makeBottom() {
 	memoryAccessAbstractValues.clear();
 	m_importedIovecCalls.clear();
 	m_copyMsghdrFromUserCalls.clear();
+	m_mos = memory_operation_state_bottom;
 }

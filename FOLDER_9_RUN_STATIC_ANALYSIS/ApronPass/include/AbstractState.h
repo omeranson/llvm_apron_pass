@@ -21,16 +21,24 @@ typedef enum {
 	user_pointer_operation_count
 } user_pointer_operation_e;
 
+typedef enum {
+	memory_operation_state_bottom,
+	memory_operation_state_success,
+	memory_operation_state_failure,
+	memory_operation_state_top
+} memory_operation_state_e;
+
 extern ap_manager_t * apron_manager;
 
 class MemoryAccessAbstractValue {
 public:
+	std::string var;
 	std::string pointer;
 	std::string buffer;
 	ap_texpr1_t * size;
 	user_pointer_operation_e operation;
 
-	MemoryAccessAbstractValue(const std::string & pointer, const std::string & buffer,
+	MemoryAccessAbstractValue(const std::string & var, const std::string & pointer, const std::string & buffer,
 			ap_texpr1_t * size, user_pointer_operation_e operation);
 };
 
@@ -42,6 +50,14 @@ struct ImportIovecCall {
 			op(op), iovec_name(iovec_name), iovec_len_name(iovec_len_name) {}
 	ImportIovecCall(user_pointer_operation_e op, const std::string * iovec_name, const std::string * iovec_len_name) :
 			op(op), iovec_name(*iovec_name), iovec_len_name(*iovec_len_name) {}
+	bool operator==(const ImportIovecCall & other) const {
+		return ((op == other.op) &&
+				(iovec_name == other.iovec_name) &&
+				(iovec_len_name == other.iovec_len_name));
+	}
+	bool operator!=(const ImportIovecCall & other) const {
+		return !(*this == other);
+	}
 };
 
 struct CopyMsghdrFromUserCall {
@@ -51,6 +67,13 @@ struct CopyMsghdrFromUserCall {
 			op(op), msghdr_name(msghdr_name) {}
 	CopyMsghdrFromUserCall(user_pointer_operation_e op, const std::string * msghdr_name) :
 			op(op), msghdr_name(*msghdr_name) {}
+	bool operator==(const CopyMsghdrFromUserCall & other) const {
+		return ((op == other.op) &&
+				(msghdr_name == other.msghdr_name));
+	}
+	bool operator!=(const CopyMsghdrFromUserCall & other) const {
+		return !(*this == other);
+	}
 	ImportIovecCall asImportIovecCall() const {
 		std::string iovec_name;
 		llvm::raw_string_ostream iovec_name_rso(iovec_name);
@@ -102,10 +125,14 @@ public:
 	ApronAbstractState m_apronAbstractState;
 	// (Apron) analysis of (user) read/write/last0 pointers
 	std::vector<MemoryAccessAbstractValue> memoryAccessAbstractValues;
+	memory_operation_state_e m_mos = memory_operation_state_bottom;
+	bool m_isHasMemoryOperation = false;
 	static const std::string & generateOffsetName(
 			const std::string & valueName, const std::string & bufname);
 	static const std::string & generateLastName(
 			const std::string & bufname, user_pointer_operation_e op);
+	static const std::string & generateSizeName(
+			const std::string & bufname);
 
 	std::vector<ImportIovecCall> m_importedIovecCalls;
 	std::vector<CopyMsghdrFromUserCall> m_copyMsghdrFromUserCalls;
@@ -114,13 +141,19 @@ public:
 	void updateUserOperationAbstract1();
 	// General commands
 	virtual bool join(AbstractState &);
+	bool joinMemoryOperationState(const memory_operation_state_e & other);
+	virtual bool widen(AbstractState &);
+	virtual bool meet(AbstractState &);
 	virtual bool reduce(std::vector<std::string> & userBuffers);
+	virtual void assignPtrToPtr(const std::string & dest, const std::string & src);
+	virtual void updateByMemoryOperation(MemoryAccessAbstractValue & maav);
 	// TODO(oanson) The following functions are missing
 	//virtual bool meet(AbstractState &);
 	//virtual bool unify(AbstractState &);
 	//virtual bool isTop();
 	//virtual bool isBottom();
-	//virtual bool operator==(AbstractState &);
+	virtual bool operator==(const AbstractState &) const;
+	virtual bool operator!=(const AbstractState &) const;
 
 	virtual void makeTop();
 	virtual void makeBottom();
@@ -136,7 +169,26 @@ inline stream & operator<<(stream & s, AbstractState & as) {
 		}
 		s << "],";
 	}
-	s << "},abstract1:{" << &as.m_apronAbstractState.m_abstract1 << "}";
+	s << "},abstract1:{" << &as.m_apronAbstractState.m_abstract1 << "},mos:" << as.m_mos << "}";
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, memory_operation_state_e op) {
+	switch (op) {
+	case memory_operation_state_bottom:
+		s << "bottom";
+		break;
+	case memory_operation_state_success:
+		s << "success";
+		break;
+	case memory_operation_state_failure:
+		s << "failure";
+		break;
+	case memory_operation_state_top:
+		s << "top";
+		break;
+	}
 	return s;
 }
 

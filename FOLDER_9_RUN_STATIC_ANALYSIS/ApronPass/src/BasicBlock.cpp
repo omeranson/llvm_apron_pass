@@ -60,7 +60,6 @@ int BasicBlock::basicBlockCount = 0;
 
 BasicBlock::BasicBlock(llvm::BasicBlock * basicBlock) :
 		m_basicBlock(basicBlock),
-		m_markedForChanged(false),
 		updateCount(0) {
 	if (!basicBlock->hasName()) {
 		initialiseBlockName();
@@ -104,15 +103,6 @@ void BasicBlock::extendEnvironment(Value * value) {
 	extendEnvironment(value->getName());
 }
 
-void BasicBlock::forget(Value * value) {
-	forget(value->getName());
-}
-
-void BasicBlock::forget(const std::string & varname) {
-	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	aas.forget(varname);
-}
-
 ap_interval_t * BasicBlock::getVariableInterval(const std::string & value) {
 	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
 	aas.extend(value);
@@ -149,26 +139,6 @@ void BasicBlock::extendTconsEnvironment(ap_tcons1_t * tcons) {
 	getAbstractState().m_apronAbstractState.extendEnvironment(tcons);
 }
 
-void BasicBlock::addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
-		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName) {
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-
-	ap_texpr1_t * var_texpr = createUserPointerOffsetTreeExpression(
-			dest, pointerName);
-	ap_environment_t * environment = getEnvironment();
-	ap_texpr1_extend_environment_with(value_texpr, environment);
-	ap_texpr1_extend_environment_with(var_texpr, environment);
-	ap_tcons1_t greaterThan0 = ap_tcons1_make(
-			AP_CONS_SUPEQ, ap_texpr1_copy(var_texpr), zero);
-	constraints.push_back(greaterThan0);
-	ap_texpr1_t * texpr = ap_texpr1_binop(
-			AP_TEXPR_SUB, value_texpr, var_texpr,
-			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t result = ap_tcons1_make(AP_CONS_SUPEQ, texpr, zero);
-	constraints.push_back(result);
-}
-
 void BasicBlock::updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & otherAS) {
 	Value * terminator = basicBlock.getTerminatorValue();
 	terminator->updateAssumptions(&basicBlock, this, otherAS);
@@ -182,23 +152,6 @@ void BasicBlock::updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, Abs
 		Value * phiValue = factory->getValue(phi);
 		phiValue->updateAssumptions(&basicBlock, this, otherAS);
 	}
-}
-
-ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
-		Value * value, const std::string & bufname) {
-	return createUserPointerOffsetTreeExpression(value->getName(), bufname);
-}
-
-ap_texpr1_t * BasicBlock::createUserPointerOffsetTreeExpression(
-		const std::string & valueName, const std::string & bufname) {
-	const std::string & generatedName = AbstractState::generateOffsetName(valueName, bufname);
-	return getVariableTExpr(generatedName);
-}
-
-ap_texpr1_t * BasicBlock::createUserPointerLastTreeExpression(
-		const std::string & bufname, user_pointer_operation_e op) {
-	const std::string & generatedName = AbstractState::generateLastName(bufname, op);
-	return getVariableTExpr(generatedName);
 }
 
 void BasicBlock::updateAbstractStateMetWithIncomingPhis(
@@ -217,30 +170,25 @@ void BasicBlock::updateAbstractStateMetWithIncomingPhis(
 		llvm::Value * incoming = phi->getIncomingValueForBlock(
 				basicBlock.getLLVMBasicBlock());
 		Value * incomingValue = factory->getValue(incoming);
-		MPTItemAbstractState &dest =
-				otherAS.m_mayPointsTo.m_mayPointsTo[phiValue->getName()];
-		dest.clear();
-		incomingValue->populateMayPointsToUserBuffers(dest);
+		const std::string & phiname = phiValue->getName();
+		otherAS.m_mayPointsTo.forget(phiname);
+		const std::set<std::string> * buffers = incomingValue->mayPointsToUserBuffers(otherAS);
+		if (buffers) {
+			auto & dest = otherAS.m_mayPointsTo.extend(phiname);
+			for (const std::string & buffer : *buffers) {
+				dest.insert(buffer);
+			}
+		}
 	}
 }
 
 AbstractState BasicBlock::getAbstractStateWithAssumptions(
-		BasicBlock & predecessor) {
-	AbstractState otherAS = predecessor.getAbstractState();
+		BasicBlock & predecessor, AbstractState & state) {
+	AbstractState otherAS = state;
 	updateAbstractStateMetWithIncomingPhis(predecessor, otherAS);
 	updateAbstract1MetWithIncomingPhis(predecessor, otherAS);
 	return otherAS;
 }
-
-bool BasicBlock::join(BasicBlock & basicBlock) {
-	AbstractState prev = getAbstractState();
-	AbstractState otherAS = getAbstractStateWithAssumptions(basicBlock);
-	bool isChanged = m_abstractState.join(otherAS);
-	llvm::errs() << getName() << ": Joined from " << basicBlock.getName() << ":\n";
-	llvm::errs() << "Prev: " << prev << "Other: " << otherAS << " New: " << getAbstractState();
-	return isChanged;
-}
-
 
 bool BasicBlock::isTop(ap_abstract1_t & value) {
 	return ap_abstract1_is_top(getManager(), &value);
@@ -260,43 +208,32 @@ bool BasicBlock::isBottom() {
 	return aas.isBottom();
 }
 
-void BasicBlock::setChanged() {
-	m_markedForChanged = true;
-}
-
-bool BasicBlock::update() {
+void BasicBlock::update(AbstractState & state) {
 	++updateCount;
 	/* Process the block. Return true if the block's context is modified.*/
-	std::list<ap_tcons1_t> constraints;
 
-	AbstractState & as = getAbstractState();
-	ApronAbstractState & aas = as.m_apronAbstractState;
-	ap_abstract1_t prev = aas.m_abstract1;
+	ApronAbstractState & aas = state.m_apronAbstractState;
+	AbstractState prev = state;
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
 		llvm::Instruction & inst = *it;
-		processInstruction(constraints, inst);
+		processInstruction(state, inst);
 	}
-
-	applyConstraints(constraints);
-	as.updateUserOperationAbstract1();
-	std::vector<std::string> userBuffers = getFunction()->getUserPointers();
+	Function * function = getFunction();
+	if (!state.memoryAccessAbstractValues.empty()) {
+		function->m_memOpsAbstractStates[this] = state;
+		AbstractState & copy = function->m_memOpsAbstractStates[this];
+		state.memoryAccessAbstractValues.clear();
+		copy.updateUserOperationAbstract1();
+		if (Debug) {
+			llvm::errs() << getName() << ": State with memory: " << copy << "\n";
+		}
+	}
+	std::vector<std::string> userBuffers = function->getUserPointers();
+	bool isReduceChanged = state.reduce(userBuffers);
 	if (Debug) {
-		llvm::errs() << getName() << ": Update (before Reduce): " << as;
+		llvm::errs() << getName() << ": Update: " << prev << " -> " << state;
 	}
-	bool isReduceChanged = as.reduce(userBuffers);
-	if (Debug && isReduceChanged) {
-		llvm::errs() << getName() << ": Update (after Reduce): " << as;
-	}
-	bool markedForChanged = m_markedForChanged;
-	m_markedForChanged = false;
-	bool isChanged = (aas != prev);
-	return markedForChanged || isChanged;
-}
-
-void BasicBlock::makeTop() {
-	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	aas = ApronAbstractState::top();
 }
 
 Value * BasicBlock::getTerminatorValue() {
@@ -306,32 +243,9 @@ Value * BasicBlock::getTerminatorValue() {
 	return factory->getValue(terminator);
 }
 
-void BasicBlock::applyConstraints(
-		std::list<ap_tcons1_t> & constraints) {
-	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	if (!constraints.empty()) {
-		ap_tcons1_array_t array = createTcons1Array(getEnvironment(), constraints);
-		ap_abstract1_t abs = ap_abstract1_meet_tcons_array(
-				getManager(), false, &aas.m_abstract1, &array);
-		aas.m_abstract1 = abs;
-	}
-}
-
-ap_abstract1_t BasicBlock::abstractOfTconsList(
-		std::list<ap_tcons1_t> & constraints) {
-	if (constraints.empty()) {
-		return ap_abstract1_bottom(getManager(), getEnvironment());
-	}
-	ap_tcons1_array_t array = createTcons1Array(getEnvironment(), constraints);
-	ap_abstract1_t abs = ap_abstract1_of_tcons_array(
-			getManager(), getEnvironment(), &array);
-	return abs;
-}
-
-void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
+void BasicBlock::processInstruction(AbstractState & state,
 		llvm::Instruction & inst) {
-	const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
-	// TODO Circular dependancy
+	// TODO Circular dependancy (Still?)
 	ValueFactory * factory = ValueFactory::getInstance();
 	Value * value = factory->getValue(&inst);
 	if (!value) {
@@ -341,24 +255,27 @@ void BasicBlock::processInstruction(std::list<ap_tcons1_t> & constraints,
 		return;
 	}
 	if (value->isSkip()) {
-		/*llvm::errs() << "Skipping set-skipped instruction: " << value->toString() << "\n";*/
 		return;
 	}
+	//const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
 	//llvm::errs() << "Apron: Instruction: "
 			//// << scope->getFilename() << ": "
 			//<< debugLoc.getLine() << ": "
 			//<< value->toString() << "\n";
-	forget(value);
+	// TODO Is this needed?
+	state.m_apronAbstractState.forget(value->getName());
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
-	instructionValue->populateTreeConstraints(constraints);
+	instructionValue->update(state);
+	if (state.m_apronAbstractState.isTop()) {
+		llvm::errs() << "Warning: Instruction " << value->getName() << " caused state to be top\n";
+	}
 }
 
 std::string BasicBlock::toString() {
 	std::ostringstream oss;
 	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	oss << getName() << ": " << &aas.m_abstract1
-			<< "AND " << getAbstractState() << "\n";
+	oss << getName() << ": " << getAbstractState() << "\n";
 	return oss.str();
 }
 

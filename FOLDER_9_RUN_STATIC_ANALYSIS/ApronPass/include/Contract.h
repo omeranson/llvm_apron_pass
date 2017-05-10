@@ -65,9 +65,8 @@ inline stream & operator<<(stream & s, Depth & depth) {
 template <class stream>
 inline stream & operator<<(stream & s, Preamble<std::string> p) {
 	const std::string * name = p.t;
-	s << depth << "// Preamble for " << *name << "\n";
-	s << depth << "i64 offset(" << *name << ") = (uintptr_t)" << *name << " - SE_base_obj(" << *name << ");\n";
-	s << depth << "i64 size(" << *name << ") = SE_size_obj(" << *name << ") - offset(" << *name << ");\n";
+	s << depth << "i64 size(" << *name << ") = SE_size_obj(" << *name << ") - " << 
+			"((uintptr_t)" << *name << " - SE_base_obj(" << *name << "));\n";
 	return s;
 }
 
@@ -92,11 +91,9 @@ inline stream & operator<<(stream & s, Preamble<CopyMsghdrFromUserCall> p) {
 
 template <class stream, class T>
 inline stream & operator<<(stream & s, Havoc<T> h) {
-	const T & havoc = *h.t;
-	for (const std::string var : havoc) {
-		s << depth << "i64 " << var << ";\n";
-		s << depth << "HAVOC(" << var << ");\n";
-	}
+	const T & var = *h.t;
+	s << depth << "i64 " << var << ";\n";
+	s << depth << "HAVOC(" << var << ");\n";
 	return s;
 }
 
@@ -106,7 +103,6 @@ inline stream & operator<<(stream & s,
 	const std::pair<std::string, ApronAbstractState> & pair = *p.t;
 	const std::string & name = pair.first;
 	const ApronAbstractState & state = pair.second;
-	ApronAbstractState::Variables variables = ApronAbstractState::Variables(state);
 	// call SE_SAT
 	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
 			apron_manager, (ap_abstract1_t*)&state.m_abstract1);
@@ -115,6 +111,7 @@ inline stream & operator<<(stream & s,
 	s << depth << "warn(\"Invalid pointer " << name << "\");\n";
 	--depth;
 	s << depth << "}\n";
+	ap_tcons1_array_clear(&array);
 	return s;
 }
 
@@ -168,26 +165,6 @@ inline stream & operator<<(stream & s, Precondition<CopyMsghdrFromUserCall> p) {
 }
 
 template <class stream>
-inline stream & operator<<(stream & s,
-		Modification<std::pair<std::string, ApronAbstractState> > p) {
-	const std::pair<std::string, ApronAbstractState> & pair = *p.t;
-	const std::string & name = pair.first;
-	ApronAbstractState state = pair.second;
-	std::string last_name = AbstractState::generateLastName(name, user_pointer_operation_write);
-	state.extend(last_name);
-	s << depth << "// Modification for " << name << ":\n";
-	ApronAbstractState::Variables variables = ApronAbstractState::Variables(state);
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(
-			apron_manager, &state.m_abstract1);
-	s << depth << "if " << Conjunction(&array) << " {\n";
-	++depth;
-	s << depth << "HAVOC_SIZE(" << name << ", " << last_name << ");\n";
-	--depth;
-	s << depth << "}\n";
-	return s;
-}
-
-template <class stream>
 inline stream & operator<<(stream & s, Modification<ImportIovecCall> p) {
 	const ImportIovecCall & call = *p.t;
 	if (call.op != user_pointer_operation_write) {
@@ -231,7 +208,9 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	++depth;
 	s << depth << "// Preamble\n";
 	std::vector<std::string> userPointers = function->getUserPointers();
-	std::map<std::string, ApronAbstractState> errorStates = function->generateErrorStates();
+	std::map<std::string, ApronAbstractState> errorStates = function->getErrorStates();
+	ApronAbstractState successState = function->getSuccessState();
+
 	AbstractState & abstractState = function->getReturnAbstractState();
 	ApronAbstractState & apronAbstractState = abstractState.m_apronAbstractState;
 	const std::vector<ImportIovecCall> & importIovecCalls = function->getImportIovecCalls();
@@ -246,12 +225,29 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
 		s << preamble(&call);
 	}
-	s << depth << function->getReturnTypeString() << " res;\n";
+	const std::string & returnValueName = function->getReturnValueName();
+	std::string renamedRetValName = apronAbstractState.renameVarForC(returnValueName);
 	s << depth << "bool b;\n";
 	s << depth << "int idx;\n";
 	ApronAbstractState::Variables variables =
 			ApronAbstractState::Variables(apronAbstractState);
-	s << havoc(&variables);
+	std::vector<std::string> filteredVariables;
+	for (std::string variable : variables) {
+		if (!function->isVarInOut(variable.c_str())) {
+			continue;
+		}
+		if (function->isSizeVariable(variable.c_str())) {
+			continue;
+		}
+		if (function->isFunctionParameter(variable.c_str())) {
+			continue;
+		}
+		std::string newVarName = apronAbstractState.renameVarForC(variable);
+		s << havoc(&newVarName);
+		if (function->isLastVariable(variable.c_str())) {
+			s << depth << "assume(" << variable << " >= 0);\n";
+		}
+	}
 	// Preconditions
 	// Standard variables
 	s << depth << "// Preconditions\n";
@@ -260,10 +256,10 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 		s << depth << "// Error state for " << errorStatePair.first << ":\n";
 		ApronAbstractState minimizedErrorState =
 				function->minimize(errorStatePair.second);
-		ap_tcons1_array_t minimized_array = ap_abstract1_to_tcons_array(
-				apron_manager, &minimizedErrorState.m_abstract1);
-		s << depth << "// " << Conjunction(&minimized_array) << "\n";
-		s << precondition(&errorStatePair);
+		minimizedErrorState.renameVarsForC();
+		std::pair<const std::string, ApronAbstractState> pair = 
+				std::make_pair(errorStatePair.first, minimizedErrorState);
+		s << precondition(&pair);
 	}
 	for (const ImportIovecCall & call : importIovecCalls) {
 		s << precondition(&call);
@@ -275,10 +271,24 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	// 	Standard variables
 	// 	For each buf : user buffer
 	// 		HAVOC(buf, last(buf,write))
-	s << "\t// Modifications\n";
+	s << depth << "// Modifications\n";
+	ApronAbstractState minimizedSuccessState = function->minimize(successState);
+	auto renames = minimizedSuccessState.renameVarsForC();
+	ap_tcons1_array_t minimized_array = ap_abstract1_to_tcons_array(
+				apron_manager, &minimizedSuccessState.m_abstract1);
+	s << depth << "if " << Conjunction(&minimized_array) << "{\n";
+	ap_tcons1_array_clear(&minimized_array);
+	++depth;
 	for (std::string & userPointer : userPointers) {
-		auto pair = std::make_pair(userPointer, apronAbstractState);
-		s << modification(&pair);
+		auto it = renames.find(userPointer);
+		std::string * renamedVar = 0;
+		if (it == renames.end()) {
+			renamedVar = &userPointer;
+		} else {
+			renamedVar = &it->second;
+		}
+		const std::string & last_name = AbstractState::generateLastName(*renamedVar, user_pointer_operation_write);
+		s << depth << "HAVOC_SIZE(" << *renamedVar << ", " << last_name << ");\n";
 	}
 	for (const ImportIovecCall & call : importIovecCalls) {
 		s << modification(&call);
@@ -286,27 +296,21 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
 		s << modification(&call);
 	}
-	// Postconditions
-	s << "\t// Postconditions\n";
-	ap_abstract1_t retvalAbstract1 = function->trimmedLastASAbstractValue();
-	llvm::ReturnInst * returnInst = function->getReturnInstruction();
-	llvm::Value * returnValue = returnInst->getReturnValue();
-	ValueFactory * factory = ValueFactory::getInstance();
-	Value * returnValueValue = factory->getValue(returnValue);
-	std::string & returnValueName = returnValueValue->getName();
-	ap_var_t oldName = (ap_var_t)returnValueName.c_str();
-	ap_var_t newName = (ap_var_t)"res";
-	ap_abstract1_t retvalAbstract1_renamed = ap_abstract1_rename_array(
-			manager, false, &retvalAbstract1,
-			&oldName, &newName, 1);
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1_renamed);
-	s << depth << "HAVOC(b);\n";
-	s << depth << "HAVOC(res);\n";
-	s << depth << "if " << Conjunction("b", &array) << " {\n";
-	++depth;
-	s << depth << "return res;\n";
 	--depth;
 	s << depth << "}\n";
+	// Postconditions
+	s << "\t// Postconditions\n";
+	ApronAbstractState minimizedReturnState = function->minimize(apronAbstractState);
+	minimizedReturnState.renameVarsForC();
+	ap_abstract1_t retvalAbstract1 = minimizedReturnState.m_abstract1;
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1);
+	s << depth << "HAVOC(b);\n";
+	s << depth << "if " << Conjunction("b", &array) << " {\n";
+	++depth;
+	s << depth << "return " << renamedRetValName << ";\n";
+	--depth;
+	s << depth << "}\n";
+	ap_tcons1_array_clear(&array);
 
 	// Postamble
 	s << depth << "assume(0);\n";

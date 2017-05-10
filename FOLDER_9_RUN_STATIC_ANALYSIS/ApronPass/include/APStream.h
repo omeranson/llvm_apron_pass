@@ -50,6 +50,8 @@ template <class stream>
 inline stream & operator<<(stream & s, std::pair<ap_manager_t*, ap_abstract1_t*> value) {
 	ap_manager_t* manager = value.first;
 	ap_abstract1_t* abst1 = value.second;
+	ap_abstract1_t copy = ap_abstract1_copy(manager, abst1);
+	ap_abstract1_canonicalize(manager, &copy);
 	ap_environment_t * env = ap_abstract1_environment(manager, abst1);
 	if (ap_abstract1_is_top(manager, abst1)) {
 		s << "Top. Variables: " << env << "\n";
@@ -59,10 +61,11 @@ inline stream & operator<<(stream & s, std::pair<ap_manager_t*, ap_abstract1_t*>
 		char * buffer;
 		size_t size;
 		FILE * bufferfp = open_memstream(&buffer, &size);
-		ap_abstract1_fprint(bufferfp, manager, abst1);
+		ap_abstract1_fprint(bufferfp, manager, &copy);
 		fclose(bufferfp);
 		s << buffer << "Variables: " << env << "\n";
 	}
+	ap_abstract1_clear(manager, &copy);
 	return s;
 }
 

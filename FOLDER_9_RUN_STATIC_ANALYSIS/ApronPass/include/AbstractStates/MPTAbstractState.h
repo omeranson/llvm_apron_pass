@@ -12,18 +12,21 @@ class MPTItemAbstractState {
 public:
 	MPTItemAbstractState();
 	MPTItemAbstractState(const std::set<std::string> & buffers, bool isWritable=true);
-	const std::set<std::string> & getBuffers();
+	const std::set<std::string> & getBuffers() const;
 	void insert(std::string buffer);
 	void erase(std::string buffer);
 	void clear();
 	std::set<std::string>::const_iterator begin() const;
 	std::set<std::string>::const_iterator end() const;
 	bool join(const MPTItemAbstractState & other);
+	bool meet(const MPTItemAbstractState & other);
 	bool isProvablyNull() const;
 	bool isProvablyKernel() const;
 	bool empty() const;
 	bool isWritable() const;
 	bool contains(const std::string & name) const;
+	bool operator==(const MPTItemAbstractState & other) const;
+	bool operator!=(const MPTItemAbstractState & other) const;
 
 	static void updateToIntersection(MPTItemAbstractState & left, MPTItemAbstractState & right);
 };
@@ -80,7 +83,15 @@ public:
 	MPTAbstractState(std::vector<std::string> buffers);
 
 	bool join(const MPTAbstractState & other);
+	bool meet(const MPTAbstractState & other);
+	void forget(const std::string & pointer);
 	void clear();
+
+	MPTItemAbstractState * find(const std::string& name);
+	MPTItemAbstractState & extend(const std::string& name);
+
+	bool operator==(const MPTAbstractState& other) const;
+	bool operator!=(const MPTAbstractState& other) const;
 };
 
 #endif // MPT_ABSTRACT_STATE_H

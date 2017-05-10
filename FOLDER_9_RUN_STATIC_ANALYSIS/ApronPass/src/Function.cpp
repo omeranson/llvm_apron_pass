@@ -4,6 +4,8 @@
 #include <BasicBlock.h>
 
 #include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalAlias.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/raw_ostream.h>
 
@@ -11,7 +13,6 @@ FunctionManager FunctionManager::instance;
 FunctionManager & FunctionManager::getInstance() {
 	return instance;
 }
-Function * getFunction(llvm::Function * function);
 
 Function * FunctionManager::getFunction(llvm::Function * function) {
 	std::map<llvm::Function *, Function *>::iterator it =
@@ -26,6 +27,25 @@ Function * FunctionManager::getFunction(llvm::Function * function) {
 	return result;
 }
 
+Function * FunctionManager::getFunction(llvm::GlobalAlias * alias) {
+	llvm::GlobalValue * aliasee = alias->getAliasedGlobal();
+	llvm::Function * function = llvm::dyn_cast<llvm::Function>(aliasee);
+	if (!function) {
+		return 0;
+	}
+	std::map<llvm::Function *, Function *>::iterator it =
+			instances.find(function);
+	Function * result;
+	if (it == instances.end()) {
+		result = new Alias(alias, function);
+		instances.insert(std::make_pair(function, result));
+	} else {
+		result = it->second;
+	}
+	return result;
+}
+
+Function::Function(llvm::Function * function) : m_function(function), m_name(function->getName()) {}
 bool Function::isUserPointer(std::string & ptrname) {
 	return ptrname.find("buf") == 0;
 }
@@ -52,6 +72,48 @@ BasicBlock * Function::getReturnBasicBlock() {
 	return basicBlockManager.getBasicBlock(basicBlock);
 }
 
+const std::string & Function::getReturnValueName() {
+	llvm::ReturnInst * returnInst = getReturnInstruction();
+	llvm::Value * returnValue = returnInst->getReturnValue();
+	ValueFactory * factory = ValueFactory::getInstance();
+	Value * returnValueValue = factory->getValue(returnValue);
+	return returnValueValue->getName();
+}
+
+bool Function::isSizeVariable(const char * varname) {
+	if ((strncmp(varname, "size(", sizeof("size(")-1) == 0) &&
+			varname[strlen(varname)-1] == ')') {
+		return true;
+	}
+	return false;
+}
+
+bool Function::isOffsetVariable(const char * varname) {
+	if ((strncmp(varname, "offset(", sizeof("offset(")-1) == 0) &&
+			varname[strlen(varname)-1] == ')') {
+		return true;
+	}
+	return false;
+}
+
+bool Function::isLastVariable(const char * varname) {
+	if ((strncmp(varname, "last(", sizeof("last(")-1) == 0) &&
+			varname[strlen(varname)-1] == ')') {
+		return true;
+	}
+	return false;
+}
+
+bool Function::isFunctionParameter(const char * varname) {
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	for (const llvm::Argument & argument : arguments) {
+		if (argument.getName() == varname) {
+			return true;
+		}
+	}
+	return false;
+}
+
 bool Function::isVarInOut(const char * varname) {
 	// Return true iff:
 	// 	varname is argument
@@ -59,32 +121,19 @@ bool Function::isVarInOut(const char * varname) {
 	// 	varname is size(*)
 	// 	varname is the return value
 	// XXX Memoize this value?
-	if ((strncmp(varname, "last(", sizeof("last(")-1) == 0) &&
-			varname[strlen(varname)-1] == ')') {
-		return true;
-	}
-	if ((strncmp(varname, "size(", sizeof("size(")-1) == 0) &&
-			varname[strlen(varname)-1] == ')') {
-		return true;
-	}
-	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
-	for (const llvm::Argument & argument : arguments) {
-		if (argument.getName() == varname) {
-			return true;
-		}
-	}
 	llvm::ReturnInst * returnInst = getReturnInstruction();
 	llvm::Value * returnValue = returnInst->getReturnValue();
-	if (returnValue->getName() == varname) {
+	if (returnValue && returnValue->getName() == varname) {
 		return true;
 	}
-	return false;
+	return isSizeVariable(varname) ||
+			// isOffsetVariable(varname) ||
+			isLastVariable(varname) ||
+			isFunctionParameter(varname);
 }
 
-ap_abstract1_t Function::trimmedLastASAbstractValue() {
-	BasicBlock * returnBasicBlock = getReturnBasicBlock();
-	AbstractState & as = returnBasicBlock->getAbstractState();
-	ApronAbstractState apronAbstractState = as.m_apronAbstractState;
+ap_abstract1_t Function::trimAbstractValue(AbstractState & state) {
+	ApronAbstractState apronAbstractState = state.m_apronAbstractState;
 	ap_abstract1_t & asAbstract1 = apronAbstractState.m_abstract1;
 	ap_manager_t * manager = apron_manager;
 	ap_environment_t * environment = ap_abstract1_environment(manager, &asAbstract1);
@@ -101,7 +150,7 @@ ap_abstract1_t Function::trimmedLastASAbstractValue() {
 	}
 	ap_abstract1_t result = ap_abstract1_forget_array(manager, false, &asAbstract1,
 			forgetVars.data(), forgetVars.size(), false);
-	result = ap_abstract1_minimize_environment(manager, false, &result);
+	result = ap_abstract1_minimize_environment(manager, true, &result);
 	return result;
 }
 
@@ -123,59 +172,53 @@ std::vector<std::string> Function::getUserPointers() {
 	return result;
 }
 
-std::map<std::string, ApronAbstractState> Function::generateErrorStates() {
-	//ap_abstract1_t trimmedASAbstract1 = trimmedLastASAbstractValue();
-	BasicBlock * returnBasicBlock = getReturnBasicBlock();
-	AbstractState & as = returnBasicBlock->getAbstractState();
-	ApronAbstractState apronAbstractState = as.m_apronAbstractState;
-	ap_manager_t * manager = apron_manager;
-	ap_scalar_t* zero = ap_scalar_alloc ();
-	ap_scalar_set_int(zero, 0);
-	// for each buf : user buffer:
-	// 	create constraints: size(buf) > last(buf,read)
-	// 	                    size(buf) > last(buf,write)
-	// 	newAbstract1 <- meet with these constraints
-	// 	newAbstract2 <- forget all last(*) values
-	// 	push_back newAbstract2
-	std::map<std::string, ApronAbstractState> result;
+std::vector<std::string> Function::getConstrainedUserPointers(AbstractState & state) {
 	std::vector<std::string> userBuffers = getUserPointers();
-	for (std::string & userBuffer : userBuffers) {
-		ApronAbstractState aas = apronAbstractState;
-		std::string name;
-		llvm::raw_string_ostream rso(name);
-		rso << "size(" << userBuffer << ")";
-		aas.extend(rso.str());
-
-		const std::string & last_read_name = AbstractState::generateLastName(
-				userBuffer, user_pointer_operation_read);
-		aas.extend(last_read_name);
-
-		const std::string & last_write_name = AbstractState::generateLastName(
-				userBuffer, user_pointer_operation_write);
-		aas.extend(last_write_name);
-
-		ap_texpr1_t * size = aas.asTexpr(name);
-
-		ap_texpr1_t * last_read = aas.asTexpr(last_read_name);
-		ap_texpr1_t * size_last_read_diff = ap_texpr1_binop(
-				AP_TEXPR_SUB, last_read, ap_texpr1_copy(size),
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_tcons1_t size_gt_last_read = ap_tcons1_make(
-				AP_CONS_SUP, size_last_read_diff, zero);
-
-		ap_texpr1_t * last_write = aas.asTexpr(last_write_name);
-		ap_texpr1_t * size_last_write_diff = ap_texpr1_binop(
-				AP_TEXPR_SUB, last_write, size,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_tcons1_t size_gt_last_write = ap_tcons1_make(
-				AP_CONS_SUP, size_last_write_diff, zero);
-
-		aas.start_meet_aggregate();
-		aas.meet(size_gt_last_read);
-		aas.meet(size_gt_last_write);
-		aas.finish_meet_aggregate();
-		result.insert(std::make_pair(userBuffer, aas));
+	std::vector<std::string> result;
+	for (const std::string & userBuffer : userBuffers) {
+		const std::string & lastName = state.generateLastName(userBuffer, user_pointer_operation_write);
+		if (state.m_apronAbstractState.isConstrained(lastName)) {
+			result.push_back(userBuffer);
+		}
 	}
+	return result;
+}
+
+void Function::pushBackIfConstrainsUserPointers(
+		std::map<std::string, ApronAbstractState> & result,
+		AbstractState & state,
+		std::vector<std::string> & userBuffers) {
+	std::vector<std::string> constrainedBuffers = getConstrainedUserPointers(state);
+	for (const std::string & userBuffer : constrainedBuffers) {
+		result.insert(std::make_pair(userBuffer, state.m_apronAbstractState));
+	}
+}
+
+std::map<std::string, ApronAbstractState> Function::getErrorStates() {
+	std::vector<std::string> userBuffers = getUserPointers();
+	std::map<std::string, ApronAbstractState> result;
+	BasicBlockManager & basicBlockManager = BasicBlockManager::getInstance();
+	for (llvm::BasicBlock & llvmbb : *m_function) {
+		BasicBlock * bb = basicBlockManager.getBasicBlock(&llvmbb);
+		AbstractState & state = bb->getAbstractState();
+		if ((state.m_mos != memory_operation_state_top) &&
+				(state.m_mos != memory_operation_state_failure)) {
+			// Not a failure
+			continue;
+		}
+		pushBackIfConstrainsUserPointers(result, state, userBuffers);
+	}
+	return result;
+}
+
+// TODO(oanson) This will have to be a map: buffer -> state
+ApronAbstractState Function::getSuccessState() {
+	ApronAbstractState result = ApronAbstractState::bottom();
+	std::vector<ApronAbstractState> successStates;
+	for (auto & memOpsState : m_memOpsAbstractStates) {
+		successStates.push_back(memOpsState.second.m_apronAbstractState);
+	}
+	result.join(successStates);
 	return result;
 }
 
@@ -202,8 +245,8 @@ ApronAbstractState Function::minimize(ApronAbstractState & state) {
 	return result;
 }
 
-std::string Function::getName() {
-	return m_function->getName();
+const std::string & Function::getName() const {
+	return m_name;
 }
 
 std::string Function::getTypeString(llvm::Type * type) {
@@ -266,3 +309,31 @@ const std::vector<CopyMsghdrFromUserCall> & Function::getCopyMsghdrFromUserCalls
 	AbstractState & as = returnBasicBlock->getAbstractState();
 	return as.m_copyMsghdrFromUserCalls;
 }
+
+BasicBlock * Function::getRoot() const {
+	BasicBlockManager & factory = BasicBlockManager::getInstance();
+	llvm::BasicBlock & llvmEntry = m_function->getEntryBlock();
+	BasicBlock * root = factory.getBasicBlock(&llvmEntry);
+	return root;
+}
+
+Alias::Alias(llvm::GlobalAlias * alias, llvm::Function * function) :
+		Function(function), m_alias(alias) {
+	m_name = alias->getName();
+}
+
+std::vector<std::pair<std::string, std::string> > Alias::getArgumentStrings() {
+	std::vector<std::pair<std::string, std::string> > result;
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	llvm::Instruction * bitCastInst = llvm::dyn_cast<llvm::ConstantExpr>(m_alias->getAliasee())->getAsInstruction();
+	llvm::Type * type = bitCastInst->getType();
+	int idx = 0;
+	llvm::FunctionType * ftype = llvm::dyn_cast<llvm::FunctionType>(type->getPointerElementType());
+	for (const llvm::Argument & argument : arguments) {
+		result.push_back(std::make_pair(getTypeString(ftype->getParamType(idx)), argument.getName()));
+		idx++;
+	}
+	delete bitCastInst;
+	return result;
+}
+

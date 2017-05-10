@@ -58,6 +58,7 @@ all:
 	@echo "*********************************************************"
 	@echo "\n"
 	rm -rf /tmp/INLINE_ME/*
+	rm -rf /tmp/llvm_apron_pass/*
 	@echo "\n"
 	@echo "*************************************************************"
 	@echo "* Before you start, make a human readable copy of the input *"
@@ -192,7 +193,7 @@ all:
 	@echo "*************************************************"
 	@echo "\n"
 	llvm-dis -o=\
-	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.ll \
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputBefore_O3_MergeReturn_Instnamer.ll \
 	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.bc	
 	@echo "\n"
 	@echo "*******************"
@@ -213,6 +214,14 @@ all:
 	@echo "\n"
 	opt -instnamer ${inputreadybc}.O3.MergeReturn.bc -o ${inputreadybc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"
+	@echo "*************************************************"
+	@echo "* Make a humen readable edition for input ready *"
+	@echo "*************************************************"
+	@echo "\n"
+	llvm-dis -o=\
+	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.ll \
+	${inputreadybc}.O3.MergeReturn.InstNamer.bc	
+	@echo "\n"
 	@echo "*************************************************************"
 	@echo "* Syscall function to Analyze and create a contract for ... *"
 	@echo "*************************************************************"
@@ -228,7 +237,8 @@ all:
 	-load ${APRON_PASS_DIR}/adaptors/lib${APRON_MANAGER}_adaptor.so \
 	-load ${APRON_PASS_DIR}/libapronpass.so                         \
 	-apron -d -update-count-max=11                                  \
-	$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady.bc
+	-run-on-single-function=sys_${SYSCALL}                          \
+	${inputreadybc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"
 	@echo "****************************************************************"
 	@echo "* Extract Static Analysis Results and Synthesize Contracts ... *"

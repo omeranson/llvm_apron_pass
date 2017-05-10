@@ -37,16 +37,14 @@ protected:
 
 	llvm::BasicBlock * m_basicBlock;
 	std::string m_name;
-	bool m_markedForChanged;
 	AbstractState m_abstractState;
 
 	BasicBlock(llvm::BasicBlock * basicBlock);
 	virtual void initialiseBlockName();
 
-	virtual void processInstruction(std::list<ap_tcons1_t> & constraints,
+	virtual void processInstruction(AbstractState & state,
 			llvm::Instruction & inst);
 
-	virtual AbstractState getAbstractStateWithAssumptions(BasicBlock & predecessor);
 	virtual void updateAbstract1MetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
 	virtual void updateAbstractStateMetWithIncomingPhis(BasicBlock & basicBlock, AbstractState & state);
 public:
@@ -56,19 +54,10 @@ public:
 	virtual ap_abstract1_t & getAbstractValue();
 	virtual std::string toString();
 	virtual llvm::BasicBlock * getLLVMBasicBlock();
-	virtual void setChanged();
 	virtual Value * getTerminatorValue();
-	virtual bool update();
-	virtual void makeTop();
+	virtual void update(AbstractState & state);
 
-	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
-		const std::string & valueName, const std::string & bufname);
-	virtual ap_texpr1_t * createUserPointerOffsetTreeExpression(
-		Value * value, const std::string & bufname);
-	virtual ap_texpr1_t * createUserPointerLastTreeExpression(
-		const std::string & bufname, user_pointer_operation_e op);
-
-	virtual bool join(BasicBlock & basicBlock);
+	virtual AbstractState getAbstractStateWithAssumptions(BasicBlock & predecessor, AbstractState & state);
 	virtual bool isTop(ap_abstract1_t & value);
 	virtual bool isBottom(ap_abstract1_t & value);
 	virtual bool isTop();
@@ -80,8 +69,6 @@ public:
 	virtual ap_environment_t * getEnvironment();
 	virtual void extendEnvironment(Value * value);
 	virtual void extendEnvironment(const std::string & varname);
-	virtual void forget(Value * value);
-	virtual void forget(const std::string & varname);
 	virtual ap_interval_t * getVariableInterval(Value * value);
 	virtual ap_interval_t * getVariableInterval(const std::string & value);
 	virtual ap_texpr1_t * getVariableTExpr(Value * value);
@@ -89,12 +76,6 @@ public:
 	virtual ap_texpr1_t* getConstantTExpr(unsigned);
 	virtual void extendTexprEnvironment(ap_texpr1_t * texpr);
 	virtual void extendTconsEnvironment(ap_tcons1_t * tcons);
-	virtual ap_abstract1_t abstractOfTconsList(
-			std::list<ap_tcons1_t> & constraints);
-	virtual void applyConstraints(
-			std::list<ap_tcons1_t> & constraints);
-	virtual void addOffsetConstraint(std::vector<ap_tcons1_t> & constraints,
-		ap_texpr1_t * value_texpr, Value * dest, const std::string & pointerName);
 
 	virtual AbstractState & getAbstractState();
 	virtual Function * getFunction();

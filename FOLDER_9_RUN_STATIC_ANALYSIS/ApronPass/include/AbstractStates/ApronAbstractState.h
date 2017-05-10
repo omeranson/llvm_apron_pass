@@ -9,15 +9,12 @@
 #include <ap_tcons1.h>
 #include <ap_texpr1.h>
 
-extern unsigned WideningThreshold;
-
 class ApronAbstractState {
 protected:
 	ApronAbstractState();
 	bool m_isMeetAggregate = false;
 	std::vector<ap_tcons1_t> m_meetAggregates;
 	int joinCount = 0;
-	int m_wideningThreshold = WideningThreshold;
 
 public:
 // XXX(oanson) The functions in this public block should be made protected once possible
@@ -29,13 +26,19 @@ public:
 	ap_abstract1_t m_abstract1;
 	ApronAbstractState(const ap_abstract1_t & abst);
 	ApronAbstractState(const ap_abstract1_t * abst);
+	ApronAbstractState(const ApronAbstractState& other);
+	ApronAbstractState & operator=(const ApronAbstractState& other);
+	ApronAbstractState & operator=(const ap_abstract1_t& other);
+	~ApronAbstractState();
 
 	static ApronAbstractState top();
 	static ApronAbstractState bottom();
+	static ap_scalar_t * zero();
 
 	// Modification
 	virtual bool join(const ApronAbstractState & other);
 	virtual bool join(const std::vector<ApronAbstractState> & others);
+	virtual bool widen(const ApronAbstractState & other);
 	virtual bool meet(const ApronAbstractState & other);
 	virtual void assign(const std::string & var, ap_texpr1_t * value);
 	virtual void extend(const std::string & var, bool isBottom=false);
@@ -48,6 +51,7 @@ public:
 	virtual void finish_meet_aggregate();
 	virtual void makeTop();
 	virtual void makeBottom();
+	virtual void rename(const std::string & orig, const std::string & new_);
 	virtual std::string renameVarForC(const std::string & varName);
 	virtual std::map<std::string, std::string> renameVarsForC();
 
@@ -57,9 +61,13 @@ public:
 	virtual bool isKnown(const std::string & var) const;
 	virtual bool operator==(const ApronAbstractState &) const;
 	virtual bool operator!=(const ApronAbstractState &) const;
+	virtual bool operator<=(const ApronAbstractState &) const;
+	virtual bool isSat(ap_tcons1_t & cons) const;
+	virtual bool isPosssiblyNotZero(const std::string & var) const;
 	virtual ap_texpr1_t * asTexpr(const std::string & var);
 	virtual ap_texpr1_t * asTexpr(int64_t value);
 	virtual ap_texpr1_t * asTexpr(double value);
+	virtual bool isConstrained(const std::string & var) const;
 
 	class Variables {
 		ap_environment_t * env;

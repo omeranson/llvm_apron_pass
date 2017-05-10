@@ -1,5 +1,6 @@
 #include <AbstractStates/MPTAbstractState.h>
 
+#include <cassert>
 #include <algorithm>
 
 // MPTItemAbstractState
@@ -10,7 +11,7 @@ MPTItemAbstractState::MPTItemAbstractState(
 
 MPTItemAbstractState::MPTItemAbstractState() : m_isWritable(true) {}
 
-const std::set<std::string> & MPTItemAbstractState::getBuffers() {
+const std::set<std::string> & MPTItemAbstractState::getBuffers() const {
 	return m_buffers;
 }
 
@@ -41,10 +42,25 @@ std::set<std::string>::const_iterator MPTItemAbstractState::end() const {
 }
 
 bool MPTItemAbstractState::join(const MPTItemAbstractState & other) {
+	assert(isWritable() || (m_buffers == other.m_buffers));
 	bool isChanged = false;
 	for (const std::string & userPtr : other.m_buffers) {
 		auto inserted = m_buffers.insert(userPtr);
 		isChanged = isChanged || inserted.second;
+	}
+	return isChanged;
+}
+
+bool MPTItemAbstractState::meet(const MPTItemAbstractState & other) {
+	assert(isWritable() || (m_buffers == other.m_buffers));
+	bool isChanged = false;
+	for (std::set<std::string>::iterator it = m_buffers.begin(), ie = m_buffers.end();
+			it != ie; it++) {
+		if (other.contains(*it)) {
+			continue;
+		}
+		it = m_buffers.erase(it);
+		isChanged = true;
 	}
 	return isChanged;
 }
@@ -67,6 +83,14 @@ bool MPTItemAbstractState::isWritable() const {
 
 bool MPTItemAbstractState::contains(const std::string & name) const {
 	return (m_buffers.count(name) == 1);
+}
+
+bool MPTItemAbstractState::operator==(const MPTItemAbstractState & other) const {
+	return (m_buffers == other.m_buffers);
+}
+
+bool MPTItemAbstractState::operator!=(const MPTItemAbstractState & other) const {
+	return !(*this == other);
 }
 
 void MPTItemAbstractState::updateToIntersection(MPTItemAbstractState & left, MPTItemAbstractState & right) {
@@ -108,13 +132,48 @@ bool MPTAbstractState::join(const MPTAbstractState & other) {
 		auto pt_it = m_mayPointsTo.find(name);
 		if (pt_it == m_mayPointsTo.end()) {
 			isChanged = true;
-			m_mayPointsTo.insert(std::make_pair(name, buffers));
+			m_mayPointsTo.insert(std::make_pair(name,
+					MPTItemAbstractState(buffers.getBuffers(), true)));
 		} else {
 			isChanged = pt_it->second.join(buffers) || isChanged;
 		}
 	}
 	return isChanged;
-	
+}
+
+bool MPTAbstractState::meet(const MPTAbstractState & other) {
+	bool isChanged = false;
+	for (std::map<std::string, MPTItemAbstractState >::iterator it = m_mayPointsTo.begin(),
+			ie = m_mayPointsTo.end();
+			it != ie; it++) {
+		const std::string & name = it->first;
+		MPTItemAbstractState & buffers = it->second;
+		auto pt_it = other.m_mayPointsTo.find(name);
+		if (pt_it == other.m_mayPointsTo.end()) {
+			// delete it
+			it = m_mayPointsTo.erase(it);
+			isChanged = true;
+		} else {
+			// intersect
+			const MPTItemAbstractState & other_buffers = pt_it->second;
+			isChanged = buffers.meet(other_buffers) || isChanged;
+		}
+	}
+	return isChanged;
+}
+
+void MPTAbstractState::forget(const std::string & name) {
+	std::map<std::string, MPTItemAbstractState>::iterator it = m_mayPointsTo.find(name);
+	if (it == m_mayPointsTo.end()) {
+		return;
+	}
+	assert(it->second.isWritable());
+	m_mayPointsTo.erase(it);
+	assert(m_mayPointsTo.find(name) == m_mayPointsTo.end());
+}
+
+MPTItemAbstractState & MPTAbstractState::extend(const std::string& name) {
+	return m_mayPointsTo[name];
 }
 
 void MPTAbstractState::clear() {
@@ -126,4 +185,20 @@ void MPTAbstractState::clear() {
 			it = m_mayPointsTo.erase(it);
 		}
 	}
+}
+
+MPTItemAbstractState * MPTAbstractState::find(const std::string& name) {
+	std::map<std::string, MPTItemAbstractState>::iterator it = m_mayPointsTo.find(name);
+	if (it == m_mayPointsTo.end()) {
+		return 0;
+	}
+	return &it->second;
+}
+
+bool MPTAbstractState::operator==(const MPTAbstractState& other) const {
+	return (m_mayPointsTo == other.m_mayPointsTo);
+}
+
+bool MPTAbstractState::operator!=(const MPTAbstractState& other) const {
+	return !(*this == other);
 }
