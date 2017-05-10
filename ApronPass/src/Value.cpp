@@ -2126,7 +2126,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 	//case llvm::BinaryOperator::ExtractElement:
 	//case llvm::BinaryOperator::InsertElement:
 	//case llvm::BinaryOperator::ShuffleVector:
-	//case llvm::BinaryOperator::ExtractValue:
+	case llvm::BinaryOperator::ExtractValue:
+		return new NopInstructionValue(instruction);
 	//case llvm::BinaryOperator::InsertValue:
 
 	default: return NULL;
