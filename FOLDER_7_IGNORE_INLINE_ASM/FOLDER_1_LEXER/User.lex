@@ -53,53 +53,7 @@ YYSTYPE aalval;
 /*********/
 %%
 [^\n]*"call void asm sideeffect"[^\n]*	{continue;}
-[^\n]*"asm sideeffect"[^\n]*	{
-		char *p;
-		char *q;
-		char *r;
-		char *s;
-		char *t;
-		char *u;
-		char *v;
-		char *w	;
-		char temp[128];
-	
-		p = aatext;
-		q = strchr(p,'%');
-		if (q)
-		{
-			r = strchr(q,' ');
-			if (r)
-			{
-				for (p=aatext;(*p) && (strncmp(p,"call",4)!=0);p++);
-				p += strlen("call ");
-				if (*p == '{')
-				{
-					/**************************************/
-					/* DO NOTHING                         */
-					/**************************************/
-					/* q = strchr(p,'}');                 */
-					/* memset(temp,0,sizeof(temp));       */
-					/* strncpy(temp,p,q-p+1);             */
-					/* User_ErrorMsg_Log("%s 0, 0",temp); */
-					/**************************************/
-				}
-				else
-				{
-					/******************/
-					/* temporary name */
-					/******************/
-					memset(temp,0,sizeof(temp));
-					strncpy(temp,q,r-q);
-					User_ErrorMsg_Log("  %s = add ",temp);
-					q = strchr(p,' ');
-					memset(temp,0,sizeof(temp));
-					strncpy(temp,p,q-p);
-					User_ErrorMsg_Log("%s 0, 0",temp);
-				}
-			}
-		}
-	}
+[^\n]*"call void asm"[^\n]*	{continue;}
 [^\n]*		{User_ErrorMsg_Log("%s", aatext); continue;}
 [^\r\n]*	{User_ErrorMsg_Log("%s", aatext); continue;}
 "\n"		{User_ErrorMsg_Log("%s", aatext); continue;}

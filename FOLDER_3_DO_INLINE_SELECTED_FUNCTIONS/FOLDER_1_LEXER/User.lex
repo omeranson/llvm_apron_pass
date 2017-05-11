@@ -79,6 +79,27 @@ ID	[a-zA-Z_][a-zA-Z_0-9]*
 /* RULES */
 /*********/
 %%
+"SYSCALL_DEFINE"[0-9]"("[^)]*"__user"[^)]*")"[^\r\n]*	{
+		FILE *fl;
+		char *p = aatext;
+		char *q = strchr(p,'(');
+		char *r = strchr(q,',');
+		char funcname[100];
+		char filename[100];
+		q++;
+		memset(funcname,0,sizeof(funcname));
+		strncpy(funcname,q,r-q);
+		sprintf(filename,"/tmp/INLINE_ME/SyS_%s.txt",funcname);
+		fl = fopen(filename,"w+t");
+		if (!fl)
+		{
+			fprintf(stderr, "Failed to open output file %s: %s\n", filename, strerror(errno));
+			exit(1);
+		}
+		fprintf(fl,"INLINE ME BABY!!!\n");
+		fclose(fl);
+	}
+
 [^\r\n]*"("[^)]*"__user"[^)]*")"[^\r\n]*	{
 		FILE *fl;
 		char *p = aatext;

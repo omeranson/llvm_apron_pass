@@ -52,16 +52,16 @@ YYSTYPE aalval;
 /* RULES */
 /*********/
 %%
-"; Function Attrs:"[^\n]*	{
+"; Function Attrs:_OREN"[^\n]*	{
 		static int get_user_declared=0;
 		if (get_user_declared == 0)
 		{
 			get_user_declared=1;
-			User_ErrorMsg_Log("%s","declare { i32*, i64 } @get_user(i32*, i64)\n");
+			User_ErrorMsg_Log("%s","declare { i16*, i64 } @get_user(i16*, i64)\n");
 		}
 		User_ErrorMsg_Log("%s",aatext);
 	}
-[^\n]*"get_user"[^\n]*	{
+[^\n]*"GET_USER_OREN"[^\n]*	{
 		char *p;
 		char *q;
 		char *r;

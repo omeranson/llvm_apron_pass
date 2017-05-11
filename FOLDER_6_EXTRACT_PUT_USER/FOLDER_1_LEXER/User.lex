@@ -57,7 +57,8 @@ YYSTYPE aalval;
 		if (put_user_declared == 0)
 		{
 			put_user_declared=1;
-			User_ErrorMsg_Log("%s","declare i32 @put_user(i32, i32*)\n");
+			User_ErrorMsg_Log("%s","declare i32 @put_user_4(i32, i32*)\n");
+			User_ErrorMsg_Log("%s","declare i8* @put_user_8(i8*, i8**)\n");
 		}
 		User_ErrorMsg_Log("%s",aatext);
 	}
@@ -90,7 +91,7 @@ YYSTYPE aalval;
 						/******************/
 						memset(temp,0,sizeof(temp));
 						strncpy(temp,q,r-q);
-						User_ErrorMsg_Log("  %s = call i32 @put_user",temp);
+						User_ErrorMsg_Log("  %s = call i32 @put_user_4",temp);
 						memset(temp,0,sizeof(temp));
 						strncpy(temp,s,t-s+1);
 						User_ErrorMsg_Log("%s",temp);
