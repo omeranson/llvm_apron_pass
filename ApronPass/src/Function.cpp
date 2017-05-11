@@ -216,7 +216,9 @@ void Function::pushBackIfConstrainsUserPointers(
 }
 
 void Function::insertErrorState(std::multimap<std::string, ApronAbstractState> & states,
-		const ApronAbstractState & baseState, const std::string & userBuffer, user_pointer_operation_e op) {
+		const ApronAbstractState & baseState,
+		const std::string & userBuffer, user_pointer_operation_e op,
+		bool defendNullWrite) {
 	const std::string & lastName = AbstractState::generateLastName(userBuffer, op);
 	if (!baseState.isKnown(lastName)) {
 		return;
@@ -233,7 +235,13 @@ void Function::insertErrorState(std::multimap<std::string, ApronAbstractState> &
 	ap_texpr1_t * diff = ap_texpr1_binop(
 			AP_TEXPR_SUB, lastExpr, sizeExpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
-	ap_tcons1_t cons= ap_tcons1_make(AP_CONS_SUP, diff, copy.zero());
+	ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUP, diff, copy.zero());
+	copy.meet(cons);
+	if (!defendNullWrite) {
+		return;
+	}
+	sizeExpr = copy.asTexpr(sizeName);
+	cons = ap_tcons1_make(AP_CONS_SUP, sizeExpr, copy.zero());
 	copy.meet(cons);
 }
 
@@ -242,10 +250,11 @@ std::multimap<std::string, ApronAbstractState> Function::getErrorStates() {
 	std::vector<std::string> userBuffers = getUserPointers();
 	for (auto & memOpsState : m_successMemOpsAbstractStates) {
 		for (std::string & userBuffer : userBuffers) {
-			insertErrorState(result, memOpsState.second.m_apronAbstractState, userBuffer, user_pointer_operation_write);
-			insertErrorState(result, memOpsState.second.m_apronAbstractState, userBuffer, user_pointer_operation_read);
+			ApronAbstractState & baseState = memOpsState.second.m_apronAbstractState;
+			bool defendNullWrite = !memOpsState.second.isPossiblyWriteToNull(userBuffer);
+			insertErrorState(result, baseState, userBuffer, user_pointer_operation_write, defendNullWrite);
+			insertErrorState(result, baseState, userBuffer, user_pointer_operation_read, defendNullWrite);
 		}
-
 	}
 	return result;
 }
@@ -255,7 +264,17 @@ ApronAbstractState Function::getSuccessState() {
 	ApronAbstractState result = ApronAbstractState::bottom();
 	std::vector<ApronAbstractState> successStates;
 	for (auto & memOpsState : m_successMemOpsAbstractStates) {
-		successStates.push_back(memOpsState.second.m_apronAbstractState);
+		AbstractState successState = memOpsState.second;
+		for (std::string & userBuffer : getUserPointers()) {
+			if (!successState.isPossiblyWriteToNull(userBuffer)) {
+				const std::string & sizeName = AbstractState::generateSizeName(userBuffer);
+				ap_texpr1_t * sizeExpr = successState.m_apronAbstractState.asTexpr(sizeName);
+				ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUP,
+						sizeExpr, successState.m_apronAbstractState.zero());
+				successState.m_apronAbstractState.meet(cons);
+			}
+		}
+		successStates.push_back(successState.m_apronAbstractState);
 	}
 	result.join(successStates);
 	return result;

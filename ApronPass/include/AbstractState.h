@@ -147,6 +147,7 @@ public:
 	virtual bool reduce(std::vector<std::string> & userBuffers);
 	virtual void assignPtrToPtr(const std::string & dest, const std::string & src);
 	virtual void updateByMemoryOperation(MemoryAccessAbstractValue & maav);
+	bool isPossiblyWriteToNull(const std::string & userBuffer);
 	// TODO(oanson) The following functions are missing
 	//virtual bool meet(AbstractState &);
 	//virtual bool unify(AbstractState &);

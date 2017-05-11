@@ -274,7 +274,6 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	// Preconditions
 	// Standard variables
 	s << depth << "// Preconditions\n";
-	ap_manager_t * manager = apron_manager;
 	for (auto & errorStatePair : errorStates) {
 		s << depth << "// Error state for " << errorStatePair.first << ":\n";
 		ApronAbstractState minimizedErrorState =
@@ -324,7 +323,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	// Postconditions
 	s << "\t// Postconditions\n";
 	ap_abstract1_t retvalAbstract1 = minimizedReturnState.m_abstract1;
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(manager, &retvalAbstract1);
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(apron_manager, &retvalAbstract1);
 	s << depth << "HAVOC(b);\n";
 	s << depth << "if " << Conjunction("b", &array) << " {\n";
 	++depth;

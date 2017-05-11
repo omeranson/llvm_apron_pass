@@ -145,6 +145,19 @@ void AbstractState::updateUserOperationAbstract1() {
 	}
 }
 
+bool AbstractState::isPossiblyWriteToNull(const std::string & userBuffer) {
+	for (MemoryAccessAbstractValue & maav : memoryAccessAbstractValues) {
+		if (maav.buffer == userBuffer) {
+			continue;
+		}
+		MPTItemAbstractState * mpti = m_mayPointsTo.find(maav.pointer);
+		if ((!mpti) || mpti->contains("null")) {
+			return true;
+		}
+	}
+	return false;
+}
+
 bool AbstractState::joinMemoryOperationState(const memory_operation_state_e & other) {
 	if (other == m_mos) {
 		return false;

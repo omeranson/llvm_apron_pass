@@ -1370,7 +1370,6 @@ void IntegerCompareValue::updateMayPointsToAssumptions(AbstractState & state,
 void IntegerCompareValue::removeNullIfOtherIsProvablyNull(
 		MPTItemAbstractState & left, MPTItemAbstractState & right) {
 	if (right.isProvablyNull()) {
-		// TODO If left is provably null, make bottom
 		left.erase("null");
 	}
 }

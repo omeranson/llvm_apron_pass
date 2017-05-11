@@ -115,8 +115,7 @@ MPTAbstractState::MPTAbstractState() {
 
 MPTAbstractState::MPTAbstractState(std::vector<std::string> buffers) {
 	for (const std::string & buffer : buffers) {
-		std::set<std::string> identBuffers;
-		identBuffers.insert(buffer);
+		std::set<std::string> identBuffers = {buffer, "null"};
 		m_mayPointsTo.insert(std::make_pair(
 				buffer, MPTItemAbstractState(identBuffers, false)));
 	}
