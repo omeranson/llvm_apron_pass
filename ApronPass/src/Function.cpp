@@ -251,7 +251,7 @@ std::multimap<std::string, ApronAbstractState> Function::getErrorStates() {
 	for (auto & memOpsState : m_successMemOpsAbstractStates) {
 		for (std::string & userBuffer : userBuffers) {
 			ApronAbstractState & baseState = memOpsState.second.m_apronAbstractState;
-			bool defendNullWrite = !memOpsState.second.isPossiblyWriteToNull(userBuffer);
+			bool defendNullWrite = !memOpsState.second.isPossiblyAccessToNull(userBuffer);
 			insertErrorState(result, baseState, userBuffer, user_pointer_operation_write, defendNullWrite);
 			insertErrorState(result, baseState, userBuffer, user_pointer_operation_read, defendNullWrite);
 		}
@@ -260,27 +260,29 @@ std::multimap<std::string, ApronAbstractState> Function::getErrorStates() {
 }
 
 // TODO(oanson) This will have to be a map: buffer -> state
-ApronAbstractState Function::getSuccessState() {
-	ApronAbstractState result = ApronAbstractState::bottom();
-	std::vector<ApronAbstractState> successStates;
+std::map<std::string, ApronAbstractState> Function::getSuccessStates() {
+	std::map<std::string, ApronAbstractState> result;
 	for (auto & memOpsState : m_successMemOpsAbstractStates) {
-		AbstractState successState = memOpsState.second;
+		AbstractState & successState = memOpsState.second;
 		for (std::string & userBuffer : getUserPointers()) {
-			if (!successState.isPossiblyWriteToNull(userBuffer)) {
-				const std::string & sizeName = AbstractState::generateSizeName(userBuffer);
-				ap_texpr1_t * sizeExpr = successState.m_apronAbstractState.asTexpr(sizeName);
-				ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUP,
-						sizeExpr, successState.m_apronAbstractState.zero());
-				successState.m_apronAbstractState.meet(cons);
+			if (!successState.isWriteToPointer(userBuffer)) {
+				continue;
 			}
+			AbstractState copy = successState;
+			if (!copy.isPossiblyAccessToNull(userBuffer)) {
+				const std::string & sizeName = AbstractState::generateSizeName(userBuffer);
+				ap_texpr1_t * sizeExpr = copy.m_apronAbstractState.asTexpr(sizeName);
+				ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUP,
+						sizeExpr, copy.m_apronAbstractState.zero());
+				copy.m_apronAbstractState.meet(cons);
+			}
+			result[userBuffer].join(copy.m_apronAbstractState);
 		}
-		successStates.push_back(successState.m_apronAbstractState);
 	}
-	result.join(successStates);
 	return result;
 }
 
-ApronAbstractState Function::minimize(ApronAbstractState & state) {
+ApronAbstractState Function::minimize(const ApronAbstractState & state) {
 	// Forget all variables that are not arguments, 'last(*,*)', size(*),
 	// or the return value
 	std::vector<ap_var_t> forgetVars;

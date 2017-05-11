@@ -145,7 +145,7 @@ void AbstractState::updateUserOperationAbstract1() {
 	}
 }
 
-bool AbstractState::isPossiblyWriteToNull(const std::string & userBuffer) {
+bool AbstractState::isPossiblyAccessToNull(const std::string & userBuffer) {
 	for (MemoryAccessAbstractValue & maav : memoryAccessAbstractValues) {
 		if (maav.buffer == userBuffer) {
 			continue;
@@ -156,6 +156,11 @@ bool AbstractState::isPossiblyWriteToNull(const std::string & userBuffer) {
 		}
 	}
 	return false;
+}
+
+bool AbstractState::isWriteToPointer(const std::string & userBuffer) {
+	const std::string & lastName = generateLastName(userBuffer, user_pointer_operation_write);
+	return m_apronAbstractState.isKnown(lastName);
 }
 
 bool AbstractState::joinMemoryOperationState(const memory_operation_state_e & other) {

@@ -51,12 +51,12 @@ public:
 	virtual bool isOffsetVariable(const char * varname);
 	virtual bool isReturnValue(const char * varname);
 	virtual bool isFunctionParameter(const char * varname);
-	virtual ApronAbstractState minimize(ApronAbstractState & state);
+	virtual ApronAbstractState minimize(const ApronAbstractState & state);
 	virtual std::multimap<std::string, ApronAbstractState> getErrorStates();
 	virtual void insertErrorState(std::multimap<std::string, ApronAbstractState> & states,
 		const ApronAbstractState & baseState, const std::string & userBuffer, user_pointer_operation_e op,
 		bool defendNullWrite);
-	virtual ApronAbstractState getSuccessState();
+	virtual std::map<std::string, ApronAbstractState> getSuccessStates();
 	virtual const std::string & getName() const;
 	virtual std::vector<std::pair<std::string, std::string> > getArgumentStrings();
 	virtual std::string getSignature();

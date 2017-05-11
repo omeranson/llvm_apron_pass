@@ -26,6 +26,9 @@ void changeToLeastCommonEnv(ap_abstract1_t & a1, ap_abstract1_t & a2, bool isBot
 }
 
 
+ApronAbstractState::ApronAbstractState() :
+		m_abstract1(ap_abstract1_bottom(apron_manager, ap_environment_alloc_empty())) {}
+
 ApronAbstractState::ApronAbstractState(const ap_abstract1_t & abst) :
 		m_abstract1(abst) {}
 

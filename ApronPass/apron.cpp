@@ -179,9 +179,12 @@ namespace
 				llvm::errs() << apstate << "\n";
 				llvm::errs() << minimizedState << "\n";
 			}
-			ApronAbstractState successState = function->getSuccessState();
-			ApronAbstractState minimizedSuccessState = function->minimize(successState);
-			llvm::errs() << "Success state: " << &successState << "\n" << minimizedSuccessState << "\n";
+			std::map<std::string, ApronAbstractState> successStates = function->getSuccessStates();
+			for (auto & pair : successStates) {
+				ApronAbstractState & successState = pair.second;
+				ApronAbstractState minimizedSuccessState = function->minimize(successState);
+				llvm::errs() << "Success state for " << pair.first << ": " << successState << "\n" << minimizedSuccessState << "\n";
+			}
 		}
 		llvm::ReturnInst * returnInst = function->getReturnInstruction();
 		if (!returnInst) {

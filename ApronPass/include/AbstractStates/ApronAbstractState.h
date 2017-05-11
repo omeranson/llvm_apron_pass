@@ -11,7 +11,6 @@
 
 class ApronAbstractState {
 protected:
-	ApronAbstractState();
 	bool m_isMeetAggregate = false;
 	std::vector<ap_tcons1_t> m_meetAggregates;
 	int joinCount = 0;
@@ -23,6 +22,7 @@ public:
 	virtual void extendEnvironment(ap_tcons1_t * tcons);
 	virtual void meet(ap_tcons1_array_t & tconsarray);
 public:
+	ApronAbstractState();
 	ap_abstract1_t m_abstract1;
 	ApronAbstractState(const ap_abstract1_t & abst);
 	ApronAbstractState(const ap_abstract1_t * abst);

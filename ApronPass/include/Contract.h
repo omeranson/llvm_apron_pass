@@ -235,7 +235,6 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "// Preamble\n";
 	std::vector<std::string> userPointers = function->getUserPointers();
 	std::multimap<std::string, ApronAbstractState> errorStates = function->getErrorStates();
-	ApronAbstractState successState = function->getSuccessState();
 
 	const std::vector<ImportIovecCall> & importIovecCalls = function->getImportIovecCalls();
 	const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls =
@@ -260,9 +259,14 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "bool b;\n";
 	s << depth << "int idx;\n";
 	std::set<std::string> defined_vars;
-	ApronAbstractState minimizedSuccessState = function->minimize(successState);
-	auto successStateRenames = minimizedSuccessState.renameVarsForC();
-	defineVars(s, function, minimizedSuccessState, defined_vars);
+
+	std::map<std::string, ApronAbstractState> successStates = function->getSuccessStates();
+	for (auto & pair : successStates) {
+		ApronAbstractState & successState = pair.second;
+		successState = function->minimize(successState);
+		auto successStateRenames = successState.renameVarsForC();
+		defineVars(s, function, successState, defined_vars);
+	}
 	defineVars(s, function, minimizedReturnState, defined_vars);
 	defineVar(s, renamedRetValName, defined_vars);
 	for (std::string & userPointer : userPointers) {
@@ -294,22 +298,19 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	// 	For each buf : user buffer
 	// 		HAVOC(buf, last(buf,write))
 	s << depth << "// Modifications\n";
-	ap_tcons1_array_t minimized_array = ap_abstract1_to_tcons_array(
-				apron_manager, &minimizedSuccessState.m_abstract1);
-	s << depth << "if " << Conjunction(&minimized_array) << "{\n";
-	ap_tcons1_array_clear(&minimized_array);
-	++depth;
-	for (std::string & userPointer : userPointers) {
-		auto it = successStateRenames.find(userPointer);
-		std::string * renamedVar = 0;
-		if (it == successStateRenames.end()) {
-			renamedVar = &userPointer;
-		} else {
-			renamedVar = &it->second;
-		}
-		const std::string & last_name = AbstractState::generateLastName(*renamedVar, user_pointer_operation_write);
+	for (auto pair : successStates) {
+		const std::string & userPointer = pair.first;
+		ApronAbstractState & successState = pair.second;
+		ap_tcons1_array_t minimized_array = ap_abstract1_to_tcons_array(
+					apron_manager, &successState.m_abstract1);
+		s << depth << "if " << Conjunction(&minimized_array) << "{\n";
+		ap_tcons1_array_clear(&minimized_array);
+		++depth;
+		std::string renamedVar = successState.renameVarForC(userPointer);
+		const std::string & last_name = AbstractState::generateLastName(renamedVar, user_pointer_operation_write);
 		if (successState.isKnown(last_name)) {
-			s << depth << "HAVOC_SIZE(" << *renamedVar << ", " << last_name << ");\n";
+			// Should always be true
+			s << depth << "HAVOC_SIZE(" << renamedVar << ", " << last_name << ");\n";
 		}
 	}
 	for (const ImportIovecCall & call : importIovecCalls) {
