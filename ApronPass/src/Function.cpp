@@ -400,17 +400,7 @@ void Alias::populateUserPointers() {
 }
 
 llvm::FunctionType * Alias::getFunctionType() {
-	llvm::FunctionType * ftype;
-	llvm::GlobalValue * asGlobVal = m_alias->getAliasedGlobal();
-	if (asGlobVal) {
-		llvm::Function * function = llvm::dyn_cast<llvm::Function>(asGlobVal);
-		if (function) {
-			return function->getFunctionType();
-		}
-		abort();
-	}
 	llvm::Value * aliasee = m_alias->getAliasee();
-
 	llvm::ConstantExpr * asConstExpr = llvm::dyn_cast<llvm::ConstantExpr>(aliasee);
 	if (asConstExpr) {
 		llvm::Instruction * bitCastInst = asConstExpr->getAsInstruction();
@@ -418,6 +408,15 @@ llvm::FunctionType * Alias::getFunctionType() {
 		llvm::FunctionType * ftype = llvm::dyn_cast<llvm::FunctionType>(type->getPointerElementType());
 		delete bitCastInst;
 		return ftype;
+	}
+
+	llvm::GlobalValue * asGlobVal = m_alias->getAliasedGlobal();
+	if (asGlobVal) {
+		llvm::Function * function = llvm::dyn_cast<llvm::Function>(asGlobVal);
+		if (function) {
+			return function->getFunctionType();
+		}
+		abort();
 	}
 	abort();
 }
