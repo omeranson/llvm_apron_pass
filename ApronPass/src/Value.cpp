@@ -2123,7 +2123,8 @@ Value * ValueFactory::createInstructionValue(llvm::Instruction * instruction) {
 		return new AndOperationValue(instruction);
 	case llvm::BinaryOperator::Or :
 		return new OrOperationValue(instruction);
-	//case llvm::BinaryOperator::Xor:
+	case llvm::BinaryOperator::Xor:
+		return new NopInstructionValue(instruction);
 
 	// Memory instructions...
 	case llvm::BinaryOperator::Alloca:
