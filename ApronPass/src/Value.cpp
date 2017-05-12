@@ -557,10 +557,11 @@ bool SHROperationValue::updateByInverseMultiplication(AbstractState & state) {
 	const llvm::APInt & apint = countAsConst->getValue();
 	uint64_t svalue = apint.getZExtValue();
 	uint64_t coeff = (1ll << svalue);
-	ap_texpr1_t * thisExpr = state.m_apronAbstractState.asTexpr(*name);
-	ap_texpr1_t * coeffTexpr = state.m_apronAbstractState.asTexpr((int64_t)coeff);
+	state.m_apronAbstractState.extend(*name);
 	Value * source = getOperandValue(0);
 	ap_texpr1_t * sourceExpr = source->createTreeExpression(state);
+	ap_texpr1_t * thisExpr = state.m_apronAbstractState.asTexpr(*name);
+	ap_texpr1_t * coeffTexpr = state.m_apronAbstractState.asTexpr((int64_t)coeff);
 	ap_texpr1_t * left = ap_texpr1_binop(
 			AP_TEXPR_MUL, coeffTexpr, thisExpr,
 			AP_RTYPE_INT, AP_RDIR_ZERO);
