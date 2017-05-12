@@ -458,11 +458,22 @@ void SubtractionOperationValue::update(AbstractState & state) {
 		Value * leftPtrVal = factory->getValue(leftPtr);
 		Value * rightPtrVal = factory->getValue(rightPtr);
 
-		MPTItemAbstractState & leftPT = state.m_mayPointsTo.m_mayPointsTo[leftPtrVal->getName()];
-		leftPT.erase("null");
-		MPTItemAbstractState & rightPT = state.m_mayPointsTo.m_mayPointsTo[rightPtrVal->getName()];
-
-		MPTItemAbstractState::updateToIntersection(leftPT, rightPT);
+		MPTItemAbstractState * leftPT = state.m_mayPointsTo.find(leftPtrVal->getName());
+		MPTItemAbstractState * rightPT = state.m_mayPointsTo.find(leftPtrVal->getName());
+		if ((!leftPT) && (!rightPT)) {
+			return; // Both top
+		}
+		if (!leftPT) {
+			MPTItemAbstractState & leftPTNew = state.m_mayPointsTo.extend(leftPtrVal->getName());
+			leftPTNew = *rightPT;
+			leftPTNew.erase("null");
+			return;
+		}
+		if (!rightPT) {
+			state.m_mayPointsTo.extend(rightPtrVal->getName()) = *leftPT;
+			return;
+		}
+		MPTItemAbstractState::updateToIntersection(*leftPT, *rightPT);
 		return;
 	}
 	return BinaryOperationValue::update(state);
@@ -1031,6 +1042,7 @@ void CallValue::updateForUserMemoryOperation(AbstractState & state,
 	MPTItemAbstractState & userBuffers = state.m_mayPointsTo.m_mayPointsTo[ptrName];
 	userBuffers.erase("null");
 	userBuffers.erase("kernel");
+	llvm::errs() << "MPTItemAbstractState for " << ptrName << " is writable? " << userBuffers.isWritable() << "\n";
 	for (auto & userBuffer : userBuffers) {
 		MemoryAccessAbstractValue maav(getName(), ptrName, userBuffer, ap_texpr1_copy(size), op);
 		// Placed back in abstractState to be joined at end of BB

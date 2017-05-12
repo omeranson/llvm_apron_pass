@@ -97,6 +97,11 @@ bool MPTItemAbstractState::operator!=(const MPTItemAbstractState & other) const 
 	return !(*this == other);
 }
 
+MPTItemAbstractState & MPTItemAbstractState::operator=(const MPTItemAbstractState & other) {
+	m_buffers = other.m_buffers;
+	return *this;
+}
+
 void MPTItemAbstractState::updateToIntersection(MPTItemAbstractState & left, MPTItemAbstractState & right) {
 	std::set<std::string> intersection;
 	std::set_intersection(left.begin(), left.end(), right.begin(), right.end(),

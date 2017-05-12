@@ -227,7 +227,7 @@ void BasicBlock::update(AbstractState & state) {
 		copy.updateUserOperationAbstract1();
 		if (Debug) {
 			ApronAbstractState minimizedCopy = function->minimize(copy.m_apronAbstractState);
-			llvm::errs() << getName() << ": State with memory: " << copy << "\n" << minimizedCopy;
+			llvm::errs() << getName() << ": State with memory: " << copy << "\nMinimized: " << minimizedCopy;
 		}
 	}
 	std::vector<std::string> userBuffers = function->getUserPointers();

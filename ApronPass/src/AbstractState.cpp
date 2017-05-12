@@ -149,6 +149,9 @@ void AbstractState::updateUserOperationAbstract1() {
 	}
 	m_isHasMemoryOperation = true;
 	for (MemoryAccessAbstractValue & maav : memoryAccessAbstractValues) {
+		if (maav.buffer == "null") {
+			llvm::errs() << "Warning: MAAV on buffer null: " << maav << "\n";
+		}
 		updateByMemoryOperation(maav);
 	}
 }

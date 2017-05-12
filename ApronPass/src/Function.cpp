@@ -140,7 +140,7 @@ bool Function::isFunctionParameter(const char * varname) {
 bool Function::isFunctionParameterDereference(const char * varname) {
 	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
 	for (const llvm::Argument & argument : arguments) {
-		if (!m_userPointers.count(argument.getName()) > 0) {
+		if (!(m_userPointers.count(argument.getName()) > 0)) {
 			continue;
 		}
 		const std::string & argumentDeref =

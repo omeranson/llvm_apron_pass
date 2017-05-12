@@ -28,6 +28,7 @@ public:
 	bool contains(const std::string & name) const;
 	bool operator==(const MPTItemAbstractState & other) const;
 	bool operator!=(const MPTItemAbstractState & other) const;
+	MPTItemAbstractState & operator=(const MPTItemAbstractState & other);
 
 	static void updateToIntersection(MPTItemAbstractState & left, MPTItemAbstractState & right);
 };
