@@ -109,6 +109,10 @@ void LoadValue::update(AbstractState & state) {
 	pt->erase("null");
 	if (isPointer()) {
 		MPTItemAbstractState & destpt = state.m_mayPointsTo.m_mayPointsTo[getName()];
+		if (pt->isProvablyKernel()) {
+			destpt = *pt;
+			return;
+		}
 		destpt.clear();
 		for (std::string & buffer : getFunction()->getUserPointers()) {
 			destpt.insert(buffer);
