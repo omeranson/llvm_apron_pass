@@ -312,6 +312,8 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 			// Should always be true
 			s << depth << "HAVOC_SIZE(" << renamedVar << ", " << last_name << ");\n";
 		}
+		--depth;
+		s << depth << "}\n";
 	}
 	for (const ImportIovecCall & call : importIovecCalls) {
 		s << modification(&call);
@@ -319,8 +321,6 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
 		s << modification(&call);
 	}
-	--depth;
-	s << depth << "}\n";
 	// Postconditions
 	s << "\t// Postconditions\n";
 	ap_abstract1_t retvalAbstract1 = minimizedReturnState.m_abstract1;

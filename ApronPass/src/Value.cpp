@@ -801,7 +801,13 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("get_user" == funcName) {
 		return true;
 	}
+	if ("__get_user" == funcName) {
+		return true;
+	}
 	if ("put_user" == funcName) {
+		return true;
+	}
+	if ("__put_user" == funcName) {
 		return true;
 	}
 	if ("clear_user" == funcName) {
@@ -861,7 +867,15 @@ void CallValue::update(AbstractState & state) {
 			updateForGetUser(state);
 			return;
 		}
+		if ("__get_user" == funcName) {
+			updateForGetUser(state);
+			return;
+		}
 		if ("put_user" == funcName) {
+			updateForPutUser(state);
+			return;
+		}
+		if ("__put_user" == funcName) {
 			updateForPutUser(state);
 			return;
 		}
