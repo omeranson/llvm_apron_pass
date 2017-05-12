@@ -744,6 +744,7 @@ protected:
 	virtual void updateForCopyToFromUser(AbstractState & state, user_pointer_operation_e op);
 	virtual void updateForImportIovec(AbstractState & state);
 	virtual void updateForCopyMsghdrFromUser(AbstractState & state);
+	virtual void updateForGetUnusedFdFlags(AbstractState & state);
 	virtual user_pointer_operation_e getArgumentUserOperation(int arg);
 	virtual user_pointer_operation_e getImportIovecOp();
 	virtual const std::string & getArgumentName(int arg);
@@ -943,8 +944,23 @@ void CallValue::update(AbstractState & state) {
 			return;
 		}
 	}
+	if ("get_unused_fd_flags" == funcName) {
+		updateForGetUnusedFdFlags(state);
+		return;
+	}
 	havoc(state);
 	return;
+}
+
+void CallValue::updateForGetUnusedFdFlags(AbstractState & state) {
+	state.m_apronAbstractState.extend(getName());
+	ap_texpr1_t * thisTexpr = state.m_apronAbstractState.asTexpr(getName());
+	ap_texpr1_t * maxNoFile = state.m_apronAbstractState.asTexpr((int64_t)1024);
+	ap_texpr1_t * difference = ap_texpr1_binop(
+				AP_TEXPR_SUB, maxNoFile, thisTexpr,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, difference, state.m_apronAbstractState.zero());
+	state.m_apronAbstractState.meet(cons);
 }
 
 user_pointer_operation_e CallValue::getArgumentUserOperation(int arg) {
