@@ -137,6 +137,21 @@ bool Function::isFunctionParameter(const char * varname) {
 	return false;
 }
 
+bool Function::isFunctionParameterDereference(const char * varname) {
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	for (const llvm::Argument & argument : arguments) {
+		if (!m_userPointers.count(argument.getName()) > 0) {
+			continue;
+		}
+		const std::string & argumentDeref =
+				AbstractState::generateBufferDereferenceName(
+						argument.getName());
+		if (argumentDeref == varname) {
+			return true;
+		}
+	}
+	return false;
+}
 bool Function::isReturnValue(const char * varname) {
 	llvm::ReturnInst * returnInst = getReturnInstruction();
 	llvm::Value * returnValue = returnInst->getReturnValue();
@@ -154,7 +169,8 @@ bool Function::isVarInOut(const char * varname) {
 			// isOffsetVariable(varname) ||
 			isLastVariable(varname) ||
 			isReturnValue(varname) ||
-			isFunctionParameter(varname);
+			isFunctionParameter(varname) ||
+			isFunctionParameterDereference(varname);
 }
 
 ap_abstract1_t Function::trimAbstractValue(AbstractState & state) {

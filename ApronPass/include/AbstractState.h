@@ -133,6 +133,8 @@ public:
 			const std::string & bufname, user_pointer_operation_e op);
 	static const std::string & generateSizeName(
 			const std::string & bufname);
+	static const std::string & generateBufferDereferenceName(
+			const std::string & bufname);
 
 	std::vector<ImportIovecCall> m_importedIovecCalls;
 	std::vector<CopyMsghdrFromUserCall> m_copyMsghdrFromUserCalls;

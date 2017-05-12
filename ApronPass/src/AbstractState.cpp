@@ -102,6 +102,14 @@ const std::string & AbstractState::generateSizeName(const std::string & bufname)
 	return rso.uniq_str();
 }
 
+const std::string & AbstractState::generateBufferDereferenceName(
+			const std::string & bufname) {
+	static std::set<std::string> names;
+	raw_uniq_string_ostream rso(names);
+	rso << "(*" << bufname << ")";
+	return rso.uniq_str();
+}
+
 ap_manager_t * AbstractState::getManager() const {
 	return apron_manager;
 }

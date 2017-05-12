@@ -51,6 +51,7 @@ public:
 	virtual bool isOffsetVariable(const char * varname);
 	virtual bool isReturnValue(const char * varname);
 	virtual bool isFunctionParameter(const char * varname);
+	virtual bool isFunctionParameterDereference(const char * varname);
 	virtual ApronAbstractState minimize(const ApronAbstractState & state);
 	virtual std::multimap<std::string, ApronAbstractState> getErrorStates();
 	virtual void insertErrorState(std::multimap<std::string, ApronAbstractState> & states,

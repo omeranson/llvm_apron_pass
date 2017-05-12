@@ -804,6 +804,9 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("__get_user" == funcName) {
 		return true;
 	}
+	if ("___get_user_inner" == funcName) {
+		return true;
+	}
 	if ("put_user" == funcName) {
 		return true;
 	}
@@ -868,6 +871,10 @@ void CallValue::update(AbstractState & state) {
 			return;
 		}
 		if ("__get_user" == funcName) {
+			updateForGetUser(state);
+			return;
+		}
+		if ("___get_user_inner" == funcName) {
 			updateForGetUser(state);
 			return;
 		}
@@ -1047,12 +1054,22 @@ void CallValue::updateForGetPutUser(AbstractState & state,
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 2);
 	// Size: Width of first parameter
-	Value * dest = getOperandValue(0);
-	unsigned size = dest->getByteSize();
+	Value * value = getOperandValue(0);
+	unsigned size = value->getByteSize();
 	ap_texpr1_t * apsize = state.m_apronAbstractState.asTexpr((int64_t)size);
 	// Pointer + offset: Second parameter
-	Value * src = getOperandValue(1);
-	updateForUserMemoryOperation(state, src, apsize, op);
+	Value * pointer = getOperandValue(1);
+	updateForUserMemoryOperation(state, pointer, apsize, op);
+	if (op == user_pointer_operation_read) {
+		MPTItemAbstractState & userBuffers = state.m_mayPointsTo.m_mayPointsTo[pointer->getName()];
+		assert(userBuffers.count() == 1);
+		for (auto & userBuffer : userBuffers) {
+			const std::string & ptrDeref = state.generateBufferDereferenceName(userBuffer);
+			ap_texpr1_t * ptrExpr = state.m_apronAbstractState.asTexpr(
+					ptrDeref);
+			state.m_apronAbstractState.assign(getName(), ptrExpr);
+		}
+	}
 }
 
 void CallValue::updateForGetUser(AbstractState & state) {

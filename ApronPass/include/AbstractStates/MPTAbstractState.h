@@ -23,6 +23,7 @@ public:
 	bool isProvablyNull() const;
 	bool isProvablyKernel() const;
 	bool empty() const;
+	unsigned count() const;
 	bool isWritable() const;
 	bool contains(const std::string & name) const;
 	bool operator==(const MPTItemAbstractState & other) const;

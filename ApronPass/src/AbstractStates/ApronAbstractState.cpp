@@ -271,7 +271,7 @@ std::string ApronAbstractState::renameVarForC(const std::string & varName) {
 	std::string::iterator it;
 	for (it = newName.begin(); it != newName.end(); it++) {
 		char & c = *it;
-		if (startOfSym && (!isalpha(c)) && (c != '_')) {
+		if (startOfSym && (!isalpha(c)) && (c != '_') && (c != '(') && (c != '*')) {
 			it = newName.insert(it, '_');
 			startOfSym = false;
 			continue;
@@ -280,7 +280,7 @@ std::string ApronAbstractState::renameVarForC(const std::string & varName) {
 		if (isalnum(c) || (c == '_')) {
 			continue;
 		}
-		if ((c == '(') || (c == ')') || (c == ',') || isspace(c)) {
+		if ((c == '(') || (c == ')') || (c == '*') || (c == ',') || isspace(c)) {
 			startOfSym = true;
 			continue;
 		}

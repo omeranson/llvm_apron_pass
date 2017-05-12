@@ -77,6 +77,10 @@ bool MPTItemAbstractState::empty() const {
 	return m_buffers.empty();
 }
 
+unsigned MPTItemAbstractState::count() const {
+	return m_buffers.size();
+}
+
 bool MPTItemAbstractState::isWritable() const {
 	return m_isWritable;
 }
