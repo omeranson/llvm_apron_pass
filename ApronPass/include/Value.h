@@ -61,8 +61,11 @@ public:
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated);
 
+	virtual unsigned getBitSizeForType(llvm::Type * type);
 	virtual unsigned getBitSize();
 	virtual unsigned getByteSize();
+	virtual unsigned getPointerBitSize();
+	virtual unsigned getPointerByteSize();
 };
 
 std::ostream& operator<<(std::ostream& os,  Value& value);

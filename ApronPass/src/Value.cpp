@@ -1086,6 +1086,10 @@ void CallValue::updateForUserMemoryOperation(AbstractState & state,
 	userBuffers.erase("kernel");
 	llvm::errs() << "MPTItemAbstractState for " << ptrName << " is writable? " << userBuffers.isWritable() << "\n";
 	for (auto & userBuffer : userBuffers) {
+		if ("null" == userBuffer) {
+			// This could still happen, if userBuffers is not writable
+			continue;
+		}
 		MemoryAccessAbstractValue maav(getName(), ptrName, userBuffer, ap_texpr1_copy(size), op);
 		// Placed back in abstractState to be joined at end of BB
 		state.memoryAccessAbstractValues.push_back(maav);
@@ -1101,17 +1105,20 @@ void CallValue::updateForGetPutUser(AbstractState & state,
 	 */
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 2);
-	// Size: Width of first parameter
-	Value * value = getOperandValue(0);
-	unsigned size = value->getByteSize();
+	// Size: Width of pointer
+	Value * pointer = getOperandValue(1);
+	unsigned size = pointer->getPointerByteSize();
 	ap_texpr1_t * apsize = state.m_apronAbstractState.asTexpr((int64_t)size);
 	// Pointer + offset: Second parameter
-	Value * pointer = getOperandValue(1);
 	updateForUserMemoryOperation(state, pointer, apsize, op);
 	if (op == user_pointer_operation_read) {
 		MPTItemAbstractState & userBuffers = *pointer->mayPointsTo(state, true);
-		assert(userBuffers.count() == 1);
+		userBuffers.erase("null");
 		for (auto & userBuffer : userBuffers) {
+			if ("null" == userBuffer) {
+				// This could still happen, if userBuffers is not writable
+				continue;
+			}
 			const std::string & ptrDeref = state.generateBufferDereferenceName(userBuffer);
 			ap_texpr1_t * ptrExpr = state.m_apronAbstractState.asTexpr(
 					ptrDeref);
@@ -1976,8 +1983,11 @@ static const llvm::Module *getModuleFromVal(const llvm::Value *V) {
   return 0;
 }
 
-unsigned Value::getBitSize() {
-	llvm::Type * type = m_value->getType();
+unsigned bitsToBytes(unsigned bits) {
+	return ((bits >> 3) + ((bits & 0x7) != 0));
+}
+
+unsigned Value::getBitSizeForType(llvm::Type * type) {
 	const llvm::Module * module = getModuleFromVal(m_value);
 	if (!module) {
 		llvm::errs() << "No module for? :" << *m_value << "\n";
@@ -1989,9 +1999,27 @@ unsigned Value::getBitSize() {
 	return bits;
 }
 
+unsigned Value::getBitSize() {
+	llvm::Type * type = m_value->getType();
+	return getBitSizeForType(type);
+}
+
 unsigned Value::getByteSize() {
 	unsigned bits = getBitSize();
-	return ((bits >> 3) + ((bits & 0x7) != 0));
+	return bitsToBytes(bits);
+}
+
+unsigned Value::getPointerBitSize() {
+	if (!isPointer()) {
+		return  0;
+	}
+	llvm::Type * type = m_value->getType()->getPointerElementType();
+	return getBitSizeForType(type);
+}
+
+unsigned Value::getPointerByteSize() {
+	unsigned bits = getPointerBitSize();
+	return bitsToBytes(bits);
 }
 
 std::string & Value::getName()  {
