@@ -76,7 +76,7 @@ bool AllocaValue::isSkip() {
 }
 
 void AllocaValue::update(AbstractState & state) {
-	MPTItemAbstractState & pt = state.m_mayPointsTo.m_mayPointsTo[getName()];
+	MPTItemAbstractState & pt = *mayPointsTo(state, true);
 	pt.clear();
 	pt.insert("kernel");
 }
@@ -96,8 +96,7 @@ llvm::LoadInst * LoadValue::asLoadInst() {
 
 void LoadValue::update(AbstractState & state) {
 	Value * srcValue = getOperandValue(0);
-	MPTAbstractState & mptas = state.m_mayPointsTo;
-	MPTItemAbstractState * pt = mptas.find(srcValue->getName());
+	MPTItemAbstractState * pt = srcValue->mayPointsTo(state);
 	if (!pt) {
 		// Value is top.
 		llvm::errs() << "WARNING: Direct load from top pointer: " << srcValue->getName() << "\n";
@@ -108,7 +107,7 @@ void LoadValue::update(AbstractState & state) {
 	}
 	pt->erase("null");
 	if (isPointer()) {
-		MPTItemAbstractState & destpt = state.m_mayPointsTo.m_mayPointsTo[getName()];
+		MPTItemAbstractState & destpt = *mayPointsTo(state, true);
 		if (pt->isProvablyKernel()) {
 			destpt = *pt;
 			return;
@@ -146,7 +145,7 @@ llvm::StoreInst * StoreValue::asStoreInst() {
 }
 void StoreValue::update(AbstractState & state) {
 	Value * destValue = getOperandValue(1);
-	MPTItemAbstractState * pt = state.m_mayPointsTo.find(destValue->getName());
+	MPTItemAbstractState * pt = destValue->mayPointsTo(state);
 	if (!pt) {
 		// Value is top. Do nothing
 		llvm::errs() << "WARNING: Direct store to top pointer: " << destValue->getName() << "\n";
@@ -196,14 +195,14 @@ void GepValue::update(AbstractState & state) {
 	Value * offset = getOperandValue(1);
 
 	std::string pointerName = src->getName();
-	MPTItemAbstractState * srcUserPointers = state.m_mayPointsTo.find(pointerName);
+	MPTItemAbstractState * srcUserPointers = src->mayPointsTo(state);
 	if (!srcUserPointers) {
 		// is top
 		llvm::errs() << "Setting pt for " << getName() << " to top since pt for " << pointerName << " is top\n";
 		state.m_mayPointsTo.forget(getName());
 		return;
 	}
-	MPTItemAbstractState & dest = state.m_mayPointsTo.m_mayPointsTo[getName()];
+	MPTItemAbstractState & dest = *mayPointsTo(state, true);
 	dest.clear();
 	ap_texpr1_t * offset_texpr = offset->createTreeExpression(state);
 	for (auto & srcPtrName : *srcUserPointers) {
@@ -228,17 +227,17 @@ class VariableValue : public Value {
 protected:
 	virtual llvm::Argument * asArgument();
 	virtual Function * getFunction();
-	std::set<std::string> userPointers;
+	bool isUserPointer;
 public:
-	VariableValue(llvm::Value * value) : Value(value) {
+	VariableValue(llvm::Value * value) : Value(value), isUserPointer(false) {
 		std::string & name = getName();
 		if (getFunction()->isUserPointer(name)) {
-			userPointers.insert(name);
+			isUserPointer = true;
 		}
 	}
 	virtual std::string getValueString();
 	virtual std::string toString() ;
-	virtual const std::set<std::string> * mayPointsToUserBuffers(AbstractState & state);
+	virtual MPTItemAbstractState * mayPointsTo(AbstractState & state, bool isCreate=false);
 };
 std::string VariableValue::getValueString() {
 	return getName();
@@ -258,8 +257,21 @@ Function * VariableValue::getFunction() {
 	return manager.getFunction(function);
 }
 
-const std::set<std::string> * VariableValue::mayPointsToUserBuffers(AbstractState & state) {
-	return &userPointers;
+MPTItemAbstractState * VariableValue::mayPointsTo(AbstractState & state, bool isCreate) {
+	MPTItemAbstractState * result = state.m_mayPointsTo.find(getName());
+	if (result) {
+		return result;
+	}
+	if (isUserPointer) {
+		MPTItemAbstractState & newmpt = state.m_mayPointsTo.extend(getName());
+		newmpt.insert(getName());
+		newmpt.lock();
+		return &newmpt;
+	}
+	if (isCreate) {
+		return &state.m_mayPointsTo.extend(getName());
+	}
+	return 0;
 }
 
 llvm::Instruction * InstructionValue::asInstruction() {
@@ -279,14 +291,6 @@ void InstructionValue::update(AbstractState & state) {
 
 ap_texpr1_t * InstructionValue::createRHSTreeExpression(AbstractState & state) {
 	abort();
-}
-
-const std::set<std::string> * InstructionValue::mayPointsToUserBuffers(AbstractState & state) {
-	MPTItemAbstractState * asbuffers = state.m_mayPointsTo.find(getName());
-	if (!asbuffers) {
-		return 0;
-	}
-	return &asbuffers->getBuffers();
 }
 
 bool InstructionValue::isSkip() {
@@ -463,19 +467,19 @@ void SubtractionOperationValue::update(AbstractState & state) {
 		Value * leftPtrVal = factory->getValue(leftPtr);
 		Value * rightPtrVal = factory->getValue(rightPtr);
 
-		MPTItemAbstractState * leftPT = state.m_mayPointsTo.find(leftPtrVal->getName());
-		MPTItemAbstractState * rightPT = state.m_mayPointsTo.find(leftPtrVal->getName());
+		MPTItemAbstractState * leftPT = leftPtrVal->mayPointsTo(state);
+		MPTItemAbstractState * rightPT = rightPtrVal->mayPointsTo(state);
 		if ((!leftPT) && (!rightPT)) {
 			return; // Both top
 		}
 		if (!leftPT) {
-			MPTItemAbstractState & leftPTNew = state.m_mayPointsTo.extend(leftPtrVal->getName());
+			MPTItemAbstractState & leftPTNew = *leftPtrVal->mayPointsTo(state, true);
 			leftPTNew = *rightPT;
 			leftPTNew.erase("null");
 			return;
 		}
 		if (!rightPT) {
-			state.m_mayPointsTo.extend(rightPtrVal->getName()) = *leftPT;
+			*rightPtrVal->mayPointsTo(state, true) = *leftPT;
 			return;
 		}
 		MPTItemAbstractState::updateToIntersection(*leftPT, *rightPT);
@@ -699,13 +703,19 @@ class ConstantNullValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
 	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
-	std::set<std::string> mayPointsTo;
 public:
-	ConstantNullValue(llvm::Value * value) : ConstantValue(value), mayPointsTo({"null"}) {
+	ConstantNullValue(llvm::Value * value) : ConstantValue(value) {
 		llvm::errs() << "Null ptr: llvm name: " << value->getName() << " my name: " << getName() << "\n";
 	}
-	virtual const std::set<std::string> * mayPointsToUserBuffers(AbstractState & state) {
-		return &mayPointsTo;
+	virtual MPTItemAbstractState * mayPointsTo(AbstractState & state, bool isCreate=false) {
+		MPTItemAbstractState * result = state.m_mayPointsTo.find(getName());
+		if (result) {
+			return result;
+		}
+		MPTItemAbstractState & newmpt = state.m_mayPointsTo.extend(getName());
+		newmpt.insert("null");
+		newmpt.lock();
+		return &newmpt;
 	}
 };
 
@@ -717,6 +727,21 @@ ap_texpr1_t * ConstantNullValue::createTreeExpression(ApronAbstractState & state
 	ap_texpr1_t * result = state.asTexpr((int64_t)0);
 	return result;
 }
+
+class GlobalValue : public Value {
+public:
+	GlobalValue(llvm::Value * value) : Value(value) {}
+	virtual MPTItemAbstractState * mayPointsTo(AbstractState & state, bool isCreate=false) {
+		MPTItemAbstractState * result = state.m_mayPointsTo.find(getName());
+		if (result) {
+			return result;
+		}
+		MPTItemAbstractState & newmpt = state.m_mayPointsTo.extend(getName());
+		newmpt.insert("kernel");
+		newmpt.lock();
+		return &newmpt;
+	}
+};
 
 class CallValue : public InstructionValue {
 protected:
@@ -734,9 +759,6 @@ protected:
 	virtual void updateForCopyFromUser(AbstractState & state);
 	virtual void updateForStrnlenUser(AbstractState & state);
 	virtual void updateForStrncpyFromUser(AbstractState & state);
-	virtual void updateForUserMemoryOperation(AbstractState & state,
-			const std::string & ptr, ap_texpr1_t * size,
-			user_pointer_operation_e op);
 	virtual void updateForUserMemoryOperation(AbstractState & state,
 			Value * ptr, ap_texpr1_t * size,
 			user_pointer_operation_e op);
@@ -1058,9 +1080,10 @@ void CallValue::updateForAccessOK(AbstractState & state) {
 }
 
 void CallValue::updateForUserMemoryOperation(AbstractState & state,
-		const std::string & ptrName, ap_texpr1_t * size,
+		Value * ptr, ap_texpr1_t * size,
 		user_pointer_operation_e op) {
-	MPTItemAbstractState & userBuffers = state.m_mayPointsTo.m_mayPointsTo[ptrName];
+	const std::string & ptrName = ptr->getName();
+	MPTItemAbstractState & userBuffers = *ptr->mayPointsTo(state, true);
 	userBuffers.erase("null");
 	userBuffers.erase("kernel");
 	llvm::errs() << "MPTItemAbstractState for " << ptrName << " is writable? " << userBuffers.isWritable() << "\n";
@@ -1071,12 +1094,6 @@ void CallValue::updateForUserMemoryOperation(AbstractState & state,
 	}
 	ap_texpr1_free(size);
 	havoc(state);
-}
-
-void CallValue::updateForUserMemoryOperation(AbstractState & state,
-		Value * ptr, ap_texpr1_t * size,
-		user_pointer_operation_e op) {
-	updateForUserMemoryOperation(state, ptr->getName(), size, op);
 }
 
 void CallValue::updateForGetPutUser(AbstractState & state,
@@ -1094,7 +1111,7 @@ void CallValue::updateForGetPutUser(AbstractState & state,
 	Value * pointer = getOperandValue(1);
 	updateForUserMemoryOperation(state, pointer, apsize, op);
 	if (op == user_pointer_operation_read) {
-		MPTItemAbstractState & userBuffers = state.m_mayPointsTo.m_mayPointsTo[pointer->getName()];
+		MPTItemAbstractState & userBuffers = *pointer->mayPointsTo(state, true);
 		assert(userBuffers.count() == 1);
 		for (auto & userBuffer : userBuffers) {
 			const std::string & ptrDeref = state.generateBufferDereferenceName(userBuffer);
@@ -1463,8 +1480,8 @@ void IntegerCompareValue::meetOffsetEquality(AbstractState & state,
 
 void IntegerCompareValue::meetMayPointsToByAssumption(AbstractState & state,
 		constraint_condition_t condType, Value * left, Value * right) {
-	MPTItemAbstractState * pt_left = state.m_mayPointsTo.find(left->getName());
-	MPTItemAbstractState * pt_right = state.m_mayPointsTo.find(right->getName());
+	MPTItemAbstractState * pt_left = left->mayPointsTo(state);
+	MPTItemAbstractState * pt_right = right->mayPointsTo(state);
 	switch (condType) {
 	case cons_cond_eq: {
 		// Equality
@@ -1473,11 +1490,11 @@ void IntegerCompareValue::meetMayPointsToByAssumption(AbstractState & state,
 			return;
 		}
 		if (!pt_left) {
-			state.m_mayPointsTo.extend(left->getName()) = *pt_right;
+			*left->mayPointsTo(state, true) = *pt_right;
 			return;
 		}
 		if (!pt_right) {
-			state.m_mayPointsTo.extend(right->getName()) = *pt_left;
+			*right->mayPointsTo(state, true) = *pt_left;
 			return;
 		}
 		MPTItemAbstractState::updateToIntersection(*pt_left, *pt_right);
@@ -2019,8 +2036,23 @@ void Value::assign0(AbstractState & state) {
 	state.m_apronAbstractState.assign(getName(), zero);
 }
 
-const std::set<std::string> * Value::mayPointsToUserBuffers(AbstractState & state) {
+MPTItemAbstractState * Value::mayPointsTo(AbstractState & state, bool isCreate) {
+	MPTItemAbstractState * result = state.m_mayPointsTo.find(getName());
+	if (result) {
+		return result;
+	}
+	if (isCreate) {
+		return &state.m_mayPointsTo.extend(getName());
+	}
 	return 0;
+}
+
+const std::set<std::string> * Value::mayPointsToUserBuffers(AbstractState & state) {
+	MPTItemAbstractState * asbuffers = mayPointsTo(state);
+	if (!asbuffers) {
+		return 0;
+	}
+	return &asbuffers->getBuffers();
 }
 
 void Value::updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
@@ -2036,7 +2068,7 @@ void Value::updateConditionalAssumptions(AbstractState & state, bool isNegated) 
 			state.m_apronAbstractState.assign(getName(), zero);
 		}
 	} else {
-		MPTItemAbstractState & mptItem = state.m_mayPointsTo.m_mayPointsTo[getName()];
+		MPTItemAbstractState & mptItem = *mayPointsTo(state, true);
 		bool isNull = mptItem.isProvablyNull();
 		if (isNull) {
 			if (!isNegated) {
@@ -2238,7 +2270,7 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 		return new ConstantNullValue(constant);
 	}
 	if (llvm::isa<llvm::GlobalVariable>(constant)) {
-		return new Value(constant);
+		return new GlobalValue(constant);
 	}
 	if (llvm::isa<llvm::ConstantExpr>(constant)) {
 		llvm::ConstantExpr & expr = llvm::cast<llvm::ConstantExpr>(*constant);

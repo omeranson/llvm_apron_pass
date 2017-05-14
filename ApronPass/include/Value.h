@@ -56,6 +56,7 @@ public:
 	virtual void havoc(AbstractState & state);
 	virtual void assign0(AbstractState & state);
 
+	virtual MPTItemAbstractState * mayPointsTo(AbstractState & state, bool isCreate=false);
 	virtual const std::set<std::string> * mayPointsToUserBuffers(AbstractState & state);
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated);
@@ -79,7 +80,6 @@ public:
 	virtual void update(AbstractState & state);
 	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state);
 	virtual Value * getOperandValue(int idx);
-	virtual const std::set<std::string> * mayPointsToUserBuffers(AbstractState & state);
 	virtual bool isSkip();
 };
 

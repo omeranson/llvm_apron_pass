@@ -65,6 +65,10 @@ bool MPTItemAbstractState::meet(const MPTItemAbstractState & other) {
 	return isChanged;
 }
 
+void MPTItemAbstractState::lock() {
+	m_isWritable = false;
+}
+
 bool MPTItemAbstractState::isProvablyNull() const {
 	return (m_buffers.size() == 1) && (m_buffers.count("null") == 1);
 }

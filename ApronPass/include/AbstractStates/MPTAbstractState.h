@@ -20,6 +20,7 @@ public:
 	std::set<std::string>::const_iterator end() const;
 	bool join(const MPTItemAbstractState & other);
 	bool meet(const MPTItemAbstractState & other);
+	void lock();
 	bool isProvablyNull() const;
 	bool isProvablyKernel() const;
 	bool empty() const;

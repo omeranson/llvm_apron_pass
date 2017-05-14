@@ -6,6 +6,8 @@ typedef unsigned int uint;
 #define RNDSIZE 1024
 #define EFAULT 5
 
+int j;
+
 __attribute__((always_inline)) long extract_random(char __user *buf, uint count, int r) {
  if (r == 0) {
    return 0;
@@ -31,7 +33,7 @@ __attribute__((always_inline)) long extract_random(char __user *buf, uint count,
 long getrandom(char __user *buf, 
                uint s, 
                uint f) {
- if (s == 0) return 0;
+ if (j == 0) return 0;
  while (1) {
    long n = extract_random(buf, s, g(1));
    if (n < 0) {
