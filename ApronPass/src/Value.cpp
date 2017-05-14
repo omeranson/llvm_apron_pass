@@ -183,7 +183,7 @@ std::string GepValue::getValueString() {
 	llvm::GetElementPtrInst * gepi = asGetElementPtrInst();
 	Value * pointer = factory->getValue(gepi->getOperand(0));
 	Value * offset = factory->getValue(gepi->getOperand(1));
-	rso << "&" << *pointer << "[" << *offset << "]";
+	rso << "&" << pointer->getName() << "[" << offset->getName() << "]";
 	return rso.str();
 }
 
@@ -784,18 +784,17 @@ std::string CallValue::getValueString() {
 	std::ostringstream oss;
 	llvm::CallInst * callInst = asCallInst();
 	oss << getCalledFunctionName() << "(";
-	llvm::User::op_iterator it;
 	ValueFactory * factory = ValueFactory::getInstance();
 	bool isFirst = true;
-	for (it = callInst->op_begin(); it != callInst->op_end(); it++) {
-		llvm::Value * llvmOperand = it->get();
+	for (unsigned idx = 0; idx < callInst->getNumArgOperands(); idx++) {
+		llvm::Value * llvmOperand = callInst->getArgOperand(idx);
 		Value * operand = factory->getValue(llvmOperand);
 		if (!isFirst) {
 			oss << ", ";
 		}
 		isFirst = false;
 		if (operand) {
-			oss << operand->getValueString();
+			oss << operand->getName();
 		} else {
 			oss << "<unknown operand>";
 		}

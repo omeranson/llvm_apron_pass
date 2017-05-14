@@ -259,10 +259,10 @@ void BasicBlock::processInstruction(AbstractState & state,
 		return;
 	}
 	//const llvm::DebugLoc & debugLoc = inst.getDebugLoc();
-	//llvm::errs() << "Apron: Instruction: "
+	llvm::errs() << "Apron: Instruction: "
 			//// << scope->getFilename() << ": "
 			//<< debugLoc.getLine() << ": "
-			//<< value->toString() << "\n";
+			<< value->toString() << "\n";
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->update(state);

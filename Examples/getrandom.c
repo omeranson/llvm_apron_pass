@@ -33,7 +33,7 @@ long getrandom(char __user *buf,
                uint f) {
  if (s == 0) return 0;
  while (1) {
-   long n = extract_random(buf, s, g());
+   long n = extract_random(buf, s, g(1));
    if (n < 0) {
      return n;
    }
