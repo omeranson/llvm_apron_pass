@@ -87,7 +87,7 @@ bool ChaoticExecution::join(BasicBlock * source, BasicBlock * dest, AbstractStat
 	AbstractState incoming = dest->getAbstractStateWithAssumptions(*source, state);
 	bool isChanged;
 	bool isJoin = true;
-	if (joinCount >= WideningThreshold) {
+	if (WideningThreshold && (joinCount >= WideningThreshold)) {
 		isChanged = dest->getAbstractState().widen(incoming);
 		isJoin = false;
 	} else {
