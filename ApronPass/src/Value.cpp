@@ -1197,6 +1197,9 @@ protected:
 			MPTItemAbstractState & left, MPTItemAbstractState & right);
 	virtual void meetMayPointsToByAssumption(AbstractState & state,
 		constraint_condition_t condType, Value * left, Value * right);
+
+	virtual void meetOffsetEquality(AbstractState & state,
+		MPTItemAbstractState & mpt, Value * left, Value * right);
 public:
 	IntegerCompareValue(llvm::Value * value) : CompareValue(value) {}
 	virtual constraint_condition_t getConditionType();
@@ -1438,12 +1441,32 @@ void IntegerCompareValue::removeNullIfOtherIsProvablyNull(
 	}
 }
 
+void IntegerCompareValue::meetOffsetEquality(AbstractState & state,
+		MPTItemAbstractState & mpt, Value * left, Value * right) {
+	for (const std::string & buffer : mpt) {
+		const std::string & leftOffset = state.generateOffsetName(
+				left->getName(), buffer);
+		const std::string & rightOffset = state.generateOffsetName(
+				right->getName(), buffer);
+		state.m_apronAbstractState.extend(leftOffset);
+		state.m_apronAbstractState.extend(rightOffset);
+		ap_texpr1_t * leftOffsetExpr = state.m_apronAbstractState.asTexpr(leftOffset);
+		ap_texpr1_t * rightOffsetExpr = state.m_apronAbstractState.asTexpr(rightOffset);
+		ap_texpr1_t * difference = ap_texpr1_binop(
+				AP_TEXPR_SUB, leftOffsetExpr, rightOffsetExpr,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t cons = ap_tcons1_make(AP_CONS_EQ, difference,
+				state.m_apronAbstractState.zero());
+		state.m_apronAbstractState.meet(cons);
+	}
+}
+
 void IntegerCompareValue::meetMayPointsToByAssumption(AbstractState & state,
 		constraint_condition_t condType, Value * left, Value * right) {
 	MPTItemAbstractState * pt_left = state.m_mayPointsTo.find(left->getName());
 	MPTItemAbstractState * pt_right = state.m_mayPointsTo.find(right->getName());
 	switch (condType) {
-	cons_cond_eq: {
+	case cons_cond_eq: {
 		// Equality
 		if ((!pt_left) && (!pt_right)) {
 			// Both top. Nothing to do
@@ -1463,9 +1486,12 @@ void IntegerCompareValue::meetMayPointsToByAssumption(AbstractState & state,
 			llvm::errs() << "Setting state to bottom, (also) since " << right->getName() << " doesn't point to anything\n";
 			state.makeBottom();
 		}
+		if (!(pt_left->isProvablyNull())) {
+			meetOffsetEquality(state, *pt_left, left, right);
+		}
 		break;
 	}
-	default: {
+	case cons_cond_neq: {
 		// Inequality
 		// Remove null from each operand, if the other operand is provably null
 		if ((!pt_left) || (!pt_right)) {
@@ -1486,6 +1512,9 @@ void IntegerCompareValue::meetMayPointsToByAssumption(AbstractState & state,
 			break;
 		}
 		break;
+	}
+	default: {// Should never happen
+		abort();
 	}
 	}
 }
