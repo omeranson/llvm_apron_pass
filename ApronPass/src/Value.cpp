@@ -268,6 +268,7 @@ llvm::Instruction * InstructionValue::asInstruction() {
 
 void InstructionValue::update(AbstractState & state) {
 	if (isPointer()) {
+		state.m_mayPointsTo.forget(getName());
 		return;
 	}
 	state.m_apronAbstractState.extend(getName());
