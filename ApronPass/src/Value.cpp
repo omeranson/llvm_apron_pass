@@ -416,9 +416,7 @@ bool BinaryOperationValue::isSkip() {
 }
 
 ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(AbstractState & state, int idx) {
-	ValueFactory * factory = ValueFactory::getInstance();
-	llvm::Value * llvmOperand = asUser()->getOperand(idx);
-	Value * operand = factory->getValue(llvmOperand);
+	Value * operand = getOperandValue(idx);
 	return operand->createTreeExpression(state);
 }
 
