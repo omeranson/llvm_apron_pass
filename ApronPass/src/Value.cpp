@@ -1858,6 +1858,7 @@ void CastOperationValue::update(AbstractState & state) {
 	if (isPointer()) {
 		Value * src = getOperandValue(0);
 		assignMayPointsTo(state, src);
+		return;
 	}
 	UnaryOperationValue::update(state);
 }
