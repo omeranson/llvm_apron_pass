@@ -2122,8 +2122,21 @@ void Value::assignMayPointsTo(AbstractState & state, Value * src) {
 	MPTItemAbstractState * srcmpt = src->mayPointsTo(state);
 	if (!srcmpt) {
 		state.m_mayPointsTo.forget(name);
-	} else {
-		state.m_mayPointsTo.extend(name) = *srcmpt;
+		return;
+	}
+	state.m_mayPointsTo.extend(name) = *srcmpt;
+	const std::string & srcName = src->getName();
+	for (const std::string & buffer : *srcmpt) {
+		if ("null" == buffer) {
+			continue;
+		}
+		const std::string & destOffset =
+				state.generateOffsetName(name, buffer);
+		const std::string & srcOffset =
+				state.generateOffsetName(srcName, buffer);
+		ap_texpr1_t * srcOffsetExpr = state.m_apronAbstractState.asTexpr(
+				srcOffset);
+		state.m_apronAbstractState.assign(destOffset, srcOffsetExpr);
 	}
 }
 
