@@ -253,25 +253,6 @@ bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
 	return (prev.m_apronAbstractState != m_apronAbstractState);
 }
 
-void AbstractState::assignPtrToPtr(const std::string & dest, const std::string & src) {
-	MPTItemAbstractState *srcBuffers = m_mayPointsTo.find(src);
-	if (!srcBuffers) {
-		m_mayPointsTo.forget(dest);
-		return;
-	}
-	m_mayPointsTo.extend(dest) = *srcBuffers;
-	for (auto & buffer : *srcBuffers) {
-		const std::string & destOffsetName = AbstractState::generateOffsetName(
-				dest, buffer);
-		m_apronAbstractState.forget(destOffsetName);
-		const std::string & srcOffsetName = AbstractState::generateOffsetName(
-				src, buffer);
-		ap_texpr1_t * srcOffsetTexpr =
-				m_apronAbstractState.asTexpr(srcOffsetName);
-		m_apronAbstractState.assign(destOffsetName, srcOffsetTexpr);
-	}
-}
-
 bool AbstractState::operator==(const AbstractState & other) const {
 	return ((m_mayPointsTo == other.m_mayPointsTo) &&
 			(m_apronAbstractState == other.m_apronAbstractState) &&

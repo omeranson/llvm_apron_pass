@@ -60,6 +60,7 @@ public:
 	virtual const std::set<std::string> * mayPointsToUserBuffers(AbstractState & state);
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
 	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated);
+	virtual void assignMayPointsTo(AbstractState & state, Value * src);
 
 	virtual unsigned getBitSizeForType(llvm::Type * type);
 	virtual unsigned getBitSize();

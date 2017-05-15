@@ -1690,9 +1690,7 @@ Value * PhiValue::getIncomingValue(BasicBlock * source) {
 void PhiValue::updateMayPointsToAssumptions(AbstractState & state, Value * incomingValue) {
 	// Assign offsets of one to the other
 	// set pt
-	std::string & name = getName();
-	std::string & incomingName = incomingValue->getName();
-	state.assignPtrToPtr(name, incomingName);
+	assignMayPointsTo(state, incomingValue);
 }
 
 void PhiValue::updateNumericalAssumptions(AbstractState & state, Value * incomingValue) {
@@ -1858,7 +1856,7 @@ ap_texpr1_t * CastOperationValue::createRHSTreeExpression(AbstractState & state)
 void CastOperationValue::update(AbstractState & state) {
 	if (isPointer()) {
 		Value * src = getOperandValue(0);
-		state.assignPtrToPtr(getName(), src->getName());
+		assignMayPointsTo(state, src);
 	}
 	UnaryOperationValue::update(state);
 }
@@ -2122,6 +2120,16 @@ void Value::updateConditionalAssumptions(AbstractState & state, bool isNegated) 
 
 bool Value::isConstant() const {
 	return false;
+}
+
+void Value::assignMayPointsTo(AbstractState & state, Value * src) {
+	std::string & name = getName();
+	MPTItemAbstractState * srcmpt = src->mayPointsTo(state);
+	if (!srcmpt) {
+		state.m_mayPointsTo.forget(name);
+	} else {
+		state.m_mayPointsTo.extend(name) = *srcmpt;
+	}
 }
 
 std::ostream& operator<<(std::ostream& os, Value& value)
