@@ -281,7 +281,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	for (auto & errorStatePair : errorStates) {
 		s << depth << "// Error state for " << errorStatePair.first << ":\n";
 		ApronAbstractState minimizedErrorState =
-				function->minimize(errorStatePair.second);
+				function->minimizeFurther(errorStatePair.second);
 		minimizedErrorState.renameVarsForC();
 		std::pair<const std::string, ApronAbstractState> pair = 
 				std::make_pair(errorStatePair.first, minimizedErrorState);

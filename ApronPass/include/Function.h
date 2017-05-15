@@ -53,6 +53,7 @@ public:
 	virtual bool isFunctionParameter(const char * varname);
 	virtual bool isFunctionParameterDereference(const char * varname);
 	virtual ApronAbstractState minimize(const ApronAbstractState & state);
+	virtual ApronAbstractState minimizeFurther(const ApronAbstractState & state);
 	virtual std::multimap<std::string, ApronAbstractState> getErrorStates();
 	virtual void insertErrorState(std::multimap<std::string, ApronAbstractState> & states,
 		const ApronAbstractState & baseState, const std::string & userBuffer, user_pointer_operation_e op,

@@ -321,6 +321,31 @@ ApronAbstractState Function::minimize(const ApronAbstractState & state) {
 	return result;
 }
 
+ApronAbstractState Function::minimizeFurther(const ApronAbstractState & state) {
+	// Forget all variables that are not arguments, 'last(*,*)', size(*),
+	// or the return value
+	std::vector<ap_var_t> forgetVars;
+	ap_environment_t * environment = state.getEnvironment();
+	int env_size = environment->intdim;
+	for (int cnt = 0; cnt < env_size; cnt++) {
+		ap_var_t var = ap_environment_var_of_dim(environment, cnt);
+		const char * varName = (const char*)var;
+		if (!isVarInOut(varName)) {
+			forgetVars.push_back(var);
+		} else if (isLastVariable(varName)) {
+			forgetVars.push_back(var);
+		}
+	}
+	if (forgetVars.empty()) {
+		return state;
+	}
+	ap_abstract1_t abstract1 = state.m_abstract1;
+	ap_abstract1_t result = ap_abstract1_forget_array(apron_manager, false, &abstract1,
+			forgetVars.data(), forgetVars.size(), false);
+	result = ap_abstract1_minimize_environment(apron_manager, false, &result);
+	return result;
+}
+
 const std::string & Function::getName() const {
 	return m_name;
 }
