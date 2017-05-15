@@ -97,4 +97,11 @@ public:
 	bool operator!=(const MPTAbstractState& other) const;
 };
 
+template <class stream>
+stream & operator<<(stream & s, const MPTItemAbstractState & mpti) {
+	for (const std::string & ptr : mpti) {
+		s << ptr << ",";
+	}
+	return s;
+}
 #endif // MPT_ABSTRACT_STATE_H

@@ -1086,6 +1086,7 @@ void CallValue::updateForUserMemoryOperation(AbstractState & state,
 	userBuffers.erase("null");
 	userBuffers.erase("kernel");
 	llvm::errs() << "MPTItemAbstractState for " << ptrName << " is writable? " << userBuffers.isWritable() << "\n";
+	llvm::errs() << "CallValue::updateForUserMemoryOperation: " << userBuffers << "\n";
 	for (auto & userBuffer : userBuffers) {
 		if ("null" == userBuffer) {
 			// This could still happen, if userBuffers is not writable
