@@ -845,10 +845,7 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("___get_user_inner" == funcName) {
 		return true;
 	}
-	if ("put_user" == funcName) {
-		return true;
-	}
-	if ("__put_user" == funcName) {
+	if ("___put_user_inner" == funcName) {
 		return true;
 	}
 	if ("clear_user" == funcName) {
@@ -916,11 +913,7 @@ void CallValue::update(AbstractState & state) {
 			updateForGetUser(state);
 			return;
 		}
-		if ("put_user" == funcName) {
-			updateForPutUser(state);
-			return;
-		}
-		if ("__put_user" == funcName) {
+		if ("___put_user_inner" == funcName) {
 			updateForPutUser(state);
 			return;
 		}
@@ -1108,9 +1101,9 @@ void CallValue::updateForGetPutUser(AbstractState & state,
 	llvm::CallInst * callinst = asCallInst();
 	assert(callinst->getNumArgOperands() == 2);
 	// Size: Width of pointer
-	Value * pointer = getOperandValue(1);
-	unsigned size = pointer->getPointerByteSize();
-	ap_texpr1_t * apsize = state.m_apronAbstractState.asTexpr((int64_t)size);
+	Value * pointer = getOperandValue(2);
+	assert(pointer->isConstant());
+	ap_texpr1_t * apsize = pointer->createTreeExpression(state);
 	// Pointer + offset: Second parameter
 	updateForUserMemoryOperation(state, pointer, apsize, op);
 	if (op == user_pointer_operation_read) {
