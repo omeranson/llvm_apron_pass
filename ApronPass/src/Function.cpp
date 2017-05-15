@@ -362,10 +362,10 @@ std::string Function::getTypeString(llvm::Type * type) {
 			if (pointedType->getStructName() == "struct.iovec") {
 				return "struct iovec *";
 			}
-			rso << "/*" << pointedType->getStructName() << "*/ ";
-			// Fall through
+			rso << "/*" << pointedType->getStructName() << "*/ char *";
+			return rso.str();
 		}
-		rso << "char *";
+		rso << getTypeString(pointedType) << " *";
 		return rso.str();
 }
 
