@@ -1099,12 +1099,13 @@ void CallValue::updateForGetPutUser(AbstractState & state,
 	 * Update the constraints to include that the pointer was 'read from'
 	 */
 	llvm::CallInst * callinst = asCallInst();
-	assert(callinst->getNumArgOperands() == 2);
-	// Size: Width of pointer
-	Value * pointer = getOperandValue(2);
-	assert(pointer->isConstant());
-	ap_texpr1_t * apsize = pointer->createTreeExpression(state);
+	assert(callinst->getNumArgOperands() == 3);
+
+	Value * size = getOperandValue(2);
+	assert(size->isConstant());
+	ap_texpr1_t * apsize = size->createTreeExpression(state);
 	// Pointer + offset: Second parameter
+	Value * pointer = getOperandValue(1);
 	updateForUserMemoryOperation(state, pointer, apsize, op);
 	if (op == user_pointer_operation_read) {
 		MPTItemAbstractState & userBuffers = *pointer->mayPointsTo(state, true);
