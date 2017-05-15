@@ -280,6 +280,7 @@ llvm::Instruction * InstructionValue::asInstruction() {
 
 void InstructionValue::update(AbstractState & state) {
 	if (isPointer()) {
+		llvm::errs() << "Warning: Setting MPT for pointer " << getName() << " to top!\n";
 		state.m_mayPointsTo.forget(getName());
 		return;
 	}
