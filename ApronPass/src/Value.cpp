@@ -1205,10 +1205,8 @@ protected:
 			constraint_condition_t consCond);
 	virtual ap_constyp_t constraintConditionToAPConsType(
 			constraint_condition_t consCond);
-	virtual ap_tcons1_t getConditionTcons(AbstractState & state,
-			constraint_condition_t consCond);
 	virtual void updateNumericalAssumptions(AbstractState & state,
-			constraint_condition_t consCond);
+			constraint_condition_t consCond, bool isNegated);
 	virtual void updateMayPointsToAssumptions(AbstractState & state,
 			constraint_condition_t consCond);
 	virtual void removeNullIfOtherIsProvablyNull(
@@ -1218,6 +1216,7 @@ protected:
 
 	virtual void meetOffsetEquality(AbstractState & state,
 		MPTItemAbstractState & mpt, Value * left, Value * right);
+	virtual bool isUnsigned();
 public:
 	IntegerCompareValue(llvm::Value * value) : CompareValue(value) {}
 	virtual constraint_condition_t getConditionType();
@@ -1411,33 +1410,79 @@ ap_constyp_t IntegerCompareValue::constraintConditionToAPConsType(
 	}
 }
 
-ap_tcons1_t IntegerCompareValue::getConditionTcons(AbstractState & state,
-		constraint_condition_t consCond) {
-	ap_scalar_t* zero = ApronAbstractState::zero();
-	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
-	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
-	ap_texpr1_t * left = createOperandTreeExpression(state, 0);
-	ap_texpr1_t * right = createOperandTreeExpression(state, 1);
-	ap_texpr1_t * texpr ;
-	state.m_apronAbstractState.extendEnvironment(left);
-	state.m_apronAbstractState.extendEnvironment(right);
-	if (reverse) {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, right, left,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
-	} else {
-		texpr = ap_texpr1_binop(
-				AP_TEXPR_SUB, left, right,
-				AP_RTYPE_INT, AP_RDIR_ZERO);
+bool IntegerCompareValue::isUnsigned() {
+	llvm::CmpInst::Predicate predicate = asICmpInst()->getPredicate();
+	switch (predicate) {
+	case llvm::CmpInst::ICMP_UGT:
+	case llvm::CmpInst::ICMP_UGE:
+	case llvm::CmpInst::ICMP_ULT:
+	case llvm::CmpInst::ICMP_ULE:
+		return true;
+	default:
+		return false;
 	}
-	ap_tcons1_t result = ap_tcons1_make(condtype, texpr, zero);
-	return result;
 }
 
 void IntegerCompareValue::updateNumericalAssumptions(AbstractState & state,
-		constraint_condition_t consCond) {
-	ap_tcons1_t cons = getConditionTcons(state, consCond);
-	state.m_apronAbstractState.meet(cons);
+		constraint_condition_t consCond, bool isNegated) {
+	bool isunsigned = isUnsigned();
+	ap_texpr1_t * left = createOperandTreeExpression(state, 0);
+	ap_texpr1_t * right = createOperandTreeExpression(state, 1);
+	state.m_apronAbstractState.extendEnvironment(left);
+
+	bool reverse = isConstraintConditionToAPNeedsReverse(consCond);
+	if (reverse) {
+		ap_texpr1_t * temp = left;
+		left = right;
+		right = temp;
+	}
+	ap_texpr1_t * texpr = ap_texpr1_binop(
+			AP_TEXPR_SUB, ap_texpr1_copy(left), ap_texpr1_copy(right),
+			AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_constyp_t condtype = constraintConditionToAPConsType(consCond);
+	ap_tcons1_t cons = ap_tcons1_make(condtype, texpr, ApronAbstractState::zero());
+	if (isunsigned) {
+		// Only ugt, uge, ule, ult
+		// fork state. In 1: (Example for >)
+		// 	1. right < 0, left > right, left < 0
+		//	2. right >= 0, left > right, left >= 0
+		// Negation:
+		// 	1. right < 0, left >= 0
+		// 	2. right >=0, left <= right, left >= 0
+		// if ult, ule - swap left and right
+		// if condtype <- SUPEQ if ule, uge, else SUP (if ult, ugt)
+		ApronAbstractState copy = state.m_apronAbstractState;
+		if (!isNegated) {
+			ap_tcons1_t conscopy = ap_tcons1_copy(&cons);
+			copy.meet(conscopy);
+		}
+		state.m_apronAbstractState.meet(cons);
+
+		ap_tcons1_t rightgeq0 = ap_tcons1_make(AP_CONS_SUPEQ,
+				ap_texpr1_copy(right), ApronAbstractState::zero());
+		state.m_apronAbstractState.meet(rightgeq0);
+
+		ap_tcons1_t leftgeq0 = ap_tcons1_make(AP_CONS_SUPEQ,
+				ap_texpr1_copy(left), ApronAbstractState::zero());
+		state.m_apronAbstractState.meet(leftgeq0);
+
+		ap_texpr1_t *negright = ap_texpr1_unop(AP_TEXPR_NEG, right,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t rightlt0 = ap_tcons1_make(AP_CONS_SUP,
+				negright, ApronAbstractState::zero());
+		copy.meet(rightlt0);
+
+		if (!isNegated) {
+			ap_texpr1_t *negleft = ap_texpr1_unop(AP_TEXPR_NEG, left,
+					AP_RTYPE_INT, AP_RDIR_ZERO);
+			ap_tcons1_t leftleq0 = ap_tcons1_make(AP_CONS_SUP,
+					negleft, ApronAbstractState::zero());
+			copy.meet(leftleq0);
+		}
+		state.m_apronAbstractState.join(copy);
+	} else {
+		state.m_apronAbstractState.meet(cons);
+	}
 }
 
 void IntegerCompareValue::updateMayPointsToAssumptions(AbstractState & state,
@@ -1531,8 +1576,8 @@ void IntegerCompareValue::meetMayPointsToByAssumption(AbstractState & state,
 		}
 		break;
 	}
-	default: {// Should never happen
-		abort();
+	default: {
+		// Should never happen - ignore
 	}
 	}
 }
@@ -1543,7 +1588,7 @@ void IntegerCompareValue::updateConditionalAssumptions(AbstractState & state, bo
 	// 2.a. Update the mpt of both pointers to be their intersection
 	constraint_condition_t consCond =
 			isNegated ? getNegatedConditionType() : getConditionType();
-	updateNumericalAssumptions(state, consCond);
+	updateNumericalAssumptions(state, consCond, isNegated);
 	updateMayPointsToAssumptions(state, consCond);
 }
 
@@ -1828,6 +1873,7 @@ public:
 	virtual std::string getValueString();
 	virtual bool isSkip();
 	virtual void update(AbstractState & state);
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 };
 
 std::string CastOperationValue::getValueString() {
@@ -1855,6 +1901,14 @@ void CastOperationValue::update(AbstractState & state) {
 		return;
 	}
 	UnaryOperationValue::update(state);
+}
+
+ap_texpr1_t * CastOperationValue::createTreeExpression(AbstractState & state) {
+	Value * value = getOperandValue(0);
+	if (value->isConstant()) {
+		return value->createTreeExpression(state);
+	}
+	return UnaryOperationValue::createTreeExpression(state);
 }
 
 class BranchInstructionValue : public TerminatorInstructionValue, public ConditionalMixin<llvm::BranchInst> {
