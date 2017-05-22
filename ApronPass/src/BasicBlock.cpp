@@ -229,6 +229,10 @@ void BasicBlock::update(AbstractState & state) {
 			ApronAbstractState minimizedCopy = function->minimize(copy.m_apronAbstractState);
 			llvm::errs() << getName() << ": State with memory: " << copy << "\nMinimized: " << minimizedCopy;
 		}
+	} else if ((!state.m_importedIovecCalls.empty()) || (!state.m_copyMsghdrFromUserCalls.empty())) {
+		function->m_advancedMemoryOperationsStates.push_back(state);
+		state.m_importedIovecCalls.clear();
+		state.m_copyMsghdrFromUserCalls.clear();
 	}
 	std::vector<std::string> userBuffers = function->getUserPointers();
 	bool isReduceChanged = state.reduce(userBuffers);

@@ -765,6 +765,7 @@ protected:
 			user_pointer_operation_e op);
 	virtual void updateForCopyToFromUser(AbstractState & state, user_pointer_operation_e op);
 	virtual void updateForImportIovec(AbstractState & state);
+	virtual void updateForRWCopyCheckUVector(AbstractState & state);
 	virtual void updateForCopyMsghdrFromUser(AbstractState & state);
 	virtual void updateForGetUnusedFdFlags(AbstractState & state);
 	virtual user_pointer_operation_e getArgumentUserOperation(int arg);
@@ -872,6 +873,9 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("import_iovec" == funcName) {
 		return true;
 	}
+	if ("rw_copy_check_uvector" == funcName) {
+		return true;
+	}
 	if ("copy_msghdr_from_user" == funcName) {
 		return true;
 	}
@@ -949,6 +953,10 @@ void CallValue::update(AbstractState & state) {
 			updateForImportIovec(state);
 			return;
 		}
+		if ("rw_copy_check_uvector" == funcName) {
+			updateForRWCopyCheckUVector(state);
+			return;
+		}
 		if ("copy_msghdr_from_user" == funcName) {
 			updateForCopyMsghdrFromUser(state);
 			return;
@@ -1021,6 +1029,27 @@ void CallValue::updateForImportIovec(AbstractState & state) {
 	assign0(state);
 }
 
+void CallValue::updateForRWCopyCheckUVector(AbstractState & state) {
+	/* The op sent to rw_copy_check_uvector is the oposite of what
+	 * we plan to do, i.e. read -> write, and write -> read */
+	user_pointer_operation_e op = (getImportIovecOp() == user_pointer_operation_read) ?
+			user_pointer_operation_write : user_pointer_operation_read;
+	const std::string & ptrname = getImportIovecPtrName();
+	MPTItemAbstractState * mpti = state.m_mayPointsTo.find(ptrname);
+	if (!mpti) {
+		llvm::errs() << "Warning: import_iovec for *top* pointer\n";
+		return ;
+	}
+	for (const std::string & buffer : *mpti) {
+		if (buffer == "null") {
+			continue;
+		}
+		state.m_importedIovecCalls.push_back(ImportIovecCall(
+			op, buffer, getImportIovecLenName()));
+	}
+	ap_texpr1_t * zero = state.m_apronAbstractState.asTexpr((int64_t)0);
+	assign0(state);
+}
 
 void CallValue::updateForCopyMsghdrFromUser(
 		AbstractState & state) {

@@ -37,6 +37,7 @@ public:
 	std::vector<std::string> getUserPointers();
 	std::vector<std::string> getConstrainedUserPointers(AbstractState & state);
 	std::map<BasicBlock *, AbstractState> m_successMemOpsAbstractStates;
+	std::vector<AbstractState> m_advancedMemoryOperationsStates;
 	std::set<std::string> m_userPointers;
 	ApronAbstractState m_returnValueState;
 	// Kept for debug purposes only
@@ -65,8 +66,6 @@ public:
 	virtual std::string getTypeString(llvm::Type * type);
 	virtual std::string getReturnTypeString();
 	virtual const std::string & getReturnValueName();
-	virtual const std::vector<ImportIovecCall> & getImportIovecCalls();
-	virtual const std::vector<CopyMsghdrFromUserCall> & getCopyMsghdrFromUserCalls();
 	virtual BasicBlock * getRoot() const;
 };
 

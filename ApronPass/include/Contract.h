@@ -235,18 +235,26 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "// Preamble\n";
 	std::vector<std::string> userPointers = function->getUserPointers();
 	std::multimap<std::string, ApronAbstractState> errorStates = function->getErrorStates();
+	std::map<std::string, ApronAbstractState> successStates = function->getSuccessStates();
 
-	const std::vector<ImportIovecCall> & importIovecCalls = function->getImportIovecCalls();
-	const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls =
-			function->getCopyMsghdrFromUserCalls();
 	for (std::string & userPointer : userPointers) {
 		s << preamble(&userPointer);
 	}
-	for (const ImportIovecCall & call : importIovecCalls) {
-		s << preamble(&call);
-	}
-	for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
-		s << preamble(&call);
+	// preamble for import_iovec and get_copy_msghdr
+	std::set<std::string> declared_iovecs;
+	for (const AbstractState & advMemOpState: function->m_advancedMemoryOperationsStates) {
+		const std::vector<ImportIovecCall> & importIovecCalls = advMemOpState.m_importedIovecCalls;
+		const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls = advMemOpState.m_copyMsghdrFromUserCalls;
+		for (const ImportIovecCall & call : importIovecCalls) {
+			if (declared_iovecs.insert(call.iovec_name).second) {
+				s << preamble(&call);
+			}
+		}
+		for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
+			if (declared_iovecs.insert(call.msghdr_name).second) {
+				s << preamble(&call);
+			}
+		}
 	}
 	const std::string & returnValueName = function->getReturnValueName();
 	ApronAbstractState & returnState = function->getReturnValue();
@@ -260,12 +268,12 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "int idx;\n";
 	std::set<std::string> defined_vars;
 
-	std::map<std::string, ApronAbstractState> successStates = function->getSuccessStates();
 	for (auto & pair : successStates) {
 		ApronAbstractState & successState = pair.second;
 		successState = function->minimize(successState);
 		auto successStateRenames = successState.renameVarsForC();
 		defineVars(s, function, successState, defined_vars);
+
 	}
 	defineVars(s, function, minimizedReturnState, defined_vars);
 	defineVar(s, renamedRetValName, defined_vars);
@@ -287,11 +295,21 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 				std::make_pair(errorStatePair.first, minimizedErrorState);
 		s << precondition(&pair);
 	}
-	for (const ImportIovecCall & call : importIovecCalls) {
-		s << precondition(&call);
-	}
-	for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
-		s << precondition(&call);
+	// precondition for import_iovec and get_copy_msghdr
+	std::set<std::string> preconded_iovecs;
+	for (const AbstractState & advMemOpState: function->m_advancedMemoryOperationsStates) {
+		const std::vector<ImportIovecCall> & importIovecCalls = advMemOpState.m_importedIovecCalls;
+		const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls = advMemOpState.m_copyMsghdrFromUserCalls;
+		for (const ImportIovecCall & call : importIovecCalls) {
+			if (preconded_iovecs.insert(call.iovec_name).second) {
+				s << precondition(&call);
+			}
+		}
+		for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
+			if (preconded_iovecs.insert(call.msghdr_name).second) {
+				s << precondition(&call);
+			}
+		}
 	}
 	// Modifications
 	// 	Standard variables
@@ -315,11 +333,21 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 		--depth;
 		s << depth << "}\n";
 	}
-	for (const ImportIovecCall & call : importIovecCalls) {
-		s << modification(&call);
-	}
-	for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
-		s << modification(&call);
+	// modification for import_iovec and get_copy_msghdr
+	std::set<std::string> modified_iovecs;
+	for (const AbstractState & advMemOpState: function->m_advancedMemoryOperationsStates) {
+		const std::vector<ImportIovecCall> & importIovecCalls = advMemOpState.m_importedIovecCalls;
+		const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls = advMemOpState.m_copyMsghdrFromUserCalls;
+		for (const ImportIovecCall & call : importIovecCalls) {
+			if (modified_iovecs.insert(call.iovec_name).second) {
+				s << modification(&call);
+			}
+		}
+		for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
+			if (modified_iovecs.insert(call.msghdr_name).second) {
+				s << modification(&call);
+			}
+		}
 	}
 	// Postconditions
 	s << "\t// Postconditions\n";
