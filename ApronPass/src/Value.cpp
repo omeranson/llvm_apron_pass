@@ -2399,6 +2399,9 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 	if (llvm::isa<llvm::GlobalVariable>(constant)) {
 		return new GlobalValue(constant);
 	}
+	if (llvm::isa<llvm::Function>(constant)) {
+		return new Value(constant);
+	}
 	if (llvm::isa<llvm::ConstantExpr>(constant)) {
 		llvm::ConstantExpr & expr = llvm::cast<llvm::ConstantExpr>(*constant);
 		llvm::Value * instruction = expr.getAsInstruction();
