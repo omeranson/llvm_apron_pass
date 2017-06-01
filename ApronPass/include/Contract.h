@@ -240,22 +240,6 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	for (std::string & userPointer : userPointers) {
 		s << preamble(&userPointer);
 	}
-	// preamble for import_iovec and get_copy_msghdr
-	std::set<std::string> declared_iovecs;
-	for (const AbstractState & advMemOpState: function->m_advancedMemoryOperationsStates) {
-		const std::vector<ImportIovecCall> & importIovecCalls = advMemOpState.m_importedIovecCalls;
-		const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls = advMemOpState.m_copyMsghdrFromUserCalls;
-		for (const ImportIovecCall & call : importIovecCalls) {
-			if (declared_iovecs.insert(call.iovec_name).second) {
-				s << preamble(&call);
-			}
-		}
-		for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
-			if (declared_iovecs.insert(call.msghdr_name).second) {
-				s << preamble(&call);
-			}
-		}
-	}
 	const std::string & returnValueName = function->getReturnValueName();
 	ApronAbstractState & returnState = function->getReturnValue();
 	ApronAbstractState minimizedReturnState = function->minimize(returnState);
