@@ -4,6 +4,8 @@
 #include <AbstractState.h>
 #include <Function.h>
 
+extern unsigned NumArgs;
+
 #define StreamHelper(C, I) \
 template <class T>\
 struct C {\
@@ -355,8 +357,14 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << function->getReturnTypeString() << " __" << function->getName() << "_va_wrapper(va_list args) {\n";
 	++depth;
 	auto arguments = function->getArgumentStrings();
+	unsigned argsCounter = 0;
 	for (auto argument : arguments) {
-		s << depth << argument.first << " " << argument.second << " = va_arg(args, " << argument.first << ");\n";
+		s << depth << argument.first << " " << argument.second;
+		if (argsCounter++ < NumArgs) {
+			s << " = va_arg(args, " << argument.first << ");\n";
+		} else {
+			s << " = 0;\n";
+		}
 	}
 	s << depth << "return " << function->getName() << "(";
 	bool first = true;

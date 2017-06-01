@@ -70,6 +70,12 @@ llvm::cl::opt<std::string> SingleFunction("run-on-single-function",
 		llvm::cl::init(""),
 		llvm::cl::desc("Run on the specified function. '' for all (default)"));
 
+unsigned NumArgs;
+llvm::cl::opt<unsigned, true> NumArgsOpt ("num-args",
+		llvm::cl::desc("How many arguments are 'real' in the function? -1 for 'all of them'. (-1)"),
+		llvm::cl::location(NumArgs),
+		llvm::cl::init(-1));
+
 /**************************/
 /* NAMESPACE :: anonymous */
 /**************************/
