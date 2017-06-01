@@ -140,7 +140,7 @@ bool Function::isFunctionParameter(const char * varname) {
 bool Function::isFunctionParameterDereference(const char * varname) {
 	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
 	for (const llvm::Argument & argument : arguments) {
-		if (!(m_userPointers.count(argument.getName()) > 0)) {
+		if (m_userPointers.count(argument.getName()) <= 0) {
 			continue;
 		}
 		const std::string & argumentDeref =
@@ -152,10 +152,44 @@ bool Function::isFunctionParameterDereference(const char * varname) {
 	}
 	return false;
 }
+
 bool Function::isReturnValue(const char * varname) {
 	llvm::ReturnInst * returnInst = getReturnInstruction();
 	llvm::Value * returnValue = returnInst->getReturnValue();
 	return (returnValue && (returnValue->getName() == varname));
+}
+
+bool Function::isStructBuffer(const char * varname, const std::string & structname) {
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	for (const llvm::Argument & argument : arguments) {
+		if (argument.getName()  != varname) {
+			continue;
+		}
+		llvm::Type * type = argument.getType();
+		if (!type->isPointerTy()) {
+			llvm::errs() << "Function::isStructBuffer 1: " << varname << " of type " << *type << " is not a " << structname << "\n";
+			break;
+		}
+		llvm::Type * pointedType = type->getPointerElementType();
+		if (!pointedType->isStructTy()) {
+			llvm::errs() << "Function::isStructBuffer 2: " << varname << " of type " << *type << " is not a " << structname << "\n";
+			break;
+		}
+		if (pointedType->getStructName() != structname) {
+			llvm::errs() << "Function::isStructBuffer 3: " << varname << " of type " << *type << " is not a " << structname << "\n";
+			break;
+		}
+		return true;
+	}
+	return false;
+}
+
+bool Function::isIovecBuffer(const char * varname) {
+	return isStructBuffer(varname, "struct.iovec");
+}
+
+bool Function::isMsghdrBuffer(const char * varname) {
+	return isStructBuffer(varname, "struct.msghdr");
 }
 
 bool Function::isVarInOut(const char * varname) {
@@ -458,5 +492,33 @@ std::vector<std::pair<std::string, std::string> > Alias::getArgumentStrings() {
 		idx++;
 	}
 	return result;
+}
+
+bool Alias::isStructBuffer(const char * varname, const std::string & structname) {
+	const llvm::Function::ArgumentListType & arguments = m_function->getArgumentList();
+	llvm::FunctionType * ftype = getFunctionType();
+	int idx = 0;
+	for (const llvm::Argument & argument : arguments) {
+		llvm::Type * type = ftype->getParamType(idx);
+		idx++;
+		if (argument.getName()  != varname) {
+			continue;
+		}
+		if (!type->isPointerTy()) {
+			llvm::errs() << "Alias::isStructBuffer 1: " << varname << " of type " << *type << " is not a " << structname << "\n";
+			break;
+		}
+		llvm::Type * pointedType = type->getPointerElementType();
+		if (!pointedType->isStructTy()) {
+			llvm::errs() << "Alias::isStructBuffer 2: " << varname << " of type " << *type << " is not a " << structname << "\n";
+			break;
+		}
+		if (pointedType->getStructName() != structname) {
+			llvm::errs() << "Alias::isStructBuffer 3: " << varname << " of type " << *type << " is not a " << structname << "\n";
+			break;
+		}
+		return true;
+	}
+	return false;
 }
 

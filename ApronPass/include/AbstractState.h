@@ -150,6 +150,9 @@ public:
 	virtual void updateByMemoryOperation(MemoryAccessAbstractValue & maav);
 	virtual bool isPossiblyAccessToNull(const std::string & userBuffer);
 	virtual bool isWriteToPointer(const std::string & userBuffer);
+	virtual const ImportIovecCall * getImportIovecCallForBuffer(const std::string & buffer) const;
+	virtual const CopyMsghdrFromUserCall * getCopyMsghdrFromUserCall(const std::string & buffer) const;
+
 	// TODO(oanson) The following functions are missing
 	//virtual bool meet(AbstractState &);
 	//virtual bool unify(AbstractState &);

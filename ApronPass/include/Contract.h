@@ -272,6 +272,22 @@ inline stream & operator<<(stream & s, Postcondition<std::tuple<ApronAbstractSta
 }
 
 template <class stream>
+inline stream & operator<<(stream & s, Postcondition<std::tuple<ApronAbstractState, std::string, ImportIovecCall> > p) {
+	const ApronAbstractState & state = std::get<0>(*p.t);
+	const std::string & retvalName = std::get<1>(*p.t);
+	const ImportIovecCall & call = std::get<2>(*p.t);
+
+	s << depth << "sum = 0;\n";
+	s << depth << "for (idx = 0; idx < " << call.iovec_len_name << "; idx++) {\n";
+	++depth;
+	s << depth << "sum += " << call.iovec_name << "[idx].iov_len;\n";
+	--depth;
+	s << depth << "}\n";
+	auto tuple = std::make_tuple(state, retvalName, std::string("sum"));
+	return (s << postcondition(&tuple));
+}
+
+template <class stream>
 inline stream & operator<<(stream & s, Contract<Function> contract) {
 	Function * function = (Function*)contract.t;
 	// Preamble
@@ -296,6 +312,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	}
 	s << depth << "bool b;\n";
 	s << depth << "int idx;\n";
+	s << depth << "int sum;\n";
 	std::set<std::string> defined_vars;
 
 	for (auto & pair : successStates) {
@@ -368,16 +385,19 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	}
 	// modification for import_iovec and get_copy_msghdr
 	std::set<std::string> modified_iovecs;
+	std::map<std::string, AbstractState> advanceMemOpsStates;
 	for (const AbstractState & advMemOpState: function->m_advancedMemoryOperationsStates) {
 		const std::vector<ImportIovecCall> & importIovecCalls = advMemOpState.m_importedIovecCalls;
 		const std::vector<CopyMsghdrFromUserCall> & copyMsghdrFromUserCalls = advMemOpState.m_copyMsghdrFromUserCalls;
 		for (const ImportIovecCall & call : importIovecCalls) {
+			advanceMemOpsStates[call.iovec_name] = advMemOpState;
 			if (modified_iovecs.insert(call.iovec_name).second) {
 				s << modification(&call);
 			}
 		}
 		for (const CopyMsghdrFromUserCall & call : copyMsghdrFromUserCalls) {
 			if (modified_iovecs.insert(call.msghdr_name).second) {
+				advanceMemOpsStates[call.msghdr_name] = advMemOpState;
 				s << modification(&call);
 			}
 		}
@@ -388,12 +408,29 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 		auto pair = std::make_pair(minimizedReturnState, renamedRetValName);
 		s << postcondition(&pair);
 	} else {
-		std::map<std::string, AbstractState>::iterator it =
-				successStates.find(ReturnValueIsPointerLast);
-		if (it != successStates.end()) {
-			const std::string & retvalPointerLast = AbstractState::generateLastName(
+		if (function->isIovecBuffer(ReturnValueIsPointerLast.c_str())) {
+			AbstractState & state = advanceMemOpsStates.find(ReturnValueIsPointerLast)->second;
+			state.m_apronAbstractState = function->minimize(state.m_apronAbstractState);
+			const ImportIovecCall * importIovecCall = state.getImportIovecCallForBuffer(ReturnValueIsPointerLast);
+			auto tuple = std::make_tuple(state.m_apronAbstractState,
+					renamedRetValName, *importIovecCall);
+			s << postcondition(&tuple);
+		} else if (function->isMsghdrBuffer(ReturnValueIsPointerLast.c_str())) {
+			AbstractState & state = advanceMemOpsStates.find(ReturnValueIsPointerLast)->second;
+			state.m_apronAbstractState = function->minimize(state.m_apronAbstractState);
+			const CopyMsghdrFromUserCall * cmfuCall = state.getCopyMsghdrFromUserCall(ReturnValueIsPointerLast);
+			ImportIovecCall importIovecCall = cmfuCall->asImportIovecCall();
+			auto tuple = std::make_tuple(state.m_apronAbstractState,
+					renamedRetValName, importIovecCall);
+			s << postcondition(&tuple);
+		} else {
+			std::map<std::string, AbstractState>::iterator it =
+					successStates.find(ReturnValueIsPointerLast);
+			AbstractState & state = it->second;
+			const std::string & retvalPointerLast =
+					AbstractState::generateLastName(
 					ReturnValueIsPointerLast, ReturnValueIsPointerLastType);
-			auto tuple = std::make_tuple(it->second.m_apronAbstractState,
+			auto tuple = std::make_tuple(state.m_apronAbstractState,
 					renamedRetValName, retvalPointerLast);
 			s << postcondition(&tuple);
 		}

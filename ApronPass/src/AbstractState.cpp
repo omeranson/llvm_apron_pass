@@ -174,6 +174,24 @@ bool AbstractState::isWriteToPointer(const std::string & userBuffer) {
 	return m_apronAbstractState.isKnown(lastName);
 }
 
+const ImportIovecCall * AbstractState::getImportIovecCallForBuffer(const std::string & buffer) const {
+	for (const ImportIovecCall & call : m_importedIovecCalls) {
+		if (call.iovec_name == buffer) {
+			return &call;
+		}
+	}
+	return 0;
+}
+
+const CopyMsghdrFromUserCall * AbstractState::getCopyMsghdrFromUserCall(const std::string & buffer) const {
+	for (const CopyMsghdrFromUserCall & call : m_copyMsghdrFromUserCalls) {
+		if (call.msghdr_name == buffer) {
+			return &call;
+		}
+	}
+	return 0;
+}
+
 bool AbstractState::joinMemoryOperationState(const memory_operation_state_e & other) {
 	if (other == m_mos) {
 		return false;

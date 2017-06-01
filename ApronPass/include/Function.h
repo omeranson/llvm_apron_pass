@@ -51,6 +51,9 @@ public:
 	virtual bool isLastVariable(const char * varname);
 	virtual bool isOffsetVariable(const char * varname);
 	virtual bool isReturnValue(const char * varname);
+	virtual bool isStructBuffer(const char * varname, const std::string & structname);
+	virtual bool isIovecBuffer(const char * varname);
+	virtual bool isMsghdrBuffer(const char * varname);
 	virtual bool isFunctionParameter(const char * varname);
 	virtual bool isFunctionParameterDereference(const char * varname);
 	virtual ApronAbstractState minimize(const ApronAbstractState & state);
@@ -77,6 +80,7 @@ protected:
 public:
 	Alias(llvm::GlobalAlias * alias, llvm::Function * function);
 	virtual std::vector<std::pair<std::string, std::string> > getArgumentStrings();
+	virtual bool isStructBuffer(const char * varname, const std::string & structname);
 };
 
 class FunctionManager{
