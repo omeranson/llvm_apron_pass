@@ -250,6 +250,9 @@ bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
 			m_apronAbstractState.forget(offsetName, true);
 		}
 	}
+	if (m_apronAbstractState.isBottom()) {
+		m_apronAbstractState.minimize();
+	}
 	return (prev.m_apronAbstractState != m_apronAbstractState);
 }
 
