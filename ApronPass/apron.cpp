@@ -76,6 +76,23 @@ llvm::cl::opt<unsigned, true> NumArgsOpt ("num-args",
 		llvm::cl::location(NumArgs),
 		llvm::cl::init(-1));
 
+std::string ReturnValueIsPointerLast;
+llvm::cl::opt<std::string, true> ReturnValueIsPointerLastOpt("return-value-is-pointer-last",
+		llvm::cl::desc("The return value is the last access location of this buffer. Empty string to disable (default)"),
+		llvm::cl::location(ReturnValueIsPointerLast),
+		llvm::cl::init(""));
+
+user_pointer_operation_e ReturnValueIsPointerLastType;
+llvm::cl::opt<user_pointer_operation_e, true> ReturnValueIsPointerLastTypeOpt("return-value-is-pointer-last-type",
+		llvm::cl::desc("The type of last access for return-value-is-pointer-last. (read)"),
+		llvm::cl::location(ReturnValueIsPointerLastType),
+		llvm::cl::values(
+			clEnumValN(user_pointer_operation_read, "read", "read"),
+			clEnumValN(user_pointer_operation_write, "write", "write"),
+			clEnumValN(user_pointer_operation_first0, "first0", "first NUL terminator"),
+			clEnumValEnd),
+		llvm::cl::init(user_pointer_operation_read));
+
 /**************************/
 /* NAMESPACE :: anonymous */
 /**************************/
@@ -185,9 +202,9 @@ namespace
 				llvm::errs() << apstate << "\n";
 				llvm::errs() << minimizedState << "\n";
 			}
-			std::map<std::string, ApronAbstractState> successStates = function->getSuccessStates();
+			std::map<std::string, AbstractState> successStates = function->getSuccessStates();
 			for (auto & pair : successStates) {
-				ApronAbstractState & successState = pair.second;
+				ApronAbstractState & successState = pair.second.m_apronAbstractState;
 				ApronAbstractState minimizedSuccessState = function->minimize(successState);
 				llvm::errs() << "Success state for " << pair.first << ": " << successState << "\n" << minimizedSuccessState << "\n";
 			}

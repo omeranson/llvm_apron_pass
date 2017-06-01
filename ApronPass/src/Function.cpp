@@ -275,15 +275,11 @@ std::multimap<std::string, ApronAbstractState> Function::getErrorStates() {
 	return result;
 }
 
-// TODO(oanson) This will have to be a map: buffer -> state
-std::map<std::string, ApronAbstractState> Function::getSuccessStates() {
-	std::map<std::string, ApronAbstractState> result;
+std::map<std::string, AbstractState> Function::getSuccessStates() {
+	std::map<std::string, AbstractState> result;
 	for (auto & memOpsState : m_successMemOpsAbstractStates) {
 		AbstractState & successState = memOpsState.second;
 		for (std::string & userBuffer : getUserPointers()) {
-			if (!successState.isWriteToPointer(userBuffer)) {
-				continue;
-			}
 			AbstractState copy = successState;
 			if (!copy.isPossiblyAccessToNull(userBuffer)) {
 				const std::string & sizeName = AbstractState::generateSizeName(userBuffer);
@@ -292,7 +288,7 @@ std::map<std::string, ApronAbstractState> Function::getSuccessStates() {
 						sizeExpr, copy.m_apronAbstractState.zero());
 				copy.m_apronAbstractState.meet(cons);
 			}
-			result[userBuffer].join(copy.m_apronAbstractState);
+			result[userBuffer].join(copy);
 		}
 	}
 	return result;

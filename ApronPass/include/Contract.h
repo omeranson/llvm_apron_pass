@@ -5,6 +5,8 @@
 #include <Function.h>
 
 extern unsigned NumArgs;
+extern std::string ReturnValueIsPointerLast;
+extern user_pointer_operation_e ReturnValueIsPointerLastType;
 
 #define StreamHelper(C, I) \
 template <class T>\
@@ -67,7 +69,7 @@ inline stream & operator<<(stream & s, Depth & depth) {
 template <class stream>
 inline stream & operator<<(stream & s, Preamble<std::string> p) {
 	const std::string * name = p.t;
-	s << depth << "i64 size(" << *name << ") = SE_size_obj(" << *name << ") - " << 
+	s << depth << "i64 size(" << *name << ") = SE_size_obj(" << *name << ") - " <<
 			"((uintptr_t)" << *name << " - SE_base_obj(" << *name << "));\n";
 	return s;
 }
@@ -237,7 +239,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "// Preamble\n";
 	std::vector<std::string> userPointers = function->getUserPointers();
 	std::multimap<std::string, ApronAbstractState> errorStates = function->getErrorStates();
-	std::map<std::string, ApronAbstractState> successStates = function->getSuccessStates();
+	std::map<std::string, AbstractState> successStates = function->getSuccessStates();
 
 	for (std::string & userPointer : userPointers) {
 		s << preamble(&userPointer);
@@ -255,11 +257,10 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	std::set<std::string> defined_vars;
 
 	for (auto & pair : successStates) {
-		ApronAbstractState & successState = pair.second;
+		ApronAbstractState & successState = pair.second.m_apronAbstractState;
 		successState = function->minimize(successState);
 		auto successStateRenames = successState.renameVarsForC();
 		defineVars(s, function, successState, defined_vars);
-
 	}
 	defineVars(s, function, minimizedReturnState, defined_vars);
 	defineVar(s, renamedRetValName, defined_vars);
@@ -277,7 +278,7 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 		ApronAbstractState minimizedErrorState =
 				function->minimizeFurther(errorStatePair.second);
 		minimizedErrorState.renameVarsForC();
-		std::pair<const std::string, ApronAbstractState> pair = 
+		std::pair<const std::string, ApronAbstractState> pair =
 				std::make_pair(errorStatePair.first, minimizedErrorState);
 		s << precondition(&pair);
 	}
@@ -304,15 +305,19 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	s << depth << "// Modifications\n";
 	for (auto pair : successStates) {
 		const std::string & userPointer = pair.first;
-		ApronAbstractState & successState = pair.second;
+		AbstractState & successState = pair.second;
+		if (!successState.isWriteToPointer(userPointer)) {
+			continue;
+		}
+		ApronAbstractState & apronSuccessState = successState.m_apronAbstractState;
 		ap_tcons1_array_t minimized_array = ap_abstract1_to_tcons_array(
-					apron_manager, &successState.m_abstract1);
+					apron_manager, &apronSuccessState.m_abstract1);
 		s << depth << "if " << Conjunction(&minimized_array) << "{\n";
 		ap_tcons1_array_clear(&minimized_array);
 		++depth;
-		std::string renamedVar = successState.renameVarForC(userPointer);
+		std::string renamedVar = apronSuccessState.renameVarForC(userPointer);
 		const std::string & last_name = AbstractState::generateLastName(renamedVar, user_pointer_operation_write);
-		if (successState.isKnown(last_name)) {
+		if (apronSuccessState.isKnown(last_name)) {
 			// Should always be true
 			s << depth << "HAVOC_SIZE(" << renamedVar << ", " << last_name << ");\n";
 		}
@@ -337,15 +342,41 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	}
 	// Postconditions
 	s << "\t// Postconditions\n";
-	ap_abstract1_t retvalAbstract1 = minimizedReturnState.m_abstract1;
-	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(apron_manager, &retvalAbstract1);
-	s << depth << "HAVOC(b);\n";
-	s << depth << "if " << Conjunction("b", &array) << " {\n";
-	++depth;
-	s << depth << "return " << renamedRetValName << ";\n";
-	--depth;
-	s << depth << "}\n";
-	ap_tcons1_array_clear(&array);
+	if ("" == ReturnValueIsPointerLast) {
+		ap_abstract1_t retvalAbstract1 = minimizedReturnState.m_abstract1;
+		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(apron_manager, &retvalAbstract1);
+		s << depth << "HAVOC(b);\n";
+		s << depth << "if " << Conjunction("b", &array) << " {\n";
+		++depth;
+		s << depth << "return " << renamedRetValName << ";\n";
+		--depth;
+		s << depth << "}\n";
+		ap_tcons1_array_clear(&array);
+	} else {
+		std::map<std::string, AbstractState>::iterator it =
+				successStates.find(ReturnValueIsPointerLast);
+		if (it != successStates.end()) {
+			const std::string & retvalPointerLast = AbstractState::generateLastName(
+					ReturnValueIsPointerLast, ReturnValueIsPointerLastType);
+			ApronAbstractState successState = it->second.m_apronAbstractState;
+			successState.extend(renamedRetValName);
+			successState.extend(retvalPointerLast);
+			ap_texpr1_t * retvalTexpr = successState.asTexpr(renamedRetValName);
+			ap_texpr1_t * lastTexpr = successState.asTexpr(retvalPointerLast);
+			ap_texpr1_t * diff = ap_texpr1_binop(
+						AP_TEXPR_SUB, lastTexpr, retvalTexpr,
+						AP_RTYPE_INT, AP_RDIR_ZERO);
+			ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, diff, successState.zero());
+			successState.meet(cons);
+			ap_tcons1_array_t array = ap_abstract1_to_tcons_array(apron_manager, &successState.m_abstract1);
+			s << depth << "HAVOC(b);\n";
+			s << depth << "if " << Conjunction("b", &array) << " {\n";
+			++depth;
+			s << depth << "return " << renamedRetValName << ";\n";
+			--depth;
+			s << depth << "}\n";
+		}
+	}
 
 	// Postamble
 	s << depth << "assume(0);\n";

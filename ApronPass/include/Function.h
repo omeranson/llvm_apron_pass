@@ -59,7 +59,7 @@ public:
 	virtual void insertErrorState(std::multimap<std::string, ApronAbstractState> & states,
 		const ApronAbstractState & baseState, const std::string & userBuffer, user_pointer_operation_e op,
 		bool defendNullWrite);
-	virtual std::map<std::string, ApronAbstractState> getSuccessStates();
+	virtual std::map<std::string, AbstractState> getSuccessStates();
 	virtual const std::string & getName() const;
 	virtual std::vector<std::pair<std::string, std::string> > getArgumentStrings();
 	virtual std::string getSignature();
