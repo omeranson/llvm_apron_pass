@@ -25,6 +25,7 @@ StreamHelper(Preamble, preamble)
 StreamHelper(Precondition, precondition)
 StreamHelper(Modification, modification)
 StreamHelper(Havoc, havoc)
+StreamHelper(Postcondition, postcondition)
 
 struct Conjunction {
 	ap_tcons1_array_t * array;
@@ -230,6 +231,47 @@ void defineVars(stream & s, Function * function, ApronAbstractState & state, std
 }
 
 template <class stream>
+inline stream & operator<<(stream & s, Postcondition<std::pair<ApronAbstractState, std::string> > p) {
+	const ApronAbstractState & state = p.t->first;
+	const std::string & retvalName = p.t->second;
+	ap_abstract1_t retvalAbstract1 = state.m_abstract1;
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(apron_manager, &retvalAbstract1);
+	s << depth << "HAVOC(b);\n";
+	s << depth << "if " << Conjunction("b", &array) << " {\n";
+	++depth;
+	s << depth << "return " << retvalName << ";\n";
+	--depth;
+	s << depth << "}\n";
+	ap_tcons1_array_clear(&array);
+	return s;
+}
+
+template <class stream>
+inline stream & operator<<(stream & s, Postcondition<std::tuple<ApronAbstractState, std::string, std::string> > p) {
+	const ApronAbstractState & state = std::get<0>(*p.t);
+	const std::string & retvalName = std::get<1>(*p.t);
+	const std::string & retvalPointerLast = std::get<2>(*p.t);
+	ApronAbstractState successState = state;
+	successState.extend(retvalName);
+	successState.extend(retvalPointerLast);
+	ap_texpr1_t * retvalTexpr = successState.asTexpr(retvalName);
+	ap_texpr1_t * lastTexpr = successState.asTexpr(retvalPointerLast);
+	ap_texpr1_t * diff = ap_texpr1_binop(
+				AP_TEXPR_SUB, lastTexpr, retvalTexpr,
+				AP_RTYPE_INT, AP_RDIR_ZERO);
+	ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, diff, successState.zero());
+	successState.meet(cons);
+	ap_tcons1_array_t array = ap_abstract1_to_tcons_array(apron_manager, &successState.m_abstract1);
+	s << depth << "HAVOC(b);\n";
+	s << depth << "if " << Conjunction("b", &array) << " {\n";
+	++depth;
+	s << depth << "return " << retvalName << ";\n";
+	--depth;
+	s << depth << "}\n";
+	return s;
+}
+
+template <class stream>
 inline stream & operator<<(stream & s, Contract<Function> contract) {
 	Function * function = (Function*)contract.t;
 	// Preamble
@@ -343,38 +385,17 @@ inline stream & operator<<(stream & s, Contract<Function> contract) {
 	// Postconditions
 	s << "\t// Postconditions\n";
 	if ("" == ReturnValueIsPointerLast) {
-		ap_abstract1_t retvalAbstract1 = minimizedReturnState.m_abstract1;
-		ap_tcons1_array_t array = ap_abstract1_to_tcons_array(apron_manager, &retvalAbstract1);
-		s << depth << "HAVOC(b);\n";
-		s << depth << "if " << Conjunction("b", &array) << " {\n";
-		++depth;
-		s << depth << "return " << renamedRetValName << ";\n";
-		--depth;
-		s << depth << "}\n";
-		ap_tcons1_array_clear(&array);
+		auto pair = std::make_pair(minimizedReturnState, renamedRetValName);
+		s << postcondition(&pair);
 	} else {
 		std::map<std::string, AbstractState>::iterator it =
 				successStates.find(ReturnValueIsPointerLast);
 		if (it != successStates.end()) {
 			const std::string & retvalPointerLast = AbstractState::generateLastName(
 					ReturnValueIsPointerLast, ReturnValueIsPointerLastType);
-			ApronAbstractState successState = it->second.m_apronAbstractState;
-			successState.extend(renamedRetValName);
-			successState.extend(retvalPointerLast);
-			ap_texpr1_t * retvalTexpr = successState.asTexpr(renamedRetValName);
-			ap_texpr1_t * lastTexpr = successState.asTexpr(retvalPointerLast);
-			ap_texpr1_t * diff = ap_texpr1_binop(
-						AP_TEXPR_SUB, lastTexpr, retvalTexpr,
-						AP_RTYPE_INT, AP_RDIR_ZERO);
-			ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, diff, successState.zero());
-			successState.meet(cons);
-			ap_tcons1_array_t array = ap_abstract1_to_tcons_array(apron_manager, &successState.m_abstract1);
-			s << depth << "HAVOC(b);\n";
-			s << depth << "if " << Conjunction("b", &array) << " {\n";
-			++depth;
-			s << depth << "return " << renamedRetValName << ";\n";
-			--depth;
-			s << depth << "}\n";
+			auto tuple = std::make_tuple(it->second.m_apronAbstractState,
+					renamedRetValName, retvalPointerLast);
+			s << postcondition(&tuple);
 		}
 	}
 
