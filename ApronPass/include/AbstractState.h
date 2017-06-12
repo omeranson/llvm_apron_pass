@@ -77,7 +77,7 @@ struct CopyMsghdrFromUserCall {
 	ImportIovecCall asImportIovecCall() const {
 		std::string iovec_name;
 		llvm::raw_string_ostream iovec_name_rso(iovec_name);
-		iovec_name_rso << msghdr_name << "__msg_iov";
+		iovec_name_rso << msghdr_name << "->msg_iov";
 
 		std::string iovec_len_expr;
 		llvm::raw_string_ostream iovec_len_expr_rso(iovec_len_expr);

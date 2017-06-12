@@ -1063,8 +1063,19 @@ void CallValue::updateForCopyMsghdrFromUser(
 		op = user_pointer_operation_read;
 	}
 
-	state.m_copyMsghdrFromUserCalls.push_back(
-			CopyMsghdrFromUserCall(op, getArgumentName(1)));
+	const std::string & ptrname = getArgumentName(1);
+	MPTItemAbstractState * mpti = state.m_mayPointsTo.find(ptrname);
+	if (!mpti) {
+		llvm::errs() << "Warning: import_iovec for *top* pointer\n";
+		return ;
+	}
+	for (const std::string & buffer : *mpti) {
+		if (buffer == "null") {
+			continue;
+		}
+		state.m_copyMsghdrFromUserCalls.push_back(
+				CopyMsghdrFromUserCall(op, buffer));
+	}
 	assign0(state);
 }
 
