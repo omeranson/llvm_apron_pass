@@ -113,7 +113,7 @@ inline stream & operator<<(stream & s,
 			apron_manager, (ap_abstract1_t*)&state.m_abstract1);
 	s << depth << "if(SE_SAT(" << Conjunction(&array) << ")) {\n";
 	++depth;
-	s << depth << "warn(\"Invalid pointer " << name << "\");\n";
+	s << depth << "warn(\"Invalid pointer " << name << "\", " << name << ");\n";
 	--depth;
 	s << depth << "}\n";
 	ap_tcons1_array_clear(&array);
@@ -129,7 +129,8 @@ inline stream & operator<<(stream & s, Precondition<ImportIovecCall> p) {
 			") >= sizeof(struct iovec)*" << call.iovec_len_name <<
 			"))) {\n";
 	++depth;
-	s << depth << "warn(\"Invalid iovec pointer " << call.iovec_name << "\");\n";
+	s << depth << "warn(\"Invalid iovec pointer " << call.iovec_name << "\", "
+			<< call.iovec_name << ");\n";
 	--depth;
 	s << depth << "}\n";
 // 	Verify each item within iovec
@@ -138,7 +139,7 @@ inline stream & operator<<(stream & s, Precondition<ImportIovecCall> p) {
 	s << depth << "i64 iovec_element_size = SE_size_obj(" << call.iovec_name << "[idx].iov_base);\n";
 	s << depth << "if (SE_SAT(!(iovec_element_size >= " << call.iovec_name << "[idx].iov_len))) {\n";
 	++depth;
-	s << depth << "warn(\"Invalid iovec internal pointer " << call.iovec_name << "\");\n";
+	s << depth << "warn(\"Invalid iovec internal pointer " << call.iovec_name << "\", " << call.iovec_name << "[idx].iov_base);\n";
 	--depth;
 	s << depth << "}\n";
 	--depth;
@@ -153,7 +154,7 @@ inline stream & operator<<(stream & s, Precondition<CopyMsghdrFromUserCall> p) {
 	s << depth << "if (SE_SAT(!(size(" << call.msghdr_name <<
 			") >= sizeof(struct msghdr)))) {\n";
 	++depth;
-	s << depth << "warn(\"Invalid msghdr pointer " << call.msghdr_name << "\");\n";
+	s << depth << "warn(\"Invalid msghdr pointer " << call.msghdr_name << "\", " << call.msghdr_name << ");\n";
 	--depth;
 	s << depth << "}\n";
 	ImportIovecCall iic = call.asImportIovecCall();
@@ -163,9 +164,9 @@ inline stream & operator<<(stream & s, Precondition<CopyMsghdrFromUserCall> p) {
 	s << depth << "if (SE_SAT(!(size(" << call.msghdr_name << "->msg_name) >= "
 			<< call.msghdr_name << "->msg_namelen))) {\n";
 	++depth;
-	s << depth << "warn(\"Invalid pointer " << call.msghdr_name << "->msg_name\");\n";
+	s << depth << "warn(\"Invalid pointer " << call.msghdr_name << "->msg_name\", " << call.msghdr_name << "->msg_name);\n";
 	--depth;
-	s << depth << "}";
+	s << depth << "}\n";
 	return s;
 }
 
