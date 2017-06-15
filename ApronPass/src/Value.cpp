@@ -727,6 +727,25 @@ ap_texpr1_t * ConstantNullValue::createTreeExpression(ApronAbstractState & state
 	return result;
 }
 
+class ConstantUndefValue : public ConstantValue {
+protected:
+	virtual std::string getConstantString() { return "undef"; }
+	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state) {
+		return state.asTexpr((int64_t)0);
+	}
+public:
+	ConstantUndefValue(llvm::Value * value) : ConstantValue(value) {}
+	virtual MPTItemAbstractState * mayPointsTo(AbstractState & state, bool isCreate=false) {
+		MPTItemAbstractState * result = state.m_mayPointsTo.find(getName());
+		if (result) {
+			return result;
+		}
+		MPTItemAbstractState & newmpt = state.m_mayPointsTo.extend(getName());
+		newmpt.lock();
+		return &newmpt;
+	}
+};
+
 class GlobalValue : public Value {
 public:
 	GlobalValue(llvm::Value * value) : Value(value) {}
@@ -2405,6 +2424,9 @@ Value * ValueFactory::createConstantValue(llvm::Constant * constant) {
 		return new ConstantFloatValue(constant);
 	}
 	if (llvm::isa<llvm::ConstantPointerNull>(constant)) {
+		return new ConstantNullValue(constant);
+	}
+	if (llvm::isa<llvm::UndefValue>(constant)) {
 		return new ConstantNullValue(constant);
 	}
 	if (llvm::isa<llvm::GlobalVariable>(constant)) {
