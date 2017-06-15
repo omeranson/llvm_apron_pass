@@ -7,6 +7,10 @@
 #include <map>
 #include <string>
 
+namespace llvm {
+	class DominatorTree;
+}
+
 class CallGraph {
 private:
 	std::multimap<BasicBlock *, BasicBlock *> m_nexts;
@@ -14,6 +18,7 @@ private:
 	Function * m_function;
 	BasicBlock * m_root;
 	std::string m_name;
+	llvm::DominatorTree * domTree;
 
 	void constructGraph();
 	virtual std::vector<BasicBlock*> elements(
@@ -27,6 +32,8 @@ public:
 	virtual std::vector<BasicBlock*> successors(BasicBlock * block);
 	virtual std::vector<BasicBlock*> predecessory(BasicBlock * block);
 	virtual void printAsDot(); 
+	virtual bool isDominates(BasicBlock * dominator, BasicBlock * dominated) const;
+	virtual bool isStrictDominates(BasicBlock * dominator, BasicBlock * dominated) const;
 };
 
 #endif /* CALLGRAPH_H */

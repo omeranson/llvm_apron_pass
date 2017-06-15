@@ -436,6 +436,10 @@ BasicBlock * Function::getRoot() const {
 	return root;
 }
 
+llvm::Function * Function::getLLVMFunction() {
+	return m_function;
+}
+
 Alias::Alias(llvm::GlobalAlias * alias, llvm::Function * function) :
 		m_alias(alias), Function(function) {
 	m_name = alias->getName();

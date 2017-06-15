@@ -3,11 +3,13 @@
 #include <iostream>
 #include <set>
 
+#include <llvm/Analysis/Dominators.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/Support/raw_ostream.h>
 
-CallGraph::CallGraph(Function * function) : m_function(function), m_root(function->getRoot()), m_name(function->getName()) {
+CallGraph::CallGraph(Function * function) : m_function(function), m_root(function->getRoot()), m_name(function->getName()), domTree(new llvm::DominatorTree()) {
 	constructGraph();
+	domTree->runOnFunction(*function->getLLVMFunction());
 }
 
 CallGraph::CallGraph(const std::string & name, BasicBlock * root) : m_function(0), m_root(root), m_name(name) {
@@ -76,5 +78,17 @@ void CallGraph::printAsDot() {
 				<< "\n";
 	}
 	llvm::errs() << "}" << "\n";
+}
+
+bool CallGraph::isDominates(BasicBlock * dominator, BasicBlock * dominated) const {
+	llvm::BasicBlock * llvmDominator = dominator->getLLVMBasicBlock();
+	llvm::BasicBlock * llvmDominated = dominated->getLLVMBasicBlock();
+	return domTree->dominates(llvmDominator, llvmDominated);
+}
+
+bool CallGraph::isStrictDominates(BasicBlock * dominator, BasicBlock * dominated) const {
+	llvm::BasicBlock * llvmDominator = dominator->getLLVMBasicBlock();
+	llvm::BasicBlock * llvmDominated = dominated->getLLVMBasicBlock();
+	return domTree->properlyDominates(llvmDominator, llvmDominated);
 }
 

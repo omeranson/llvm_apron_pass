@@ -81,13 +81,16 @@ void ChaoticExecution::populateWithSuccessors(
 }
 
 bool ChaoticExecution::join(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
+	bool isDominated = callGraph.isDominates(dest, source);
 	int & joinCount = m_joinCount[dest];
-	++joinCount;
+	if (isDominated) {
+		++joinCount;
+	}
 	AbstractState prev = dest->getAbstractState();
 	AbstractState incoming = dest->getAbstractStateWithAssumptions(*source, state);
 	bool isChanged;
 	bool isJoin = true;
-	if (WideningThreshold && (joinCount >= WideningThreshold)) {
+	if (WideningThreshold && isDominated && (joinCount >= WideningThreshold)) {
 		isChanged = dest->getAbstractState().widen(incoming);
 		isJoin = false;
 	} else {

@@ -70,6 +70,7 @@ public:
 	virtual std::string getReturnTypeString();
 	virtual const std::string & getReturnValueName();
 	virtual BasicBlock * getRoot() const;
+	virtual llvm::Function * getLLVMFunction();
 };
 
 class Alias : public Function {
