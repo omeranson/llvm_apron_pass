@@ -209,7 +209,8 @@ void GepValue::update(AbstractState & state) {
 		dest.insert(srcPtrName);
 		const std::string & offsetVar = AbstractState::generateOffsetName(
 				src->getName(), srcPtrName);
-		ap_texpr1_t * offset_var_texpr = state.m_apronAbstractState.asTexpr(offsetVar);		ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
+		ap_texpr1_t * offset_var_texpr = state.m_apronAbstractState.asTexpr(offsetVar);
+		ap_texpr1_t * offset_texpr_copy = ap_texpr1_copy(offset_texpr);
 		state.m_apronAbstractState.extendEnvironment(offset_texpr_copy);
 		state.m_apronAbstractState.extendEnvironment(offset_var_texpr);
 		ap_texpr1_t * value_texpr = ap_texpr1_binop(AP_TEXPR_ADD,
@@ -1708,6 +1709,38 @@ protected:
 public:
 	AndOperationValue(llvm::Value * value) : LogicalBinaryOperationValue(value) {}
 	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false);
+	virtual bool isSkip() { return false; }
+	virtual void update(AbstractState & state) {
+		std::string & var = getName();
+		bool isKnown = state.m_apronAbstractState.isKnown(var);
+		const std::string * name = &var;
+		if (isKnown) {
+			static const std::string tmpname = "__tmp_andop_update";
+			name = &tmpname;
+		}
+		state.m_apronAbstractState.extend(*name);
+		ap_texpr1_t * this_texpr = state.m_apronAbstractState.asTexpr(*name);
+		ap_texpr1_t * op0 = createOperandTreeExpression(state, 0);
+		ap_texpr1_t * op1 = createOperandTreeExpression(state, 1);
+		state.m_apronAbstractState.extendEnvironment(this_texpr);
+		state.m_apronAbstractState.extendEnvironment(op0);
+		state.m_apronAbstractState.extendEnvironment(op1);
+		ap_texpr1_t * texpr = ap_texpr1_binop(
+					AP_TEXPR_SUB, op0, ap_texpr1_copy(this_texpr),
+					AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
+		state.m_apronAbstractState.meet(cons);
+		texpr = ap_texpr1_binop(
+					AP_TEXPR_SUB, op1, this_texpr,
+					AP_RTYPE_INT, AP_RDIR_ZERO);
+		cons = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
+		state.m_apronAbstractState.meet(cons);
+		if (isKnown) {
+			state.m_apronAbstractState.forget(var);
+			state.m_apronAbstractState.rename(*name, var);
+		}
+	}
+
 };
 
 void AndOperationValue::updateConditionalAssumptionsPositive(AbstractState & state) {
