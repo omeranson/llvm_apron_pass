@@ -47,6 +47,7 @@ inputc =$(C_FILES_DIRECTORY)/Input
 inputbc=$(LLVM_BITCODE_FILES_DIRECTORY)/Input
 inputTagbc=$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag
 inputreadybc=$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady
+ATTRIBUTES?=
 
 ###############
 # DIRECTORIES #
@@ -236,8 +237,8 @@ all:
 	-load ${APRON_INSTALL}/lib/libapron_debug.so                    \
 	-load ${APRON_PASS_DIR}/adaptors/lib${APRON_MANAGER}_adaptor.so \
 	-load ${APRON_PASS_DIR}/libapronpass.so                         \
-	-apron -d -update-count-max=1000 -widening-threshold=5          \
-	-run-on-single-function=sys_${SYSCALL}                          \
+	-apron -update-count-max=1000 -widening-threshold=5             \
+	-run-on-single-function=sys_${SYSCALL} ${ATTRIBUTES}            \
 	${inputreadybc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"
 	@echo "****************************************************************"
