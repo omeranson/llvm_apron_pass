@@ -32,7 +32,7 @@ APRON_MANAGER3 = ap_ppl
 #################
 # APRON AMANGER #
 #################
-APRON_MANAGER  = $(APRON_MANAGER1)
+APRON_MANAGER  ?= $(APRON_MANAGER3)
 
 ################
 # SYSCALL NAME #
@@ -48,6 +48,7 @@ inputbc=$(LLVM_BITCODE_FILES_DIRECTORY)/Input
 inputTagbc=$(LLVM_BITCODE_FILES_DIRECTORY)/InputTag
 inputreadybc=$(LLVM_BITCODE_FILES_DIRECTORY)/InputReady
 ATTRIBUTES?=
+WIDENING_THRESHOLD?=10
 
 ###############
 # DIRECTORIES #
@@ -232,12 +233,12 @@ all:
 	@echo "* Run Apron Pass ... *"
 	@echo "**********************"
 	@echo "\n"
-	@env LD_LIBRARY_PATH=${LD_LIBRARY_PATH} opt                     \
+	@/usr/bin/time -f "%E %M" env LD_LIBRARY_PATH=${LD_LIBRARY_PATH} opt                     \
 	-load ${APRON_INSTALL}/lib/lib${APRON_MANAGER}_debug.so         \
 	-load ${APRON_INSTALL}/lib/libapron_debug.so                    \
 	-load ${APRON_PASS_DIR}/adaptors/lib${APRON_MANAGER}_adaptor.so \
 	-load ${APRON_PASS_DIR}/libapronpass.so                         \
-	-apron -update-count-max=1000 -widening-threshold=5             \
+	-apron -update-count-max=1000 -widening-threshold=${WIDENING_THRESHOLD} \
 	-run-on-single-function=sys_${SYSCALL} ${ATTRIBUTES}            \
 	${inputreadybc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"
