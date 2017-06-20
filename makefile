@@ -61,12 +61,6 @@ all:
 	rm -rf /tmp/INLINE_ME/*
 	rm -rf /tmp/llvm_apron_pass/*
 	@echo "\n"
-	@echo "*************************************************************"
-	@echo "* Before you start, make a human readable copy of the input *"
-	@echo "*************************************************************"
-	@echo "\n"
-	llvm-dis -o=${inputbc}.ll ${inputbc}.bc
-	@echo "\n"
 	@echo "*********************************************"
 	@echo "* Compile Combined Static Analysis Pass ... *"
 	@echo "*********************************************"
@@ -81,6 +75,12 @@ all:
 	@echo "\n"
 	cp ${C_FILES_DIRECTORY}/${SYSCALL}.c ${inputc}.c
 	cp ${LLVM_BC_SYSCALLS_DIRECTORY}/${SYSCALL}.bc ${inputbc}.bc
+	@echo "\n"
+	@echo "*************************************************************"
+	@echo "* Before you start, make a human readable copy of the input *"
+	@echo "*************************************************************"
+	@echo "\n"
+	llvm-dis -o=${inputbc}.ll ${inputbc}.bc
 	@echo "\n"
 	@echo "*****************************************************"
 	@echo "* Use the original c file to detect functions that  *"
