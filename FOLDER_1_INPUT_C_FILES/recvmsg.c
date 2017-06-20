@@ -1771,6 +1771,10 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len,
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (!sock)
 		goto out;
+	if (unlikely(!access_ok(READ, buff, len))) {
+		err = -EFAULT;
+		goto out;
+	}
 
 	iov.iov_base = buff;
 	iov.iov_len = len;
@@ -1826,6 +1830,11 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 
 	if (size > INT_MAX)
 		size = INT_MAX;
+	if (unlikely(!access_ok(WRITE, ubuf, size))) {
+		err = -EFAULT;
+		goto out;
+	}
+
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (!sock)
 		goto out;

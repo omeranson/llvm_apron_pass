@@ -1,1380 +1,580 @@
 /*
- *  linux/fs/read_write.c
+ * mm/readahead.c - address_space-level file readahead.
  *
- *  Copyright (C) 1991, 1992  Linus Torvalds
+ * Copyright (C) 2002, Linus Torvalds
+ *
+ * 09Apr2002	Andrew Morton
+ *		Initial version.
  */
 
-#include <linux/slab.h> 
-#include <linux/stat.h>
-#include <linux/fcntl.h>
-#include <linux/file.h>
-#include <linux/uio.h>
-#include <linux/aio.h>
-#include <linux/fsnotify.h>
-#include <linux/security.h>
+#include <linux/kernel.h>
+#include <linux/gfp.h>
 #include <linux/export.h>
-#include <linux/syscalls.h>
+#include <linux/blkdev.h>
+#include <linux/backing-dev.h>
+#include <linux/task_io_accounting_ops.h>
+#include <linux/pagevec.h>
 #include <linux/pagemap.h>
-#include <linux/splice.h>
-#include <linux/compat.h>
+#include <linux/syscalls.h>
+#include <linux/file.h>
+
 #include "internal.h"
 
-#include <asm/uaccess.h>
-#include <asm/unistd.h>
-
-typedef ssize_t (*io_fn_t)(struct file *, char __user *, size_t, loff_t *);
-typedef ssize_t (*iov_fn_t)(struct kiocb *, const struct iovec *,
-		unsigned long, loff_t);
-typedef ssize_t (*iter_fn_t)(struct kiocb *, struct iov_iter *);
-
-const struct file_operations generic_ro_fops = {
-	.llseek		= generic_file_llseek,
-	.read		= new_sync_read,
-	.read_iter	= generic_file_read_iter,
-	.mmap		= generic_file_readonly_mmap,
-	.splice_read	= generic_file_splice_read,
-};
-
-EXPORT_SYMBOL(generic_ro_fops);
-
-static inline int unsigned_offsets(struct file *file)
-{
-	return file->f_mode & FMODE_UNSIGNED_OFFSET;
-}
-
-/**
- * vfs_setpos - update the file offset for lseek
- * @file:	file structure in question
- * @offset:	file offset to seek to
- * @maxsize:	maximum file size
- *
- * This is a low-level filesystem helper for updating the file offset to
- * the value specified by @offset if the given offset is valid and it is
- * not equal to the current file offset.
- *
- * Return the specified offset on success and -EINVAL on invalid offset.
+/*
+ * Initialise a struct file's readahead state.  Assumes that the caller has
+ * memset *ra to zero.
  */
-loff_t vfs_setpos(struct file *file, loff_t offset, loff_t maxsize)
+void
+file_ra_state_init(struct file_ra_state *ra, struct address_space *mapping)
 {
-	if (offset < 0 && !unsigned_offsets(file))
-		return -EINVAL;
-	if (offset > maxsize)
-		return -EINVAL;
-
-	if (offset != file->f_pos) {
-		file->f_pos = offset;
-		file->f_version = 0;
-	}
-	return offset;
+	ra->ra_pages = mapping->backing_dev_info->ra_pages;
+	ra->prev_pos = -1;
 }
-EXPORT_SYMBOL(vfs_setpos);
+EXPORT_SYMBOL_GPL(file_ra_state_init);
 
-/**
- * generic_file_llseek_size - generic llseek implementation for regular files
- * @file:	file structure to seek on
- * @offset:	file offset to seek to
- * @whence:	type of seek
- * @size:	max size of this file in file system
- * @eof:	offset used for SEEK_END position
- *
- * This is a variant of generic_file_llseek that allows passing in a custom
- * maximum file size and a custom EOF position, for e.g. hashed directories
- *
- * Synchronization:
- * SEEK_SET and SEEK_END are unsynchronized (but atomic on 64bit platforms)
- * SEEK_CUR is synchronized against other SEEK_CURs, but not read/writes.
- * read/writes behave like SEEK_SET against seeks.
- */
-loff_t
-generic_file_llseek_size(struct file *file, loff_t offset, int whence,
-		loff_t maxsize, loff_t eof)
-{
-	switch (whence) {
-	case SEEK_END:
-		offset += eof;
-		break;
-	case SEEK_CUR:
-		/*
-		 * Here we special-case the lseek(fd, 0, SEEK_CUR)
-		 * position-querying operation.  Avoid rewriting the "same"
-		 * f_pos value back to the file because a concurrent read(),
-		 * write() or lseek() might have altered it
-		 */
-		if (offset == 0)
-			return file->f_pos;
-		/*
-		 * f_lock protects against read/modify/write race with other
-		 * SEEK_CURs. Note that parallel writes and reads behave
-		 * like SEEK_SET.
-		 */
-		spin_lock(&file->f_lock);
-		offset = vfs_setpos(file, file->f_pos + offset, maxsize);
-		spin_unlock(&file->f_lock);
-		return offset;
-	case SEEK_DATA:
-		/*
-		 * In the generic case the entire file is data, so as long as
-		 * offset isn't at the end of the file then the offset is data.
-		 */
-		if (offset >= eof)
-			return -ENXIO;
-		break;
-	case SEEK_HOLE:
-		/*
-		 * There is a virtual hole at the end of the file, so as long as
-		 * offset isn't i_size or larger, return i_size.
-		 */
-		if (offset >= eof)
-			return -ENXIO;
-		offset = eof;
-		break;
-	}
-
-	return vfs_setpos(file, offset, maxsize);
-}
-EXPORT_SYMBOL(generic_file_llseek_size);
-
-/**
- * generic_file_llseek - generic llseek implementation for regular files
- * @file:	file structure to seek on
- * @offset:	file offset to seek to
- * @whence:	type of seek
- *
- * This is a generic implemenation of ->llseek useable for all normal local
- * filesystems.  It just updates the file offset to the value specified by
- * @offset and @whence.
- */
-loff_t generic_file_llseek(struct file *file, loff_t offset, int whence)
-{
-	struct inode *inode = file->f_mapping->host;
-
-	return generic_file_llseek_size(file, offset, whence,
-					inode->i_sb->s_maxbytes,
-					i_size_read(inode));
-}
-EXPORT_SYMBOL(generic_file_llseek);
-
-/**
- * fixed_size_llseek - llseek implementation for fixed-sized devices
- * @file:	file structure to seek on
- * @offset:	file offset to seek to
- * @whence:	type of seek
- * @size:	size of the file
- *
- */
-loff_t fixed_size_llseek(struct file *file, loff_t offset, int whence, loff_t size)
-{
-	switch (whence) {
-	case SEEK_SET: case SEEK_CUR: case SEEK_END:
-		return generic_file_llseek_size(file, offset, whence,
-						size, size);
-	default:
-		return -EINVAL;
-	}
-}
-EXPORT_SYMBOL(fixed_size_llseek);
-
-/**
- * noop_llseek - No Operation Performed llseek implementation
- * @file:	file structure to seek on
- * @offset:	file offset to seek to
- * @whence:	type of seek
- *
- * This is an implementation of ->llseek useable for the rare special case when
- * userspace expects the seek to succeed but the (device) file is actually not
- * able to perform the seek. In this case you use noop_llseek() instead of
- * falling back to the default implementation of ->llseek.
- */
-loff_t noop_llseek(struct file *file, loff_t offset, int whence)
-{
-	return file->f_pos;
-}
-EXPORT_SYMBOL(noop_llseek);
-
-loff_t no_llseek(struct file *file, loff_t offset, int whence)
-{
-	return -ESPIPE;
-}
-EXPORT_SYMBOL(no_llseek);
-
-loff_t default_llseek(struct file *file, loff_t offset, int whence)
-{
-	struct inode *inode = file_inode(file);
-	loff_t retval;
-
-	mutex_lock(&inode->i_mutex);
-	switch (whence) {
-		case SEEK_END:
-			offset += i_size_read(inode);
-			break;
-		case SEEK_CUR:
-			if (offset == 0) {
-				retval = file->f_pos;
-				goto out;
-			}
-			offset += file->f_pos;
-			break;
-		case SEEK_DATA:
-			/*
-			 * In the generic case the entire file is data, so as
-			 * long as offset isn't at the end of the file then the
-			 * offset is data.
-			 */
-			if (offset >= inode->i_size) {
-				retval = -ENXIO;
-				goto out;
-			}
-			break;
-		case SEEK_HOLE:
-			/*
-			 * There is a virtual hole at the end of the file, so
-			 * as long as offset isn't i_size or larger, return
-			 * i_size.
-			 */
-			if (offset >= inode->i_size) {
-				retval = -ENXIO;
-				goto out;
-			}
-			offset = inode->i_size;
-			break;
-	}
-	retval = -EINVAL;
-	if (offset >= 0 || unsigned_offsets(file)) {
-		if (offset != file->f_pos) {
-			file->f_pos = offset;
-			file->f_version = 0;
-		}
-		retval = offset;
-	}
-out:
-	mutex_unlock(&inode->i_mutex);
-	return retval;
-}
-EXPORT_SYMBOL(default_llseek);
-
-loff_t vfs_llseek(struct file *file, loff_t offset, int whence)
-{
-	loff_t (*fn)(struct file *, loff_t, int);
-
-	fn = no_llseek;
-	if (file->f_mode & FMODE_LSEEK) {
-		if (file->f_op->llseek)
-			fn = file->f_op->llseek;
-	}
-	return fn(file, offset, whence);
-}
-EXPORT_SYMBOL(vfs_llseek);
-
-static inline struct fd fdget_pos(int fd)
-{
-	return __to_fd(__fdget_pos(fd));
-}
-
-static inline void fdput_pos(struct fd f)
-{
-	if (f.flags & FDPUT_POS_UNLOCK)
-		mutex_unlock(&f.file->f_pos_lock);
-	fdput(f);
-}
-
-SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, whence)
-{
-	off_t retval;
-	struct fd f = fdget_pos(fd);
-	if (!f.file)
-		return -EBADF;
-
-	retval = -EINVAL;
-	if (whence <= SEEK_MAX) {
-		loff_t res = vfs_llseek(f.file, offset, whence);
-		retval = res;
-		if (res != (loff_t)retval)
-			retval = -EOVERFLOW;	/* LFS: should only happen on 32 bit platforms */
-	}
-	fdput_pos(f);
-	return retval;
-}
-
-#ifdef CONFIG_COMPAT
-COMPAT_SYSCALL_DEFINE3(lseek, unsigned int, fd, compat_off_t, offset, unsigned int, whence)
-{
-	return sys_lseek(fd, offset, whence);
-}
-#endif
-
-#ifdef __ARCH_WANT_SYS_LLSEEK
-SYSCALL_DEFINE5(llseek, unsigned int, fd, unsigned long, offset_high,
-		unsigned long, offset_low, loff_t __user *, result,
-		unsigned int, whence)
-{
-	int retval;
-	struct fd f = fdget_pos(fd);
-	loff_t offset;
-
-	if (!f.file)
-		return -EBADF;
-
-	retval = -EINVAL;
-	if (whence > SEEK_MAX)
-		goto out_putf;
-
-	offset = vfs_llseek(f.file, ((loff_t) offset_high << 32) | offset_low,
-			whence);
-
-	retval = (int)offset;
-	if (offset >= 0) {
-		retval = -EFAULT;
-		if (!copy_to_user(result, &offset, sizeof(offset)))
-			retval = 0;
-	}
-out_putf:
-	fdput_pos(f);
-	return retval;
-}
-#endif
+#define list_to_page(head) (list_entry((head)->prev, struct page, lru))
 
 /*
- * rw_verify_area doesn't like huge counts. We limit
- * them to something that fits in "int" so that others
- * won't have to do range checks all the time.
+ * see if a page needs releasing upon read_cache_pages() failure
+ * - the caller of read_cache_pages() may have set PG_private or PG_fscache
+ *   before calling, such as the NFS fs marking pages that are cached locally
+ *   on disk, thus we need to give the fs a chance to clean up in the event of
+ *   an error
  */
-int rw_verify_area(int read_write, struct file *file, const loff_t *ppos, size_t count)
+static void read_cache_pages_invalidate_page(struct address_space *mapping,
+					     struct page *page)
 {
-	struct inode *inode;
-	loff_t pos;
-	int retval = -EINVAL;
-
-	inode = file_inode(file);
-	if (unlikely((ssize_t) count < 0))
-		return retval;
-	pos = *ppos;
-	if (unlikely(pos < 0)) {
-		if (!unsigned_offsets(file))
-			return retval;
-		if (count >= -pos) /* both values are in 0..LLONG_MAX */
-			return -EOVERFLOW;
-	} else if (unlikely((loff_t) (pos + count) < 0)) {
-		if (!unsigned_offsets(file))
-			return retval;
+	if (page_has_private(page)) {
+		if (!trylock_page(page))
+			BUG();
+		page->mapping = mapping;
+		do_invalidatepage(page, 0, PAGE_CACHE_SIZE);
+		page->mapping = NULL;
+		unlock_page(page);
 	}
-
-	if (unlikely(inode->i_flock && mandatory_lock(inode))) {
-		retval = locks_mandatory_area(
-			read_write == READ ? FLOCK_VERIFY_READ : FLOCK_VERIFY_WRITE,
-			inode, file, pos, count);
-		if (retval < 0)
-			return retval;
-	}
-	retval = security_file_permission(file,
-				read_write == READ ? MAY_READ : MAY_WRITE);
-	if (retval)
-		return retval;
-	return count > MAX_RW_COUNT ? MAX_RW_COUNT : count;
-}
-
-ssize_t do_sync_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
-{
-	struct iovec iov = { .iov_base = buf, .iov_len = len };
-	struct kiocb kiocb;
-	ssize_t ret;
-
-	init_sync_kiocb(&kiocb, filp);
-	kiocb.ki_pos = *ppos;
-	kiocb.ki_nbytes = len;
-
-	ret = filp->f_op->aio_read(&kiocb, &iov, 1, kiocb.ki_pos);
-	if (-EIOCBQUEUED == ret)
-		ret = wait_on_sync_kiocb(&kiocb);
-	*ppos = kiocb.ki_pos;
-	return ret;
-}
-
-EXPORT_SYMBOL(do_sync_read);
-
-ssize_t new_sync_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
-{
-	struct iovec iov = { .iov_base = buf, .iov_len = len };
-	struct kiocb kiocb;
-	struct iov_iter iter;
-	ssize_t ret;
-
-	init_sync_kiocb(&kiocb, filp);
-	kiocb.ki_pos = *ppos;
-	kiocb.ki_nbytes = len;
-	iov_iter_init(&iter, READ, &iov, 1, len);
-
-	ret = filp->f_op->read_iter(&kiocb, &iter);
-	if (-EIOCBQUEUED == ret)
-		ret = wait_on_sync_kiocb(&kiocb);
-	*ppos = kiocb.ki_pos;
-	return ret;
-}
-
-EXPORT_SYMBOL(new_sync_read);
-
-ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
-		   loff_t *pos)
-{
-	ssize_t ret;
-
-	if (file->f_op->read)
-		ret = file->f_op->read(file, buf, count, pos);
-	else if (file->f_op->aio_read)
-		ret = do_sync_read(file, buf, count, pos);
-	else if (file->f_op->read_iter)
-		ret = new_sync_read(file, buf, count, pos);
-	else
-		ret = -EINVAL;
-
-	return ret;
-}
-
-ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
-{
-	ssize_t ret;
-
-	if (!(file->f_mode & FMODE_READ))
-		return -EBADF;
-	if (!(file->f_mode & FMODE_CAN_READ))
-		return -EINVAL;
-	if (unlikely(!access_ok(VERIFY_WRITE, buf, count)))
-		return -EFAULT;
-
-	ret = rw_verify_area(READ, file, pos, count);
-	if (ret >= 0) {
-		count = ret;
-		ret = __vfs_read(file, buf, count, pos);
-		if (ret > 0) {
-			fsnotify_access(file);
-			add_rchar(current, ret);
-		}
-		inc_syscr(current);
-	}
-
-	return ret;
-}
-
-EXPORT_SYMBOL(vfs_read);
-
-ssize_t do_sync_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
-{
-	struct iovec iov = { .iov_base = (void __user *)buf, .iov_len = len };
-	struct kiocb kiocb;
-	ssize_t ret;
-
-	init_sync_kiocb(&kiocb, filp);
-	kiocb.ki_pos = *ppos;
-	kiocb.ki_nbytes = len;
-
-	ret = filp->f_op->aio_write(&kiocb, &iov, 1, kiocb.ki_pos);
-	if (-EIOCBQUEUED == ret)
-		ret = wait_on_sync_kiocb(&kiocb);
-	*ppos = kiocb.ki_pos;
-	return ret;
-}
-
-EXPORT_SYMBOL(do_sync_write);
-
-ssize_t new_sync_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
-{
-	struct iovec iov = { .iov_base = (void __user *)buf, .iov_len = len };
-	struct kiocb kiocb;
-	struct iov_iter iter;
-	ssize_t ret;
-
-	init_sync_kiocb(&kiocb, filp);
-	kiocb.ki_pos = *ppos;
-	kiocb.ki_nbytes = len;
-	iov_iter_init(&iter, WRITE, &iov, 1, len);
-
-	ret = filp->f_op->write_iter(&kiocb, &iter);
-	if (-EIOCBQUEUED == ret)
-		ret = wait_on_sync_kiocb(&kiocb);
-	*ppos = kiocb.ki_pos;
-	return ret;
-}
-
-EXPORT_SYMBOL(new_sync_write);
-
-ssize_t __kernel_write(struct file *file, const char *buf, size_t count, loff_t *pos)
-{
-	mm_segment_t old_fs;
-	const char __user *p;
-	ssize_t ret;
-
-	if (!(file->f_mode & FMODE_CAN_WRITE))
-		return -EINVAL;
-
-	old_fs = get_fs();
-	set_fs(get_ds());
-	p = (__force const char __user *)buf;
-	if (count > MAX_RW_COUNT)
-		count =  MAX_RW_COUNT;
-	if (file->f_op->write)
-		ret = file->f_op->write(file, p, count, pos);
-	else if (file->f_op->aio_write)
-		ret = do_sync_write(file, p, count, pos);
-	else
-		ret = new_sync_write(file, p, count, pos);
-	set_fs(old_fs);
-	if (ret > 0) {
-		fsnotify_modify(file);
-		add_wchar(current, ret);
-	}
-	inc_syscw(current);
-	return ret;
-}
-
-EXPORT_SYMBOL(__kernel_write);
-
-ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
-{
-	ssize_t ret;
-
-	if (!(file->f_mode & FMODE_WRITE))
-		return -EBADF;
-	if (!(file->f_mode & FMODE_CAN_WRITE))
-		return -EINVAL;
-	if (unlikely(!access_ok(VERIFY_READ, buf, count)))
-		return -EFAULT;
-
-	ret = rw_verify_area(WRITE, file, pos, count);
-	if (ret >= 0) {
-		count = ret;
-		file_start_write(file);
-		if (file->f_op->write)
-			ret = file->f_op->write(file, buf, count, pos);
-		else if (file->f_op->aio_write)
-			ret = do_sync_write(file, buf, count, pos);
-		else
-			ret = new_sync_write(file, buf, count, pos);
-		if (ret > 0) {
-			fsnotify_modify(file);
-			add_wchar(current, ret);
-		}
-		inc_syscw(current);
-		file_end_write(file);
-	}
-
-	return ret;
-}
-
-EXPORT_SYMBOL(vfs_write);
-
-static inline loff_t file_pos_read(struct file *file)
-{
-	return file->f_pos;
-}
-
-static inline void file_pos_write(struct file *file, loff_t pos)
-{
-	file->f_pos = pos;
-}
-
-SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
-{
-	struct fd f = fdget_pos(fd);
-	ssize_t ret = -EBADF;
-
-	if (f.file) {
-		loff_t pos = file_pos_read(f.file);
-		ret = vfs_read(f.file, buf, count, &pos);
-		if (ret >= 0)
-			file_pos_write(f.file, pos);
-		fdput_pos(f);
-	}
-	return ret;
-}
-
-SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
-		size_t, count)
-{
-	struct fd f = fdget_pos(fd);
-	ssize_t ret = -EBADF;
-
-	if (f.file) {
-		loff_t pos = file_pos_read(f.file);
-		ret = vfs_write(f.file, buf, count, &pos);
-		if (ret >= 0)
-			file_pos_write(f.file, pos);
-		fdput_pos(f);
-	}
-
-	return ret;
-}
-
-SYSCALL_DEFINE4(pread64, unsigned int, fd, char __user *, buf,
-			size_t, count, loff_t, pos)
-{
-	struct fd f;
-	ssize_t ret = -EBADF;
-
-	if (pos < 0)
-		return -EINVAL;
-
-	f = fdget(fd);
-	if (f.file) {
-		ret = -ESPIPE;
-		if (f.file->f_mode & FMODE_PREAD)
-			ret = vfs_read(f.file, buf, count, &pos);
-		fdput(f);
-	}
-
-	return ret;
-}
-
-SYSCALL_DEFINE4(pwrite64, unsigned int, fd, const char __user *, buf,
-			 size_t, count, loff_t, pos)
-{
-	struct fd f;
-	ssize_t ret = -EBADF;
-
-	if (pos < 0)
-		return -EINVAL;
-
-	f = fdget(fd);
-	if (f.file) {
-		ret = -ESPIPE;
-		if (f.file->f_mode & FMODE_PWRITE)  
-			ret = vfs_write(f.file, buf, count, &pos);
-		fdput(f);
-	}
-
-	return ret;
+	page_cache_release(page);
 }
 
 /*
- * Reduce an iovec's length in-place.  Return the resulting number of segments
+ * release a list of pages, invalidating them first if need be
  */
-unsigned long iov_shorten(struct iovec *iov, unsigned long nr_segs, size_t to)
+static void read_cache_pages_invalidate_pages(struct address_space *mapping,
+					      struct list_head *pages)
 {
-	unsigned long seg = 0;
-	size_t len = 0;
+	struct page *victim;
 
-	while (seg < nr_segs) {
-		seg++;
-		if (len + iov->iov_len >= to) {
-			iov->iov_len = to - len;
+	while (!list_empty(pages)) {
+		victim = list_to_page(pages);
+		list_del(&victim->lru);
+		read_cache_pages_invalidate_page(mapping, victim);
+	}
+}
+
+/**
+ * read_cache_pages - populate an address space with some pages & start reads against them
+ * @mapping: the address_space
+ * @pages: The address of a list_head which contains the target pages.  These
+ *   pages have their ->index populated and are otherwise uninitialised.
+ * @filler: callback routine for filling a single page.
+ * @data: private data for the callback routine.
+ *
+ * Hides the details of the LRU cache etc from the filesystems.
+ */
+int read_cache_pages(struct address_space *mapping, struct list_head *pages,
+			int (*filler)(void *, struct page *), void *data)
+{
+	struct page *page;
+	int ret = 0;
+
+	while (!list_empty(pages)) {
+		page = list_to_page(pages);
+		list_del(&page->lru);
+		if (add_to_page_cache_lru(page, mapping,
+					page->index, GFP_KERNEL)) {
+			read_cache_pages_invalidate_page(mapping, page);
+			continue;
+		}
+		page_cache_release(page);
+
+		ret = filler(data, page);
+		if (unlikely(ret)) {
+			read_cache_pages_invalidate_pages(mapping, pages);
 			break;
 		}
-		len += iov->iov_len;
-		iov++;
+		task_io_account_read(PAGE_CACHE_SIZE);
 	}
-	return seg;
-}
-EXPORT_SYMBOL(iov_shorten);
-
-static ssize_t do_iter_readv_writev(struct file *filp, int rw, const struct iovec *iov,
-		unsigned long nr_segs, size_t len, loff_t *ppos, iter_fn_t fn)
-{
-	struct kiocb kiocb;
-	struct iov_iter iter;
-	ssize_t ret;
-
-	init_sync_kiocb(&kiocb, filp);
-	kiocb.ki_pos = *ppos;
-	kiocb.ki_nbytes = len;
-
-	iov_iter_init(&iter, rw, iov, nr_segs, len);
-	ret = fn(&kiocb, &iter);
-	if (ret == -EIOCBQUEUED)
-		ret = wait_on_sync_kiocb(&kiocb);
-	*ppos = kiocb.ki_pos;
 	return ret;
 }
 
-static ssize_t do_sync_readv_writev(struct file *filp, const struct iovec *iov,
-		unsigned long nr_segs, size_t len, loff_t *ppos, iov_fn_t fn)
+EXPORT_SYMBOL(read_cache_pages);
+
+static int read_pages(struct address_space *mapping, struct file *filp,
+		struct list_head *pages, unsigned nr_pages)
 {
-	struct kiocb kiocb;
-	ssize_t ret;
+	struct blk_plug plug;
+	unsigned page_idx;
+	int ret;
 
-	init_sync_kiocb(&kiocb, filp);
-	kiocb.ki_pos = *ppos;
-	kiocb.ki_nbytes = len;
+	blk_start_plug(&plug);
 
-	ret = fn(&kiocb, iov, nr_segs, kiocb.ki_pos);
-	if (ret == -EIOCBQUEUED)
-		ret = wait_on_sync_kiocb(&kiocb);
-	*ppos = kiocb.ki_pos;
-	return ret;
-}
+	if (mapping->a_ops->readpages) {
+		ret = mapping->a_ops->readpages(filp, mapping, pages, nr_pages);
+		/* Clean up the remaining pages */
+		put_pages_list(pages);
+		goto out;
+	}
 
-/* Do it by hand, with file-ops */
-static ssize_t do_loop_readv_writev(struct file *filp, struct iovec *iov,
-		unsigned long nr_segs, loff_t *ppos, io_fn_t fn)
-{
-	struct iovec *vector = iov;
-	ssize_t ret = 0;
-
-	while (nr_segs > 0) {
-		void __user *base;
-		size_t len;
-		ssize_t nr;
-
-		base = vector->iov_base;
-		len = vector->iov_len;
-		vector++;
-		nr_segs--;
-
-		nr = fn(filp, base, len, ppos);
-
-		if (nr < 0) {
-			if (!ret)
-				ret = nr;
-			break;
+	for (page_idx = 0; page_idx < nr_pages; page_idx++) {
+		struct page *page = list_to_page(pages);
+		list_del(&page->lru);
+		if (!add_to_page_cache_lru(page, mapping,
+					page->index, GFP_KERNEL)) {
+			mapping->a_ops->readpage(filp, page);
 		}
-		ret += nr;
-		if (nr != len)
-			break;
+		page_cache_release(page);
 	}
-
-	return ret;
-}
-
-/* A write operation does a read from user space and vice versa */
-#define vrfy_dir(type) ((type) == READ ? VERIFY_WRITE : VERIFY_READ)
-
-ssize_t rw_copy_check_uvector(int type, const struct iovec __user * uvector,
-			      unsigned long nr_segs, unsigned long fast_segs,
-			      struct iovec *fast_pointer,
-			      struct iovec **ret_pointer)
-{
-	unsigned long seg;
-	ssize_t ret;
-	struct iovec *iov = fast_pointer;
-
-	/*
-	 * SuS says "The readv() function *may* fail if the iovcnt argument
-	 * was less than or equal to 0, or greater than {IOV_MAX}.  Linux has
-	 * traditionally returned zero for zero segments, so...
-	 */
-	if (nr_segs == 0) {
-		ret = 0;
-		goto out;
-	}
-
-	/*
-	 * First get the "struct iovec" from user memory and
-	 * verify all the pointers
-	 */
-	if (nr_segs > UIO_MAXIOV) {
-		ret = -EINVAL;
-		goto out;
-	}
-	if (nr_segs > fast_segs) {
-		iov = kmalloc(nr_segs*sizeof(struct iovec), GFP_KERNEL);
-		if (iov == NULL) {
-			ret = -ENOMEM;
-			goto out;
-		}
-	}
-	if (copy_from_user(iov, uvector, nr_segs*sizeof(*uvector))) {
-		ret = -EFAULT;
-		goto out;
-	}
-
-	/*
-	 * According to the Single Unix Specification we should return EINVAL
-	 * if an element length is < 0 when cast to ssize_t or if the
-	 * total length would overflow the ssize_t return value of the
-	 * system call.
-	 *
-	 * Linux caps all read/write calls to MAX_RW_COUNT, and avoids the
-	 * overflow case.
-	 */
 	ret = 0;
-	for (seg = 0; seg < nr_segs; seg++) {
-		void __user *buf = iov[seg].iov_base;
-		ssize_t len = (ssize_t)iov[seg].iov_len;
 
-		/* see if we we're about to use an invalid len or if
-		 * it's about to overflow ssize_t */
-		if (len < 0) {
-			ret = -EINVAL;
-			goto out;
-		}
-		if (type >= 0
-		    && unlikely(!access_ok(vrfy_dir(type), buf, len))) {
-			ret = -EFAULT;
-			goto out;
-		}
-		if (len > MAX_RW_COUNT - ret) {
-			len = MAX_RW_COUNT - ret;
-			iov[seg].iov_len = len;
-		}
-		ret += len;
-	}
 out:
-	*ret_pointer = iov;
+	blk_finish_plug(&plug);
+
 	return ret;
 }
 
-static ssize_t do_readv_writev(int type, struct file *file,
-			       const struct iovec __user * uvector,
-			       unsigned long nr_segs, loff_t *pos)
+/*
+ * __do_page_cache_readahead() actually reads a chunk of disk.  It allocates all
+ * the pages first, then submits them all for I/O. This avoids the very bad
+ * behaviour which would occur if page allocations are causing VM writeback.
+ * We really don't want to intermingle reads and writes like that.
+ *
+ * Returns the number of pages requested, or the maximum amount of I/O allowed.
+ */
+int __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
+			pgoff_t offset, unsigned long nr_to_read,
+			unsigned long lookahead_size)
 {
-	size_t tot_len;
-	struct iovec iovstack[UIO_FASTIOV];
-	struct iovec *iov = iovstack;
-	ssize_t ret;
-	io_fn_t fn;
-	iov_fn_t fnv;
-	iter_fn_t iter_fn;
+	struct inode *inode = mapping->host;
+	struct page *page;
+	unsigned long end_index;	/* The last page we want to read */
+	LIST_HEAD(page_pool);
+	int page_idx;
+	int ret = 0;
+	loff_t isize = i_size_read(inode);
 
-	ret = rw_copy_check_uvector(type, uvector, nr_segs,
-				    ARRAY_SIZE(iovstack), iovstack, &iov);
-	if (ret <= 0)
+	if (isize == 0)
 		goto out;
 
-	tot_len = ret;
-	ret = rw_verify_area(type, file, pos, tot_len);
-	if (ret < 0)
-		goto out;
+	end_index = ((isize - 1) >> PAGE_CACHE_SHIFT);
 
-	fnv = NULL;
-	if (type == READ) {
-		fn = file->f_op->read;
-		fnv = file->f_op->aio_read;
-		iter_fn = file->f_op->read_iter;
-	} else {
-		fn = (io_fn_t)file->f_op->write;
-		fnv = file->f_op->aio_write;
-		iter_fn = file->f_op->write_iter;
-		file_start_write(file);
+	/*
+	 * Preallocate as many pages as we will need.
+	 */
+	for (page_idx = 0; page_idx < nr_to_read; page_idx++) {
+		pgoff_t page_offset = offset + page_idx;
+
+		if (page_offset > end_index)
+			break;
+
+		rcu_read_lock();
+		page = radix_tree_lookup(&mapping->page_tree, page_offset);
+		rcu_read_unlock();
+		if (page && !radix_tree_exceptional_entry(page))
+			continue;
+
+		page = page_cache_alloc_readahead(mapping);
+		if (!page)
+			break;
+		page->index = page_offset;
+		list_add(&page->lru, &page_pool);
+		if (page_idx == nr_to_read - lookahead_size)
+			SetPageReadahead(page);
+		ret++;
 	}
 
-	if (iter_fn)
-		ret = do_iter_readv_writev(file, type, iov, nr_segs, tot_len,
-						pos, iter_fn);
-	else if (fnv)
-		ret = do_sync_readv_writev(file, iov, nr_segs, tot_len,
-						pos, fnv);
+	/*
+	 * Now start the IO.  We ignore I/O errors - if the page is not
+	 * uptodate then the caller will launch readpage again, and
+	 * will then handle the error.
+	 */
+	if (ret)
+		read_pages(mapping, filp, &page_pool, ret);
+	BUG_ON(!list_empty(&page_pool));
+out:
+	return ret;
+}
+
+/*
+ * Chunk the readahead into 2 megabyte units, so that we don't pin too much
+ * memory at once.
+ */
+int force_page_cache_readahead(struct address_space *mapping, struct file *filp,
+		pgoff_t offset, unsigned long nr_to_read)
+{
+	if (unlikely(!mapping->a_ops->readpage && !mapping->a_ops->readpages))
+		return -EINVAL;
+
+	nr_to_read = max_sane_readahead(nr_to_read);
+	while (nr_to_read) {
+		int err;
+
+		unsigned long this_chunk = (2 * 1024 * 1024) / PAGE_CACHE_SIZE;
+
+		if (this_chunk > nr_to_read)
+			this_chunk = nr_to_read;
+		err = __do_page_cache_readahead(mapping, filp,
+						offset, this_chunk, 0);
+		if (err < 0)
+			return err;
+
+		offset += this_chunk;
+		nr_to_read -= this_chunk;
+	}
+	return 0;
+}
+
+#define MAX_READAHEAD   ((512*4096)/PAGE_CACHE_SIZE)
+/*
+ * Given a desired number of PAGE_CACHE_SIZE readahead pages, return a
+ * sensible upper limit.
+ */
+unsigned long max_sane_readahead(unsigned long nr)
+{
+	return min(nr, MAX_READAHEAD);
+}
+
+/*
+ * Set the initial window size, round to next power of 2 and square
+ * for small size, x 4 for medium, and x 2 for large
+ * for 128k (32 page) max ra
+ * 1-8 page = 32k initial, > 8 page = 128k initial
+ */
+static unsigned long get_init_ra_size(unsigned long size, unsigned long max)
+{
+	unsigned long newsize = roundup_pow_of_two(size);
+
+	if (newsize <= max / 32)
+		newsize = newsize * 4;
+	else if (newsize <= max / 4)
+		newsize = newsize * 2;
 	else
-		ret = do_loop_readv_writev(file, iov, nr_segs, pos, fn);
+		newsize = max;
 
-	if (type != READ)
-		file_end_write(file);
-
-out:
-	if (iov != iovstack)
-		kfree(iov);
-	if ((ret + (type == READ)) > 0) {
-		if (type == READ)
-			fsnotify_access(file);
-		else
-			fsnotify_modify(file);
-	}
-	return ret;
+	return newsize;
 }
 
-ssize_t vfs_readv(struct file *file, const struct iovec __user *vec,
-		  unsigned long vlen, loff_t *pos)
+/*
+ *  Get the previous window size, ramp it up, and
+ *  return it as the new window size.
+ */
+static unsigned long get_next_ra_size(struct file_ra_state *ra,
+						unsigned long max)
 {
-	if (!(file->f_mode & FMODE_READ))
-		return -EBADF;
-	if (!(file->f_mode & FMODE_CAN_READ))
+	unsigned long cur = ra->size;
+	unsigned long newsize;
+
+	if (cur < max / 16)
+		newsize = 4 * cur;
+	else
+		newsize = 2 * cur;
+
+	return min(newsize, max);
+}
+
+/*
+ * On-demand readahead design.
+ *
+ * The fields in struct file_ra_state represent the most-recently-executed
+ * readahead attempt:
+ *
+ *                        |<----- async_size ---------|
+ *     |------------------- size -------------------->|
+ *     |==================#===========================|
+ *     ^start             ^page marked with PG_readahead
+ *
+ * To overlap application thinking time and disk I/O time, we do
+ * `readahead pipelining': Do not wait until the application consumed all
+ * readahead pages and stalled on the missing page at readahead_index;
+ * Instead, submit an asynchronous readahead I/O as soon as there are
+ * only async_size pages left in the readahead window. Normally async_size
+ * will be equal to size, for maximum pipelining.
+ *
+ * In interleaved sequential reads, concurrent streams on the same fd can
+ * be invalidating each other's readahead state. So we flag the new readahead
+ * page at (start+size-async_size) with PG_readahead, and use it as readahead
+ * indicator. The flag won't be set on already cached pages, to avoid the
+ * readahead-for-nothing fuss, saving pointless page cache lookups.
+ *
+ * prev_pos tracks the last visited byte in the _previous_ read request.
+ * It should be maintained by the caller, and will be used for detecting
+ * small random reads. Note that the readahead algorithm checks loosely
+ * for sequential patterns. Hence interleaved reads might be served as
+ * sequential ones.
+ *
+ * There is a special-case: if the first page which the application tries to
+ * read happens to be the first page of the file, it is assumed that a linear
+ * read is about to happen and the window is immediately set to the initial size
+ * based on I/O request size and the max_readahead.
+ *
+ * The code ramps up the readahead size aggressively at first, but slow down as
+ * it approaches max_readhead.
+ */
+
+/*
+ * Count contiguously cached pages from @offset-1 to @offset-@max,
+ * this count is a conservative estimation of
+ * 	- length of the sequential read sequence, or
+ * 	- thrashing threshold in memory tight systems
+ */
+static pgoff_t count_history_pages(struct address_space *mapping,
+				   pgoff_t offset, unsigned long max)
+{
+	pgoff_t head;
+
+	rcu_read_lock();
+	head = page_cache_prev_hole(mapping, offset - 1, max);
+	rcu_read_unlock();
+
+	return offset - 1 - head;
+}
+
+/*
+ * page cache context based read-ahead
+ */
+static int try_context_readahead(struct address_space *mapping,
+				 struct file_ra_state *ra,
+				 pgoff_t offset,
+				 unsigned long req_size,
+				 unsigned long max)
+{
+	pgoff_t size;
+
+	size = count_history_pages(mapping, offset, max);
+
+	/*
+	 * not enough history pages:
+	 * it could be a random read
+	 */
+	if (size <= req_size)
+		return 0;
+
+	/*
+	 * starts from beginning of file:
+	 * it is a strong indication of long-run stream (or whole-file-read)
+	 */
+	if (size >= offset)
+		size *= 2;
+
+	ra->start = offset;
+	ra->size = min(size + req_size, max);
+	ra->async_size = 1;
+
+	return 1;
+}
+
+/*
+ * A minimal readahead algorithm for trivial sequential/random reads.
+ */
+static unsigned long
+ondemand_readahead(struct address_space *mapping,
+		   struct file_ra_state *ra, struct file *filp,
+		   bool hit_readahead_marker, pgoff_t offset,
+		   unsigned long req_size)
+{
+	unsigned long max = max_sane_readahead(ra->ra_pages);
+	pgoff_t prev_offset;
+
+	/*
+	 * start of file
+	 */
+	if (!offset)
+		goto initial_readahead;
+
+	/*
+	 * It's the expected callback offset, assume sequential access.
+	 * Ramp up sizes, and push forward the readahead window.
+	 */
+	if ((offset == (ra->start + ra->size - ra->async_size) ||
+	     offset == (ra->start + ra->size))) {
+		ra->start += ra->size;
+		ra->size = get_next_ra_size(ra, max);
+		ra->async_size = ra->size;
+		goto readit;
+	}
+
+	/*
+	 * Hit a marked page without valid readahead state.
+	 * E.g. interleaved reads.
+	 * Query the pagecache for async_size, which normally equals to
+	 * readahead size. Ramp it up and use it as the new readahead size.
+	 */
+	if (hit_readahead_marker) {
+		pgoff_t start;
+
+		rcu_read_lock();
+		start = page_cache_next_hole(mapping, offset + 1, max);
+		rcu_read_unlock();
+
+		if (!start || start - offset > max)
+			return 0;
+
+		ra->start = start;
+		ra->size = start - offset;	/* old async_size */
+		ra->size += req_size;
+		ra->size = get_next_ra_size(ra, max);
+		ra->async_size = ra->size;
+		goto readit;
+	}
+
+	/*
+	 * oversize read
+	 */
+	if (req_size > max)
+		goto initial_readahead;
+
+	/*
+	 * sequential cache miss
+	 * trivial case: (offset - prev_offset) == 1
+	 * unaligned reads: (offset - prev_offset) == 0
+	 */
+	prev_offset = (unsigned long long)ra->prev_pos >> PAGE_CACHE_SHIFT;
+	if (offset - prev_offset <= 1UL)
+		goto initial_readahead;
+
+	/*
+	 * Query the page cache and look for the traces(cached history pages)
+	 * that a sequential stream would leave behind.
+	 */
+	if (try_context_readahead(mapping, ra, offset, req_size, max))
+		goto readit;
+
+	/*
+	 * standalone, small random read
+	 * Read as is, and do not pollute the readahead state.
+	 */
+	return __do_page_cache_readahead(mapping, filp, offset, req_size, 0);
+
+initial_readahead:
+	ra->start = offset;
+	ra->size = get_init_ra_size(req_size, max);
+	ra->async_size = ra->size > req_size ? ra->size - req_size : ra->size;
+
+readit:
+	/*
+	 * Will this read hit the readahead marker made by itself?
+	 * If so, trigger the readahead marker hit now, and merge
+	 * the resulted next readahead window into the current one.
+	 */
+	if (offset == ra->start && ra->size == ra->async_size) {
+		ra->async_size = get_next_ra_size(ra, max);
+		ra->size += ra->async_size;
+	}
+
+	return ra_submit(ra, mapping, filp);
+}
+
+/**
+ * page_cache_sync_readahead - generic file readahead
+ * @mapping: address_space which holds the pagecache and I/O vectors
+ * @ra: file_ra_state which holds the readahead state
+ * @filp: passed on to ->readpage() and ->readpages()
+ * @offset: start offset into @mapping, in pagecache page-sized units
+ * @req_size: hint: total size of the read which the caller is performing in
+ *            pagecache pages
+ *
+ * page_cache_sync_readahead() should be called when a cache miss happened:
+ * it will submit the read.  The readahead logic may decide to piggyback more
+ * pages onto the read request if access patterns suggest it will improve
+ * performance.
+ */
+void page_cache_sync_readahead(struct address_space *mapping,
+			       struct file_ra_state *ra, struct file *filp,
+			       pgoff_t offset, unsigned long req_size)
+{
+	/* no read-ahead */
+	if (!ra->ra_pages)
+		return;
+
+	/* be dumb */
+	if (filp && (filp->f_mode & FMODE_RANDOM)) {
+		force_page_cache_readahead(mapping, filp, offset, req_size);
+		return;
+	}
+
+	/* do read-ahead */
+	ondemand_readahead(mapping, ra, filp, false, offset, req_size);
+}
+EXPORT_SYMBOL_GPL(page_cache_sync_readahead);
+
+/**
+ * page_cache_async_readahead - file readahead for marked pages
+ * @mapping: address_space which holds the pagecache and I/O vectors
+ * @ra: file_ra_state which holds the readahead state
+ * @filp: passed on to ->readpage() and ->readpages()
+ * @page: the page at @offset which has the PG_readahead flag set
+ * @offset: start offset into @mapping, in pagecache page-sized units
+ * @req_size: hint: total size of the read which the caller is performing in
+ *            pagecache pages
+ *
+ * page_cache_async_readahead() should be called when a page is used which
+ * has the PG_readahead flag; this is a marker to suggest that the application
+ * has used up enough of the readahead window that we should start pulling in
+ * more pages.
+ */
+void
+page_cache_async_readahead(struct address_space *mapping,
+			   struct file_ra_state *ra, struct file *filp,
+			   struct page *page, pgoff_t offset,
+			   unsigned long req_size)
+{
+	/* no read-ahead */
+	if (!ra->ra_pages)
+		return;
+
+	/*
+	 * Same bit is used for PG_readahead and PG_reclaim.
+	 */
+	if (PageWriteback(page))
+		return;
+
+	ClearPageReadahead(page);
+
+	/*
+	 * Defer asynchronous read-ahead on IO congestion.
+	 */
+	if (bdi_read_congested(mapping->backing_dev_info))
+		return;
+
+	/* do read-ahead */
+	ondemand_readahead(mapping, ra, filp, true, offset, req_size);
+}
+EXPORT_SYMBOL_GPL(page_cache_async_readahead);
+
+static ssize_t
+do_readahead(struct address_space *mapping, struct file *filp,
+	     pgoff_t index, unsigned long nr)
+{
+	if (!mapping || !mapping->a_ops)
 		return -EINVAL;
 
-	return do_readv_writev(READ, file, vec, vlen, pos);
+	return force_page_cache_readahead(mapping, filp, index, nr);
 }
 
-EXPORT_SYMBOL(vfs_readv);
-
-ssize_t vfs_writev(struct file *file, const struct iovec __user *vec,
-		   unsigned long vlen, loff_t *pos)
+SYSCALL_DEFINE3(readahead, int, fd, loff_t, offset, size_t, count)
 {
-	if (!(file->f_mode & FMODE_WRITE))
-		return -EBADF;
-	if (!(file->f_mode & FMODE_CAN_WRITE))
-		return -EINVAL;
-
-	return do_readv_writev(WRITE, file, vec, vlen, pos);
-}
-
-EXPORT_SYMBOL(vfs_writev);
-
-SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
-		unsigned long, vlen)
-{
-	struct fd f = fdget_pos(fd);
-	ssize_t ret = -EBADF;
-
-	if (f.file) {
-		loff_t pos = file_pos_read(f.file);
-		ret = vfs_readv(f.file, vec, vlen, &pos);
-		if (ret >= 0)
-			file_pos_write(f.file, pos);
-		fdput_pos(f);
-	}
-
-	if (ret > 0)
-		add_rchar(current, ret);
-	inc_syscr(current);
-	return ret;
-}
-
-SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
-		unsigned long, vlen)
-{
-	struct fd f = fdget_pos(fd);
-	ssize_t ret = -EBADF;
-
-	if (f.file) {
-		loff_t pos = file_pos_read(f.file);
-		ret = vfs_writev(f.file, vec, vlen, &pos);
-		if (ret >= 0)
-			file_pos_write(f.file, pos);
-		fdput_pos(f);
-	}
-
-	if (ret > 0)
-		add_wchar(current, ret);
-	inc_syscw(current);
-	return ret;
-}
-
-static inline loff_t pos_from_hilo(unsigned long high, unsigned long low)
-{
-#define HALF_LONG_BITS (BITS_PER_LONG / 2)
-	return (((loff_t)high << HALF_LONG_BITS) << HALF_LONG_BITS) | low;
-}
-
-SYSCALL_DEFINE5(preadv, unsigned long, fd, const struct iovec __user *, vec,
-		unsigned long, vlen, unsigned long, pos_l, unsigned long, pos_h)
-{
-	loff_t pos = pos_from_hilo(pos_h, pos_l);
+	ssize_t ret;
 	struct fd f;
-	ssize_t ret = -EBADF;
 
-	if (pos < 0)
-		return -EINVAL;
-
+	ret = -EBADF;
 	f = fdget(fd);
 	if (f.file) {
-		ret = -ESPIPE;
-		if (f.file->f_mode & FMODE_PREAD)
-			ret = vfs_readv(f.file, vec, vlen, &pos);
+		if (f.file->f_mode & FMODE_READ) {
+			struct address_space *mapping = f.file->f_mapping;
+			pgoff_t start = offset >> PAGE_CACHE_SHIFT;
+			pgoff_t end = (offset + count - 1) >> PAGE_CACHE_SHIFT;
+			unsigned long len = end - start + 1;
+			ret = do_readahead(mapping, f.file, start, len);
+		}
 		fdput(f);
 	}
-
-	if (ret > 0)
-		add_rchar(current, ret);
-	inc_syscr(current);
 	return ret;
 }
-
-SYSCALL_DEFINE5(pwritev, unsigned long, fd, const struct iovec __user *, vec,
-		unsigned long, vlen, unsigned long, pos_l, unsigned long, pos_h)
-{
-	loff_t pos = pos_from_hilo(pos_h, pos_l);
-	struct fd f;
-	ssize_t ret = -EBADF;
-
-	if (pos < 0)
-		return -EINVAL;
-
-	f = fdget(fd);
-	if (f.file) {
-		ret = -ESPIPE;
-		if (f.file->f_mode & FMODE_PWRITE)
-			ret = vfs_writev(f.file, vec, vlen, &pos);
-		fdput(f);
-	}
-
-	if (ret > 0)
-		add_wchar(current, ret);
-	inc_syscw(current);
-	return ret;
-}
-
-#ifdef CONFIG_COMPAT
-
-static ssize_t compat_do_readv_writev(int type, struct file *file,
-			       const struct compat_iovec __user *uvector,
-			       unsigned long nr_segs, loff_t *pos)
-{
-	compat_ssize_t tot_len;
-	struct iovec iovstack[UIO_FASTIOV];
-	struct iovec *iov = iovstack;
-	ssize_t ret;
-	io_fn_t fn;
-	iov_fn_t fnv;
-	iter_fn_t iter_fn;
-
-	ret = compat_rw_copy_check_uvector(type, uvector, nr_segs,
-					       UIO_FASTIOV, iovstack, &iov);
-	if (ret <= 0)
-		goto out;
-
-	tot_len = ret;
-	ret = rw_verify_area(type, file, pos, tot_len);
-	if (ret < 0)
-		goto out;
-
-	fnv = NULL;
-	if (type == READ) {
-		fn = file->f_op->read;
-		fnv = file->f_op->aio_read;
-		iter_fn = file->f_op->read_iter;
-	} else {
-		fn = (io_fn_t)file->f_op->write;
-		fnv = file->f_op->aio_write;
-		iter_fn = file->f_op->write_iter;
-		file_start_write(file);
-	}
-
-	if (iter_fn)
-		ret = do_iter_readv_writev(file, type, iov, nr_segs, tot_len,
-						pos, iter_fn);
-	else if (fnv)
-		ret = do_sync_readv_writev(file, iov, nr_segs, tot_len,
-						pos, fnv);
-	else
-		ret = do_loop_readv_writev(file, iov, nr_segs, pos, fn);
-
-	if (type != READ)
-		file_end_write(file);
-
-out:
-	if (iov != iovstack)
-		kfree(iov);
-	if ((ret + (type == READ)) > 0) {
-		if (type == READ)
-			fsnotify_access(file);
-		else
-			fsnotify_modify(file);
-	}
-	return ret;
-}
-
-static size_t compat_readv(struct file *file,
-			   const struct compat_iovec __user *vec,
-			   unsigned long vlen, loff_t *pos)
-{
-	ssize_t ret = -EBADF;
-
-	if (!(file->f_mode & FMODE_READ))
-		goto out;
-
-	ret = -EINVAL;
-	if (!(file->f_mode & FMODE_CAN_READ))
-		goto out;
-
-	ret = compat_do_readv_writev(READ, file, vec, vlen, pos);
-
-out:
-	if (ret > 0)
-		add_rchar(current, ret);
-	inc_syscr(current);
-	return ret;
-}
-
-COMPAT_SYSCALL_DEFINE3(readv, compat_ulong_t, fd,
-		const struct compat_iovec __user *,vec,
-		compat_ulong_t, vlen)
-{
-	struct fd f = fdget_pos(fd);
-	ssize_t ret;
-	loff_t pos;
-
-	if (!f.file)
-		return -EBADF;
-	pos = f.file->f_pos;
-	ret = compat_readv(f.file, vec, vlen, &pos);
-	if (ret >= 0)
-		f.file->f_pos = pos;
-	fdput_pos(f);
-	return ret;
-}
-
-static long __compat_sys_preadv64(unsigned long fd,
-				  const struct compat_iovec __user *vec,
-				  unsigned long vlen, loff_t pos)
-{
-	struct fd f;
-	ssize_t ret;
-
-	if (pos < 0)
-		return -EINVAL;
-	f = fdget(fd);
-	if (!f.file)
-		return -EBADF;
-	ret = -ESPIPE;
-	if (f.file->f_mode & FMODE_PREAD)
-		ret = compat_readv(f.file, vec, vlen, &pos);
-	fdput(f);
-	return ret;
-}
-
-#ifdef __ARCH_WANT_COMPAT_SYS_PREADV64
-COMPAT_SYSCALL_DEFINE4(preadv64, unsigned long, fd,
-		const struct compat_iovec __user *,vec,
-		unsigned long, vlen, loff_t, pos)
-{
-	return __compat_sys_preadv64(fd, vec, vlen, pos);
-}
-#endif
-
-COMPAT_SYSCALL_DEFINE5(preadv, compat_ulong_t, fd,
-		const struct compat_iovec __user *,vec,
-		compat_ulong_t, vlen, u32, pos_low, u32, pos_high)
-{
-	loff_t pos = ((loff_t)pos_high << 32) | pos_low;
-
-	return __compat_sys_preadv64(fd, vec, vlen, pos);
-}
-
-static size_t compat_writev(struct file *file,
-			    const struct compat_iovec __user *vec,
-			    unsigned long vlen, loff_t *pos)
-{
-	ssize_t ret = -EBADF;
-
-	if (!(file->f_mode & FMODE_WRITE))
-		goto out;
-
-	ret = -EINVAL;
-	if (!(file->f_mode & FMODE_CAN_WRITE))
-		goto out;
-
-	ret = compat_do_readv_writev(WRITE, file, vec, vlen, pos);
-
-out:
-	if (ret > 0)
-		add_wchar(current, ret);
-	inc_syscw(current);
-	return ret;
-}
-
-COMPAT_SYSCALL_DEFINE3(writev, compat_ulong_t, fd,
-		const struct compat_iovec __user *, vec,
-		compat_ulong_t, vlen)
-{
-	struct fd f = fdget_pos(fd);
-	ssize_t ret;
-	loff_t pos;
-
-	if (!f.file)
-		return -EBADF;
-	pos = f.file->f_pos;
-	ret = compat_writev(f.file, vec, vlen, &pos);
-	if (ret >= 0)
-		f.file->f_pos = pos;
-	fdput_pos(f);
-	return ret;
-}
-
-static long __compat_sys_pwritev64(unsigned long fd,
-				   const struct compat_iovec __user *vec,
-				   unsigned long vlen, loff_t pos)
-{
-	struct fd f;
-	ssize_t ret;
-
-	if (pos < 0)
-		return -EINVAL;
-	f = fdget(fd);
-	if (!f.file)
-		return -EBADF;
-	ret = -ESPIPE;
-	if (f.file->f_mode & FMODE_PWRITE)
-		ret = compat_writev(f.file, vec, vlen, &pos);
-	fdput(f);
-	return ret;
-}
-
-#ifdef __ARCH_WANT_COMPAT_SYS_PWRITEV64
-COMPAT_SYSCALL_DEFINE4(pwritev64, unsigned long, fd,
-		const struct compat_iovec __user *,vec,
-		unsigned long, vlen, loff_t, pos)
-{
-	return __compat_sys_pwritev64(fd, vec, vlen, pos);
-}
-#endif
-
-COMPAT_SYSCALL_DEFINE5(pwritev, compat_ulong_t, fd,
-		const struct compat_iovec __user *,vec,
-		compat_ulong_t, vlen, u32, pos_low, u32, pos_high)
-{
-	loff_t pos = ((loff_t)pos_high << 32) | pos_low;
-
-	return __compat_sys_pwritev64(fd, vec, vlen, pos);
-}
-#endif
-
-static ssize_t do_sendfile(int out_fd, int in_fd, loff_t *ppos,
-		  	   size_t count, loff_t max)
-{
-	struct fd in, out;
-	struct inode *in_inode, *out_inode;
-	loff_t pos;
-	loff_t out_pos;
-	ssize_t retval;
-	int fl;
-
-	/*
-	 * Get input file, and verify that it is ok..
-	 */
-	retval = -EBADF;
-	in = fdget(in_fd);
-	if (!in.file)
-		goto out;
-	if (!(in.file->f_mode & FMODE_READ))
-		goto fput_in;
-	retval = -ESPIPE;
-	if (!ppos) {
-		pos = in.file->f_pos;
-	} else {
-		pos = *ppos;
-		if (!(in.file->f_mode & FMODE_PREAD))
-			goto fput_in;
-	}
-	retval = rw_verify_area(READ, in.file, &pos, count);
-	if (retval < 0)
-		goto fput_in;
-	count = retval;
-
-	/*
-	 * Get output file, and verify that it is ok..
-	 */
-	retval = -EBADF;
-	out = fdget(out_fd);
-	if (!out.file)
-		goto fput_in;
-	if (!(out.file->f_mode & FMODE_WRITE))
-		goto fput_out;
-	retval = -EINVAL;
-	in_inode = file_inode(in.file);
-	out_inode = file_inode(out.file);
-	out_pos = out.file->f_pos;
-	retval = rw_verify_area(WRITE, out.file, &out_pos, count);
-	if (retval < 0)
-		goto fput_out;
-	count = retval;
-
-	if (!max)
-		max = min(in_inode->i_sb->s_maxbytes, out_inode->i_sb->s_maxbytes);
-
-	if (unlikely(pos + count > max)) {
-		retval = -EOVERFLOW;
-		if (pos >= max)
-			goto fput_out;
-		count = max - pos;
-	}
-
-	fl = 0;
-#if 0
-	/*
-	 * We need to debate whether we can enable this or not. The
-	 * man page documents EAGAIN return for the output at least,
-	 * and the application is arguably buggy if it doesn't expect
-	 * EAGAIN on a non-blocking file descriptor.
-	 */
-	if (in.file->f_flags & O_NONBLOCK)
-		fl = SPLICE_F_NONBLOCK;
-#endif
-	file_start_write(out.file);
-	retval = do_splice_direct(in.file, &pos, out.file, &out_pos, count, fl);
-	file_end_write(out.file);
-
-	if (retval > 0) {
-		add_rchar(current, retval);
-		add_wchar(current, retval);
-		fsnotify_access(in.file);
-		fsnotify_modify(out.file);
-		out.file->f_pos = out_pos;
-		if (ppos)
-			*ppos = pos;
-		else
-			in.file->f_pos = pos;
-	}
-
-	inc_syscr(current);
-	inc_syscw(current);
-	if (pos > max)
-		retval = -EOVERFLOW;
-
-fput_out:
-	fdput(out);
-fput_in:
-	fdput(in);
-out:
-	return retval;
-}
-
-SYSCALL_DEFINE4(sendfile, int, out_fd, int, in_fd, off_t __user *, offset, size_t, count)
-{
-	loff_t pos;
-	off_t off;
-	ssize_t ret;
-
-	if (offset) {
-		if (unlikely(get_user(off, offset)))
-			return -EFAULT;
-		pos = off;
-		ret = do_sendfile(out_fd, in_fd, &pos, count, MAX_NON_LFS);
-		if (unlikely(put_user(pos, offset)))
-			return -EFAULT;
-		return ret;
-	}
-
-	return do_sendfile(out_fd, in_fd, NULL, count, 0);
-}
-
-SYSCALL_DEFINE4(sendfile64, int, out_fd, int, in_fd, loff_t __user *, offset, size_t, count)
-{
-	loff_t pos;
-	ssize_t ret;
-
-	if (offset) {
-		if (unlikely(copy_from_user(&pos, offset, sizeof(loff_t))))
-			return -EFAULT;
-		ret = do_sendfile(out_fd, in_fd, &pos, count, 0);
-		if (unlikely(put_user(pos, offset)))
-			return -EFAULT;
-		return ret;
-	}
-
-	return do_sendfile(out_fd, in_fd, NULL, count, 0);
-}
-
-#ifdef CONFIG_COMPAT
-COMPAT_SYSCALL_DEFINE4(sendfile, int, out_fd, int, in_fd,
-		compat_off_t __user *, offset, compat_size_t, count)
-{
-	loff_t pos;
-	off_t off;
-	ssize_t ret;
-
-	if (offset) {
-		if (unlikely(get_user(off, offset)))
-			return -EFAULT;
-		pos = off;
-		ret = do_sendfile(out_fd, in_fd, &pos, count, MAX_NON_LFS);
-		if (unlikely(put_user(pos, offset)))
-			return -EFAULT;
-		return ret;
-	}
-
-	return do_sendfile(out_fd, in_fd, NULL, count, 0);
-}
-
-COMPAT_SYSCALL_DEFINE4(sendfile64, int, out_fd, int, in_fd,
-		compat_loff_t __user *, offset, compat_size_t, count)
-{
-	loff_t pos;
-	ssize_t ret;
-
-	if (offset) {
-		if (unlikely(copy_from_user(&pos, offset, sizeof(loff_t))))
-			return -EFAULT;
-		ret = do_sendfile(out_fd, in_fd, &pos, count, 0);
-		if (unlikely(put_user(pos, offset)))
-			return -EFAULT;
-		return ret;
-	}
-
-	return do_sendfile(out_fd, in_fd, NULL, count, 0);
-}
-#endif
