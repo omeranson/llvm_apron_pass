@@ -232,11 +232,11 @@ all:
 	@echo "**********************"
 	@echo "\n"
 	@env LD_LIBRARY_PATH=${LD_LIBRARY_PATH} opt                     \
-	-load ${APRON_INSTALL}/lib/lib${APRON_MANAGER}MPQ_debug.so      \
+	-load ${APRON_INSTALL}/lib/lib${APRON_MANAGER}_debug.so         \
 	-load ${APRON_INSTALL}/lib/libapron_debug.so                    \
 	-load ${APRON_PASS_DIR}/adaptors/lib${APRON_MANAGER}_adaptor.so \
 	-load ${APRON_PASS_DIR}/libapronpass.so                         \
-	-apron -d -update-count-max=11                                  \
+	-apron -d -update-count-max=1000 -widening-threshold=5          \
 	-run-on-single-function=sys_${SYSCALL}                          \
 	${inputreadybc}.O3.MergeReturn.InstNamer.bc
 	@echo "\n"

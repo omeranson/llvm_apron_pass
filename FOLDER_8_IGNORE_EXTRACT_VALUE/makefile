@@ -55,42 +55,5 @@ OUTPUT	=	$(OUTPUT_DIR)/Output.ll
 # ALL LEXER(S) PARSER(S) #
 ##########################
 all:
-	@echo "\n"
-	@echo "*****************"
-	@echo "* Clean All ... *"
-	@echo "*****************"
-	@echo "\n"
-	rm -rf $(LEXER_PROGRAM) 
-	rm -rf $(Transformer_PROGRAM) 
-	rm -rf $(SOURCE_FILES_DIR)/Lexer.c
-	@echo "\n"
-	@echo "******************"
-	@echo "* Build Flex ... *"
-	@echo "******************"
-	@echo "\n"	
-	$(CC) $(LEXER_FLAGS) $(LEXER_SOURCE_FILES) -o $(LEXER_PROGRAM)
-	@echo "\n"
-	@echo "************************"
-	@echo "* Run All Lexer(s) ... *"
-	@echo "************************"
-	@echo "\n"
-	$(LEXER_PROGRAM) $(LEXER_PROGRAM_FLAGS_User) $(LEXER_INPUT_User)
-	@echo "\n"
-	@echo "**************************************************"
-	@echo "* Move Generated Lexer(s) to destined folder ... *"
-	@echo "**************************************************"
-	@echo "\n"	
-	mv $(LEXER_User_DIR)/Lexer.c $(SOURCE_FILES_DIR)
-	@echo "\n"
-	@echo "*********************"
-	@echo "* Build Inliner ... *"
-	@echo "*********************"
-	@echo "\n"	
-	$(CC) $(Transformer_FLAGS) $(Transformer_SOURCE_FILES) -o $(Transformer_PROGRAM)
-	@echo "\n"
-	@echo "***************************"
-	@echo "* Execute Transformer ... *"
-	@echo "***************************"
-	@echo "\n"	
-	$(Transformer_PROGRAM) $(INPUT) $(OUTPUT)
+	cp $(INPUT) $(OUTPUT)
 
