@@ -71,7 +71,7 @@ template <class stream>
 inline stream & operator<<(stream & s, Preamble<std::string> p) {
 	const std::string * name = p.t;
 	s << depth << "i64 size(" << *name << ") = SE_size_obj(" << *name << ") - " <<
-			"((uintptr_t)" << *name << " - SE_base_obj(" << *name << "));\n";
+			"((uintptr_t)" << *name << " - (uintptr_t)SE_base_obj(" << *name << "));\n";
 	return s;
 }
 
