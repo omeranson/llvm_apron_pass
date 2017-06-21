@@ -902,6 +902,12 @@ bool CallValue::isKernelUserMemoryOperation(const std::string & funcName) const 
 	if ("account" == funcName) {
 		return true;
 	}
+	if ("scnprintf" == funcName) {
+		return true;
+	}
+	if ("vscnprintf" == funcName) {
+		return true;
+	}
 	return false;
 }
 
@@ -982,6 +988,14 @@ void CallValue::update(AbstractState & state) {
 			return;
 		}
 		if ("account" == funcName) {
+			updateForAccount(state);
+			return;
+		}
+		if ("scnprintf" == funcName) {
+			updateForAccount(state);
+			return;
+		}
+		if ("vscnprintf" == funcName) {
 			updateForAccount(state);
 			return;
 		}
