@@ -190,6 +190,12 @@ AbstractState BasicBlock::getAbstractStateWithAssumptions(
 	return otherAS;
 }
 
+void BasicBlock::updateAbstractStateWithAssumptions(
+		BasicBlock & predecessor, AbstractState & state) {
+	updateAbstractStateMetWithIncomingPhis(predecessor, state);
+	updateAbstract1MetWithIncomingPhis(predecessor, state);
+}
+
 bool BasicBlock::isTop(ap_abstract1_t & value) {
 	return ap_abstract1_is_top(getManager(), &value);
 }
@@ -217,10 +223,14 @@ void BasicBlock::update(AbstractState & state) {
 	llvm::BasicBlock::iterator it;
 	for (it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
 		llvm::Instruction & inst = *it;
+		llvm::errs() << "About to process instruction: " << inst << "\n";
 		processInstruction(state, inst);
+		llvm::errs() << "Done processing instruction: " << inst << "\n";
 	}
+	llvm::errs() << "Done processing instructions for this basic block\n";
 	Function * function = getFunction();
 	if (!state.memoryAccessAbstractValues.empty()) {
+		llvm::errs() << "Handling memory accesses\n";
 		function->m_successMemOpsAbstractStates[this] = state;
 		AbstractState & copy = function->m_successMemOpsAbstractStates[this];
 		state.memoryAccessAbstractValues.clear();
@@ -229,13 +239,18 @@ void BasicBlock::update(AbstractState & state) {
 			ApronAbstractState minimizedCopy = function->minimize(copy.m_apronAbstractState);
 			llvm::errs() << getName() << ": State with memory: " << copy << "\nMinimized: " << minimizedCopy;
 		}
+		llvm::errs() << "Done\n";
 	} else if ((!state.m_importedIovecCalls.empty()) || (!state.m_copyMsghdrFromUserCalls.empty())) {
+		llvm::errs() << "Handling advanced memory accesses\n";
 		function->m_advancedMemoryOperationsStates.push_back(state);
 		state.m_importedIovecCalls.clear();
 		state.m_copyMsghdrFromUserCalls.clear();
+		llvm::errs() << "Done\n";
 	}
+	llvm::errs() << "Reducing: " << getName() << "\n";
 	std::vector<std::string> userBuffers = function->getUserPointers();
 	bool isReduceChanged = state.reduce(userBuffers);
+	llvm::errs() << "Done reducing\n";
 	if (Debug) {
 		llvm::errs() << getName() << ": Update: " << prev << " -> " << state;
 	}
@@ -278,7 +293,8 @@ void BasicBlock::processInstruction(AbstractState & state,
 std::string BasicBlock::toString() {
 	std::ostringstream oss;
 	ApronAbstractState & aas = getAbstractState().m_apronAbstractState;
-	oss << getName() << ": " << getAbstractState() << "\n";
+	//oss << getName() << ": " << getAbstractState() << "\n";
+	oss << getName() << "\n";
 	return oss.str();
 }
 

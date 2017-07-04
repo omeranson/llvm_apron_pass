@@ -45,6 +45,7 @@ public:
 	virtual void forget(const std::string & var, bool isBottom=false);
 	virtual void minimize(const std::string & var);
 	virtual void minimize();
+	virtual void minimizeState();
 	virtual void canonicalize();
 	virtual void start_meet_aggregate();
 	virtual void meet(ap_tcons1_t & cons);

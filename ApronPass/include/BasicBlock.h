@@ -58,6 +58,8 @@ public:
 	virtual void update(AbstractState & state);
 
 	virtual AbstractState getAbstractStateWithAssumptions(BasicBlock & predecessor, AbstractState & state);
+	virtual void updateAbstractStateWithAssumptions(BasicBlock & predecessor, AbstractState & state);
+
 	virtual bool isTop(ap_abstract1_t & value);
 	virtual bool isBottom(ap_abstract1_t & value);
 	virtual bool isTop();

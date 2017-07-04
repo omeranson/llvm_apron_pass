@@ -65,7 +65,9 @@ void ChaoticExecution::execute() {
 		}
 		AbstractState state = block->getAbstractState();
 		block->update(state);
+		llvm::errs() << "Populating successors: " << block->getName() << "\n";
 		populateWithSuccessors(worklist, block, state);
+		llvm::errs() << "Update block: " << block->getName() << "\n";
 	}
 }
 
@@ -81,24 +83,28 @@ void ChaoticExecution::populateWithSuccessors(
 }
 
 bool ChaoticExecution::join(BasicBlock * source, BasicBlock * dest, AbstractState & state) {
+	llvm::errs() << dest->getName() << ": Enter ::join from " << source->getName() << ":\n";
 	bool isDominated = callGraph.isDominates(dest, source);
 	int & joinCount = m_joinCount[dest];
 	if (isDominated) {
 		++joinCount;
 	}
-	AbstractState prev = dest->getAbstractState();
-	AbstractState incoming = dest->getAbstractStateWithAssumptions(*source, state);
+	AbstractState incoming = state;
+	dest->updateAbstractStateWithAssumptions(*source, incoming);
 	bool isChanged;
 	bool isJoin = true;
+	dest->getAbstractState().m_apronAbstractState.minimizeState();
 	if (WideningThreshold && isDominated && (joinCount >= WideningThreshold)) {
+		llvm::errs() << dest->getName() << ": " << "Widening from " << source->getName() << ":\n";
 		isChanged = dest->getAbstractState().widen(incoming);
 		isJoin = false;
 	} else {
+		llvm::errs() << dest->getName() << ": " << "Joining from " << source->getName() << ":\n";
 		isChanged = dest->getAbstractState().join(incoming);
 	}
 	llvm::errs() << dest->getName() << ": " << (isJoin ? "Joined" : "Widened") << " from " << source->getName() << ":\n";
-	llvm::errs() << "Prev: " << prev << "Other: " << incoming << " New: " << dest->getAbstractState();
-	llvm::errs() << "isChanged: " << isChanged << " and " << bool(prev != dest->getAbstractState()) << "\n";
+	//llvm::errs() << "Prev: " << prev << "Other: " << incoming << " New: " << dest->getAbstractState();
+	//llvm::errs() << "isChanged: " << isChanged << " and " << bool(prev != dest->getAbstractState()) << "\n";
 	return isChanged;
 }
 

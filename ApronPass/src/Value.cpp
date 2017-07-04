@@ -285,7 +285,6 @@ void InstructionValue::update(AbstractState & state) {
 		state.m_mayPointsTo.forget(getName());
 		return;
 	}
-	state.m_apronAbstractState.extend(getName());
 	ap_texpr1_t * value_texpr = createRHSTreeExpression(state);
 	assert(value_texpr && "RHS Tree expression is NULL");
 	state.m_apronAbstractState.assign(getName(), value_texpr);
@@ -1945,6 +1944,7 @@ void SelectValueInstruction::update(AbstractState & state) {
 //	} else if (falseValue->isConstant()) {
 //		state.m_apronAbstractState.assign(getName(), trueValue->createTreeExpression(state));
 //	} else {
+		state.m_apronAbstractState.minimize();
 		AbstractState trueState = updateJoinMember(state, trueValue, false, isKnown);
 		AbstractState falseState = updateJoinMember(state, falseValue, true, isKnown);
 		trueState.join(falseState);

@@ -58,6 +58,7 @@ inline stream & operator<<(stream & s, std::pair<ap_manager_t*, ap_abstract1_t*>
 	} else if (ap_abstract1_is_bottom(manager, abst1)) {
 		s << "Bottom. Variables: " << env << "\n";
 	} else {
+		ap_abstract1_minimize(manager, &copy);
 		char * buffer;
 		size_t size;
 		FILE * bufferfp = open_memstream(&buffer, &size);
