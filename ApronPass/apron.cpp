@@ -183,6 +183,9 @@ namespace
 		ValueFactory * factory = ValueFactory::getInstance();
 		auto deleteCreatedLLVMValues = callOnScopeEnd(ValueFactory::deleteCreatedInstances);
 		CallGraph funcCallGraph(function);
+		if (Debug) {
+			funcCallGraph.printAsDot();
+		}
 		ChaoticExecution chaoticExecution(funcCallGraph);
 		chaoticExecution.execute();
 		// Print

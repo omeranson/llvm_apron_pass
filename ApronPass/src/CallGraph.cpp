@@ -74,8 +74,11 @@ void CallGraph::printAsDot() {
 		llvm::errs() << "\t"
 				<< "\"" << it->first->getName() << "\""
 				<< " -> "
-				<< "\"" << it->second->getName() << "\""
-				<< "\n";
+				<< "\"" << it->second->getName() << "\"";
+		if (isDominates(it->second, it->first)) {
+			llvm::errs() << " [color=red]";
+		}
+		llvm::errs() << "\n";
 	}
 	llvm::errs() << "}" << "\n";
 }
