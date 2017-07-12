@@ -98,10 +98,16 @@ bool ApronAbstractState::widen(const ApronAbstractState & other) {
 	bool isChanged = (*this != prev);
 	ap_abstract1_clear(apron_manager, &other_abst);
 	ap_abstract1_clear(apron_manager, &this_abst);
+	minimize();
 	return isChanged;
 }
 
 bool ApronAbstractState::join(const ApronAbstractState & other) {
+	if (Debug) {
+		llvm::errs() << "Joining into: " << &m_abstract1;
+		const ap_abstract1_t * other_abstract1 = &other.m_abstract1;
+		llvm::errs() << "\tFrom: " << other_abstract1;
+	}
 	ap_abstract1_t prev = ap_abstract1_copy(apron_manager, &m_abstract1);
 	ap_abstract1_t other_abst = ap_abstract1_copy(apron_manager, (ap_abstract1_t*)&other.m_abstract1);
 	changeToLeastCommonEnv(m_abstract1, other_abst, true);
@@ -110,6 +116,7 @@ bool ApronAbstractState::join(const ApronAbstractState & other) {
 			&m_abstract1, &other_abst);
 	bool isChanged = (*this != ApronAbstractState(prev));
 	ap_abstract1_clear(apron_manager, &other_abst);
+	minimize();
 	return isChanged;
 }
 
@@ -123,6 +130,7 @@ bool ApronAbstractState::meet(const ApronAbstractState & other) {
 			&this_abst, &other_abst);
 	bool isChanged = (*this != ApronAbstractState(prev));
 	ap_abstract1_clear(apron_manager, &other_abst);
+	minimize();
 	return isChanged;
 }
 
@@ -154,7 +162,9 @@ bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
 	for (ap_abstract1_t & value : values) {
 		ap_abstract1_clear(apron_manager, &value);
 	}
-	return (prev == *this);
+	bool result = (prev == *this);
+	minimize();
+	return result;
 }
 
 void ApronAbstractState::assign(const std::string & var, ap_texpr1_t * value) {
@@ -171,6 +181,7 @@ void ApronAbstractState::assign(const std::string & var, ap_texpr1_t * value) {
 				&m_abstract1, aptmpvar, value, NULL);
 		rename(tmp_name, var);
 	}
+	minimize();
 }
 
 void ApronAbstractState::extend(const std::string & var, bool isBottom) {
@@ -201,11 +212,17 @@ void ApronAbstractState::minimize(const std::string & var) {
 void ApronAbstractState::minimize() {
 	m_abstract1 = ap_abstract1_minimize_environment(apron_manager, true,
 			&m_abstract1);
-	ap_abstract1_minimize(apron_manager, &m_abstract1);
+	minimizeState();
 }
 
 void ApronAbstractState::minimizeState() {
+	if (Debug) {
+		llvm::errs() << "Minimizing: " << &m_abstract1;
+	}
 	ap_abstract1_minimize(apron_manager, &m_abstract1);
+	if (Debug) {
+		llvm::errs() << "Result: " << &m_abstract1;
+	}
 }
 
 void ApronAbstractState::canonicalize() {
@@ -320,6 +337,7 @@ std::map<std::string, std::string> ApronAbstractState::renameVarsForC() {
 void ApronAbstractState::meet(ap_tcons1_array_t & tconsarray) {
 	m_abstract1 = ap_abstract1_meet_tcons_array(
 			apron_manager, true, &m_abstract1, &tconsarray);
+	minimize();
 }
 
 bool ApronAbstractState::isTop() const {

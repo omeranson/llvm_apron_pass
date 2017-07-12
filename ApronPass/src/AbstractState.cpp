@@ -251,7 +251,7 @@ bool AbstractState::meet(AbstractState & other) {
 }
 
 bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
-	AbstractState prev = *this;
+	bool isChanged = false;
 	for (std::pair<const std::string, MPTItemAbstractState > & pt : m_mayPointsTo.m_mayPointsTo) {
 		if (pt.second.empty()) {
 			llvm::errs() << "Setting state to bottom in reduction, since " <<
@@ -266,12 +266,13 @@ bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
 			const std::string & offsetName = generateOffsetName(
 					pt.first, buffer);
 			m_apronAbstractState.forget(offsetName, true);
+			isChanged = true;
 		}
 	}
-	if (m_apronAbstractState.isBottom()) {
+	if (isChanged) {
 		m_apronAbstractState.minimize();
 	}
-	return (prev.m_apronAbstractState != m_apronAbstractState);
+	return isChanged;
 }
 
 bool AbstractState::operator==(const AbstractState & other) const {

@@ -348,6 +348,7 @@ ApronAbstractState Function::minimize(const ApronAbstractState & state) {
 	ap_abstract1_t result = ap_abstract1_forget_array(apron_manager, false, &abstract1,
 			forgetVars.data(), forgetVars.size(), false);
 	result = ap_abstract1_minimize_environment(apron_manager, false, &result);
+	ap_abstract1_minimize(apron_manager, &result);
 	return result;
 }
 

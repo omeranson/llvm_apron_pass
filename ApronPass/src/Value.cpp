@@ -1579,6 +1579,9 @@ void IntegerCompareValue::removeNullIfOtherIsProvablyNull(
 
 void IntegerCompareValue::meetOffsetEquality(AbstractState & state,
 		MPTItemAbstractState & mpt, Value * left, Value * right) {
+	if (mpt.empty()) {
+		return;
+	}
 	for (const std::string & buffer : mpt) {
 		const std::string & leftOffset = state.generateOffsetName(
 				left->getName(), buffer);
@@ -1741,13 +1744,15 @@ public:
 		ap_texpr1_t * texpr = ap_texpr1_binop(
 					AP_TEXPR_SUB, op0, ap_texpr1_copy(this_texpr),
 					AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_tcons1_t cons = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
-		state.m_apronAbstractState.meet(cons);
+		ap_tcons1_t cons0 = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
 		texpr = ap_texpr1_binop(
 					AP_TEXPR_SUB, op1, this_texpr,
 					AP_RTYPE_INT, AP_RDIR_ZERO);
-		cons = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
-		state.m_apronAbstractState.meet(cons);
+		ap_tcons1_t cons1 = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
+		state.m_apronAbstractState.start_meet_aggregate();
+		state.m_apronAbstractState.meet(cons0);
+		state.m_apronAbstractState.meet(cons1);
+		state.m_apronAbstractState.finish_meet_aggregate();
 		if (isKnown) {
 			state.m_apronAbstractState.forget(var);
 			state.m_apronAbstractState.rename(*name, var);
@@ -1948,7 +1953,7 @@ void SelectValueInstruction::update(AbstractState & state) {
 		AbstractState trueState = updateJoinMember(state, trueValue, false, isKnown);
 		AbstractState falseState = updateJoinMember(state, falseValue, true, isKnown);
 		trueState.join(falseState);
-		state.meet(trueState);
+		state = trueState;
 		if (isKnown) {
 			state.m_apronAbstractState.forget(getName());
 			state.m_apronAbstractState.rename(getTemporaryName(), getName());

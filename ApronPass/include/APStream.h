@@ -47,15 +47,15 @@ inline stream & operator<<(stream & s, ap_environment_t * environment) {
 }
 
 template <class stream>
-inline stream & operator<<(stream & s, std::pair<ap_manager_t*, ap_abstract1_t*> value) {
+inline stream & operator<<(stream & s, std::pair<ap_manager_t*, const ap_abstract1_t*> value) {
 	ap_manager_t* manager = value.first;
-	ap_abstract1_t* abst1 = value.second;
-	ap_abstract1_t copy = ap_abstract1_copy(manager, abst1);
+	const ap_abstract1_t* abst1 = value.second;
+	ap_abstract1_t copy = ap_abstract1_copy(manager, (ap_abstract1_t*)abst1);
 	ap_abstract1_canonicalize(manager, &copy);
-	ap_environment_t * env = ap_abstract1_environment(manager, abst1);
-	if (ap_abstract1_is_top(manager, abst1)) {
+	ap_environment_t * env = ap_abstract1_environment(manager, &copy);
+	if (ap_abstract1_is_top(manager, &copy)) {
 		s << "Top. Variables: " << env << "\n";
-	} else if (ap_abstract1_is_bottom(manager, abst1)) {
+	} else if (ap_abstract1_is_bottom(manager, &copy)) {
 		s << "Bottom. Variables: " << env << "\n";
 	} else {
 		ap_abstract1_minimize(manager, &copy);
@@ -71,7 +71,7 @@ inline stream & operator<<(stream & s, std::pair<ap_manager_t*, ap_abstract1_t*>
 }
 
 template <class stream>
-inline stream & operator<<(stream & s, ap_abstract1_t* value) {
+inline stream & operator<<(stream & s, const ap_abstract1_t* value) {
 	s << std::make_pair(apron_manager, value);
 	return s;
 }
