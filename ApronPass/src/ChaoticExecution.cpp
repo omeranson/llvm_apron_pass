@@ -94,7 +94,7 @@ bool ChaoticExecution::join(BasicBlock * source, BasicBlock * dest, AbstractStat
 	bool isChanged;
 	bool isJoin = true;
 	dest->getAbstractState().m_apronAbstractState.minimizeState();
-	if (WideningThreshold && isDominated && (joinCount >= WideningThreshold)) {
+	if (isDominated && (joinCount >= WideningThreshold)) {
 		llvm::errs() << dest->getName() << ": " << "Widening from " << source->getName() << ":\n";
 		isChanged = dest->getAbstractState().widen(incoming);
 		isJoin = false;
