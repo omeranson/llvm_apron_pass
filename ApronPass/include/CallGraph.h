@@ -12,7 +12,7 @@ namespace llvm {
 }
 
 class CallGraph {
-private:
+public:
 	std::multimap<BasicBlock *, BasicBlock *> m_nexts;
 	std::multimap<BasicBlock *, BasicBlock *> m_prevs;
 	Function * m_function;

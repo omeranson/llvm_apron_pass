@@ -186,7 +186,7 @@ namespace
 		if (Debug) {
 			funcCallGraph.printAsDot();
 		}
-		ChaoticExecution chaoticExecution(funcCallGraph);
+		ChaoticExecution chaoticExecution(funcCallGraph, ChaoticExecution::ChaoticExecutionStrategy_WTO);
 		chaoticExecution.execute();
 		// Print
 		if (Debug) {
