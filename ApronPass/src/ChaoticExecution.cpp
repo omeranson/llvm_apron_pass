@@ -20,10 +20,14 @@ typedef Graph::vertex_descriptor Vertex;
 typedef Graph::edge_descriptor Edge;
 typedef std::map<Vertex, int> VertexIndexMap;
 
+template <typename Graph>
+void printToDot(Graph & g);
+
 struct VertexProperty {
 	BasicBlock * basicBlock = 0;
 	Graph * region = 0;
 	Vertex vertex = 0;
+	std::string name;
 };
 
 template <class T>
@@ -129,6 +133,7 @@ class WTOStrategy : public Strategy {
 			BasicBlock * bb = factory.getBasicBlock(&llvmbb);
 			Vertex v = boost::add_vertex(g);
 			g[v].basicBlock = bb;
+			g[v].name = bb->getName();
 			bbVertexMap[bb] = v;
 		}
 		
@@ -143,18 +148,21 @@ class WTOStrategy : public Strategy {
 	virtual void reduce(Graph & g) {
 		while (true) {
 			std::list<Edge> backEdges = getBackEdges(g);
+			while (!backEdges.empty()) {
+				Edge backEdge = backEdges.front();
+				backEdges.pop_front();
+				Vertex source = boost::source(backEdge, g);
+				Vertex target = boost::target(backEdge, g);
+				llvm::errs() << "Debug: Reducing backedge: " << g[source].name <<
+						" -> " << g[target].name << "\n";
+				if (reduceLoop(backEdge, g)) {
+					break;
+				}
+			}
 			if (backEdges.empty()) {
 				llvm::errs() << "Debug: no more backedges\n";
 				return;
 			}
-			Edge & backEdge = backEdges.front();
-			Vertex source = boost::source(backEdge, g);
-			Vertex target = boost::target(backEdge, g);
-			BasicBlock * sourcebb = g[source].basicBlock;
-			BasicBlock * targetbb = g[target].basicBlock;
-			llvm::errs() << "Debug: Reducing backedge: " << sourcebb->getName() <<
-					" -> " << targetbb->getName() << "\n";
-			reduceLoop(backEdge, g);
 		}
 	}
 
@@ -167,7 +175,6 @@ class WTOStrategy : public Strategy {
 			indexmap[v] = index++;
 		}
 		boost::depth_first_search(g, boost::visitor(visitor).vertex_index_map(boost::associative_property_map<VertexIndexMap>(indexmap)));
-		llvm::errs() << "Found this many back edges: " << backEdges.size() << "\n";
 		return backEdges;
 	}
 
@@ -186,9 +193,14 @@ class WTOStrategy : public Strategy {
 			Vertex head = boost::target(edge, g);
 			BasicBlock * tailbb = g[tail].basicBlock;
 			BasicBlock * headbb = g[head].basicBlock;
+			if ((!tailbb) || (!headbb)) {
+				// Region. We're good
+				return;
+			}
 			if (!callGraph.isDominates(headbb, tailbb)) {
 				llvm::errs() << "Warning: Back edge to non-dominating node: Edge: "
 						<< tailbb->getName() << " -> " << headbb->getName() << "\n";
+				printToDot(g);
 			}
 		}
 
@@ -199,23 +211,31 @@ class WTOStrategy : public Strategy {
 		}
 	};
 
-	virtual void reduceLoop(Edge & backEdge, Graph & g) {
+	virtual bool reduceLoop(Edge & backEdge, Graph & g) {
+		// XXX This function can be improved greatly
 		std::map<Vertex, Vertex> reversegVertexMapping;
 		Graph reverseg = reverse(g, reversegVertexMapping);
 		Vertex origtail = boost::source(backEdge, g);
 		Vertex orighead = boost::target(backEdge, g);
 		Vertex tail = reversegVertexMapping[origtail];
 		Vertex head = reversegVertexMapping[orighead];
-		std::set<Vertex> loopMembers;
-		LoopMembersVisitor<Graph> visitor(loopMembers, head, tail);
+		boost::clear_out_edges(head, reverseg);
+		std::set<Vertex> loopMembersSet;
+		LoopMembersVisitor<Graph> visitor(loopMembersSet, head, tail);
 		VertexIndexMap indexmap;
 		int index = 0;
 		for (Vertex v : BGLIterable(boost::vertices(reverseg))) {
 			indexmap[v] = index++;
 		}
 		boost::depth_first_search(reverseg, boost::visitor(visitor).root_vertex(tail).vertex_index_map(boost::associative_property_map<VertexIndexMap>(indexmap)));
+		std::list<Vertex> loopMembers(loopMembersSet.begin(), loopMembersSet.end());
+		VertexIndexComparator vertexIndexComparator(indexmap);
+		loopMembers.sort(vertexIndexComparator);
 
-		std::set<Vertex> revIncomingVertices = getIncomingVertices(reverseg, loopMembers);
+		if (loopMembers.size() == boost::num_vertices(g)) {
+			return false;
+		}
+		std::set<Vertex> revIncomingVertices = getIncomingVertices(reverseg, loopMembersSet);
 		std::set<Vertex> targetVertices;
 		for (Vertex v : revIncomingVertices) {
 			Vertex u = reverseg[v].vertex;
@@ -226,20 +246,51 @@ class WTOStrategy : public Strategy {
 		for (Edge edge : BGLIterable(boost::in_edges(orighead, g))) {
 			sourceVertices.insert(boost::source(edge, g));
 		}
+		sourceVertices.erase(origtail);
 
-		Vertex regionVertex = boost::add_vertex(g);
+		// Create region
 		Graph * graphp = new Graph();
-		g[regionVertex].region = graphp;
 		Graph & region = *graphp;
+		std::ostringstream oss;
+		oss << "Region " << g[orighead].name << " -> " << g[origtail].name;
+		std::string regionName = oss.str();
 
+		std::map<Vertex, Vertex> regionGraphVertexMapping;
 		for (Vertex member : loopMembers) {
 			Vertex vertex = boost::add_vertex(region);
-			Vertex origMember = reverseg[member].vertex;
-			region[vertex] = g[origMember];
-			boost::clear_vertex(origMember, g);
-			llvm::errs() << "Removing vertex: " << g[member].basicBlock->getName() << "\n";
-			boost::remove_vertex(member, g);
+			region[vertex] = reverseg[member];
+			regionGraphVertexMapping[region[vertex].vertex] = vertex;
 		}
+
+		for (Vertex member : BGLIterable(boost::vertices(region))) {
+			Vertex origMember = region[member].vertex;
+			if (origMember == origtail) {
+				continue;
+			}
+			for (Edge e : BGLIterable(boost::out_edges(origMember, g))) {
+				Vertex origTarget = boost::target(e, g);
+				auto targetit = regionGraphVertexMapping.find(origTarget);
+				if (targetit == regionGraphVertexMapping.end()) {
+					continue; // Edge to outside of region
+				}
+				Vertex target = targetit->second;
+				boost::add_edge(member, target, region);
+			}
+		}
+		Vertex regionHead = regionGraphVertexMapping[orighead];
+		Vertex regionTail = regionGraphVertexMapping[origtail];
+		boost::add_edge(regionTail, regionHead, region);
+
+		// Modification to g starts here!
+		for (Vertex member : loopMembers) {
+			Vertex origMember = reverseg[member].vertex;
+		        boost::clear_vertex(origMember, g);
+			boost::remove_vertex(origMember, g);
+		}
+
+		Vertex regionVertex = boost::add_vertex(g);
+		g[regionVertex].region = graphp;
+		g[regionVertex].name = regionName;
 
 		for (Vertex target : targetVertices) {
 			boost::add_edge(regionVertex, target, g);
@@ -248,9 +299,21 @@ class WTOStrategy : public Strategy {
 		for (Vertex source : sourceVertices) {
 			boost::add_edge(source, regionVertex, g);
 		}
-
+		
+		llvm::errs() << "New region: Before reduction:\n";
+		printToDot(region);
 		reduce(region);
+		return true;
 	}
+
+	struct VertexIndexComparator {
+		VertexIndexMap & indexmap;
+		VertexIndexComparator(VertexIndexMap & indexmap) : indexmap(indexmap) {}
+		bool operator()(Vertex & v, Vertex & u) {
+			return (indexmap[v] < indexmap[u]);
+		}
+	};
+
 
 	//virtual std::set<Vertex> getLoopMembers(Edge & backEdge, Graph & g) {
 	//}
@@ -297,7 +360,7 @@ class WTOStrategy : public Strategy {
 				return;
 			}
 			if (v != tail) {
-				llvm::errs() << "Warning: LoopMembersVisitor::start_vertex with non-tail: " << g[v].basicBlock->getName() << "\n";
+				llvm::errs() << "Warning: LoopMembersVisitor::start_vertex with non-tail: " << g[v].name << "\n";
 			}
 		}
 
@@ -307,8 +370,6 @@ class WTOStrategy : public Strategy {
 				return;
 			}
 			if (inLoop) {
-				llvm::errs() << "Discovered loop member: " <<
-						g[v].basicBlock->getName() << "\n";
 				loopMembers.insert(v);
 			}
 			if (v == head) {
@@ -318,11 +379,11 @@ class WTOStrategy : public Strategy {
 
 		template <typename Vertex, typename Graph_>
 		void finish_vertex(Vertex v, Graph_ & g) {
-			if (v == tail) {
-				finished = true;
-			}
 			if (finished) {
 				return;
+			}
+			if (v == tail) {
+				finished = true;
 			}
 			if (inLoop) {
 				return;
@@ -331,6 +392,16 @@ class WTOStrategy : public Strategy {
 				inLoop = true;
 			}
 		}
+
+		//template <typename Edge, typename Graph_>
+		//void back_edge(Edge edge, Graph_ & g) {
+		//	if ((!inLoop) || (finished)) {
+		//		return;
+		//	}
+		//	llvm::errs() << "Found nested loop?: " <<
+		//			g[boost::source(edge, g)].name << " -> " <<
+		//			g[boost::target(edge, g)].name << "\n";
+		//}
 	};
 
 	virtual Graph reverse(Graph & orig, std::map<Vertex, Vertex> & mapping) {
@@ -349,14 +420,14 @@ class WTOStrategy : public Strategy {
 			Vertex source = mapping[origsrc];
 			if (source == 0) {
 				VertexProperty & vprops = orig[origsrc];
-				llvm::errs() << "Failed to find reverse mapping for: " << vprops.basicBlock->getName() << "\n";
+				llvm::errs() << "Failed to find reverse mapping for: " << vprops.name << "\n";
 				abort();
 			}
 			Vertex origtgt = boost::target(edge, orig);
 			Vertex target = mapping[origtgt];
 			if (target == 0) {
 				VertexProperty & vprops = orig[origtgt];
-				llvm::errs() << "Failed to find reverse mapping for: " << vprops.basicBlock->getName() << "\n";
+				llvm::errs() << "Failed to find reverse mapping for: " << vprops.name << "\n";
 				abort();
 			}
 			edges.push_back(std::make_pair(target, source));
@@ -367,43 +438,46 @@ class WTOStrategy : public Strategy {
 		return g;
 	}
 
-	virtual void printToDot(Graph & g) {
-		llvm::errs() << "digraph G {\n";
-		printToDotBody(g);
-		llvm::errs() << "}\n";
-	}
-
-	void printToDotBody(Graph & g) {
-		for (Vertex vertex : BGLIterable(boost::vertices(g))) {
-			if (g[vertex].basicBlock) {
-				llvm::errs() << "n_" << vertex << " [label=\"" <<
-						g[vertex].basicBlock->getName() << "\"];\n";
-			} else {
-				llvm::errs() << "subgraph cluster_n" << vertex << " {\n";
-				Graph * pgraph = (Graph*)g[vertex].region;
-				printToDotBody(*pgraph);
-				llvm::errs() << "}\n";
-			}
-		}
-
-		for (Edge edge : BGLIterable(boost::edges(g))) {
-			Vertex source = boost::source(edge, g);
-			if (g[source].basicBlock) {
-				llvm::errs() << "n_" << source;
-			} else {
-				llvm::errs() << "cluster_n" << source;
-			}
-			llvm::errs() << " -> ";
-			Vertex target = boost::target(edge, g);
-			if (g[target].basicBlock) {
-				llvm::errs() << "n_" << target;
-			} else {
-				llvm::errs() << "cluster_n" << target;
-			}
-			llvm::errs() << ";\n";
-		}
-	}
 };
+
+template <typename Graph>
+void printToDotBody(Graph & g) {
+	for (Vertex vertex : BGLIterable(boost::vertices(g))) {
+		if (g[vertex].basicBlock) {
+			llvm::errs() << "n_" << vertex << " [label=\"" <<
+					g[vertex].name << "\"];\n";
+		} else {
+			llvm::errs() << "subgraph cluster_n" << vertex << " {\n";
+			Graph * pgraph = (Graph*)g[vertex].region;
+			printToDotBody(*pgraph);
+			llvm::errs() << "}\n";
+		}
+	}
+
+	for (Edge edge : BGLIterable(boost::edges(g))) {
+		Vertex source = boost::source(edge, g);
+		if (g[source].basicBlock) {
+			llvm::errs() << "n_" << source;
+		} else {
+			llvm::errs() << "cluster_n" << source;
+		}
+		llvm::errs() << " -> ";
+		Vertex target = boost::target(edge, g);
+		if (g[target].basicBlock) {
+			llvm::errs() << "n_" << target;
+		} else {
+			llvm::errs() << "cluster_n" << target;
+		}
+		llvm::errs() << ";\n";
+	}
+}
+
+template <typename Graph>
+void printToDot(Graph & g) {
+	llvm::errs() << "digraph G {\n";
+	printToDotBody(g);
+	llvm::errs() << "}\n";
+}
 
 Strategy * strategyFactory(CallGraph & callGraph, ChaoticExecution::StrategySelector a_strategy) {
 	Strategy * strategy;
