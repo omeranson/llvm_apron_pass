@@ -98,7 +98,6 @@ bool ApronAbstractState::widen(const ApronAbstractState & other) {
 	bool isChanged = (*this != prev);
 	ap_abstract1_clear(apron_manager, &other_abst);
 	ap_abstract1_clear(apron_manager, &this_abst);
-	minimize();
 	return isChanged;
 }
 
@@ -116,7 +115,6 @@ bool ApronAbstractState::join(const ApronAbstractState & other) {
 			&m_abstract1, &other_abst);
 	bool isChanged = (*this != ApronAbstractState(prev));
 	ap_abstract1_clear(apron_manager, &other_abst);
-	minimize();
 	return isChanged;
 }
 
@@ -130,7 +128,6 @@ bool ApronAbstractState::meet(const ApronAbstractState & other) {
 			&this_abst, &other_abst);
 	bool isChanged = (*this != ApronAbstractState(prev));
 	ap_abstract1_clear(apron_manager, &other_abst);
-	minimize();
 	return isChanged;
 }
 
@@ -163,7 +160,6 @@ bool ApronAbstractState::join(const std::vector<ApronAbstractState> & others) {
 		ap_abstract1_clear(apron_manager, &value);
 	}
 	bool result = (prev == *this);
-	minimize();
 	return result;
 }
 
@@ -181,7 +177,6 @@ void ApronAbstractState::assign(const std::string & var, ap_texpr1_t * value) {
 				&m_abstract1, aptmpvar, value, NULL);
 		rename(tmp_name, var);
 	}
-	minimize();
 }
 
 void ApronAbstractState::extend(const std::string & var, bool isBottom) {
@@ -216,13 +211,7 @@ void ApronAbstractState::minimize() {
 }
 
 void ApronAbstractState::minimizeState() {
-	if (Debug) {
-		llvm::errs() << "Minimizing: " << &m_abstract1;
-	}
 	ap_abstract1_minimize(apron_manager, &m_abstract1);
-	if (Debug) {
-		llvm::errs() << "Result: " << &m_abstract1;
-	}
 }
 
 void ApronAbstractState::canonicalize() {
@@ -337,7 +326,6 @@ std::map<std::string, std::string> ApronAbstractState::renameVarsForC() {
 void ApronAbstractState::meet(ap_tcons1_array_t & tconsarray) {
 	m_abstract1 = ap_abstract1_meet_tcons_array(
 			apron_manager, true, &m_abstract1, &tconsarray);
-	minimize();
 }
 
 bool ApronAbstractState::isTop() const {
