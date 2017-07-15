@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <unordered_set>
 #include <list>
 
@@ -13,21 +14,38 @@ extern unsigned UpdateCountMax;
 extern unsigned WideningThreshold;
 
 class VertexProperty;
+class EdgeProperty;
 
-typedef boost::adjacency_list < boost::listS, boost::listS, boost::bidirectionalS, VertexProperty> Graph;
+typedef boost::adjacency_list < boost::listS, boost::listS, boost::bidirectionalS, VertexProperty, EdgeProperty> Graph;
 //typedef boost::adjacency_list < boost::listS, boost::listS, boost::bidirectionalS, boost::no_property, boost::no_property, GraphProperty> Graph;
 typedef Graph::vertex_descriptor Vertex;
 typedef Graph::edge_descriptor Edge;
 typedef std::map<Vertex, int> VertexIndexMap;
+typedef std::map<Vertex, boost::default_color_type> VertexColourMap;
 
 template <typename Graph>
 void printToDot(Graph & g);
+void analyze(Graph & g);
 
 struct VertexProperty {
-	BasicBlock * basicBlock = 0;
 	Graph * region = 0;
 	Vertex vertex = 0;
 	std::string name;
+	mutable BasicBlock * basicBlock = 0;
+	mutable AbstractState abstractState;
+	mutable int joinCount = 0;
+};
+
+struct EdgeProperty {
+	// If the source vertex is simple, use the source vertex.
+	// If the source vertex is a region, use the source vertex from with
+	// the region - i.e. the original source vertex for the edge
+	Graph * sourceRegion = 0;
+	Vertex sourceVertex = 0;
+	// If the target vertex is simple, use the target vertex.
+	// If the target vertex is a region, use the region's head
+	Graph * targetRegion = 0;
+	Vertex targetVertex = 0;
 };
 
 template <class T>
@@ -120,7 +138,7 @@ class WTOStrategy : public Strategy {
 		reduce(g);
 		llvm::errs() << "Reduced graph:\n";
 		printToDot(g);
-		//analyze(g);
+		analyze(g);
 	}
 
 	virtual Graph buildGraph() {
@@ -132,6 +150,7 @@ class WTOStrategy : public Strategy {
 		for (llvm::BasicBlock & llvmbb : *llvmFunction) {
 			BasicBlock * bb = factory.getBasicBlock(&llvmbb);
 			Vertex v = boost::add_vertex(g);
+			llvm::errs() << "Debug 1: Putting bb: " << (void*)bb << ": " << bb->getName() << "\n";
 			g[v].basicBlock = bb;
 			g[v].name = bb->getName();
 			bbVertexMap[bb] = v;
@@ -213,10 +232,12 @@ class WTOStrategy : public Strategy {
 
 	virtual bool reduceLoop(Edge & backEdge, Graph & g) {
 		// XXX This function can be improved greatly
-		std::map<Vertex, Vertex> reversegVertexMapping;
-		Graph reverseg = reverse(g, reversegVertexMapping);
 		Vertex origtail = boost::source(backEdge, g);
 		Vertex orighead = boost::target(backEdge, g);
+
+		// START get loop members
+		std::map<Vertex, Vertex> reversegVertexMapping;
+		Graph reverseg = reverse(g, reversegVertexMapping);
 		Vertex tail = reversegVertexMapping[origtail];
 		Vertex head = reversegVertexMapping[orighead];
 		boost::clear_out_edges(head, reverseg);
@@ -228,13 +249,19 @@ class WTOStrategy : public Strategy {
 			indexmap[v] = index++;
 		}
 		boost::depth_first_search(reverseg, boost::visitor(visitor).root_vertex(tail).vertex_index_map(boost::associative_property_map<VertexIndexMap>(indexmap)));
+		if (loopMembersSet.size() == boost::num_vertices(g)) {
+			// Loop is entire region. Reduction doesn't make sense
+			return false;
+		}
 		std::list<Vertex> loopMembers(loopMembersSet.begin(), loopMembersSet.end());
 		VertexIndexComparator vertexIndexComparator(indexmap);
 		loopMembers.sort(vertexIndexComparator);
-
-		if (loopMembers.size() == boost::num_vertices(g)) {
-			return false;
+		std::list<Vertex> loopMembersOrigGraph;
+		for (Vertex member : loopMembers) {
+			loopMembersOrigGraph.push_back(reverseg[member].vertex);
 		}
+		// END get loop members
+
 		std::set<Vertex> revIncomingVertices = getIncomingVertices(reverseg, loopMembersSet);
 		std::set<Vertex> targetVertices;
 		for (Vertex v : revIncomingVertices) {
@@ -256,10 +283,10 @@ class WTOStrategy : public Strategy {
 		std::string regionName = oss.str();
 
 		std::map<Vertex, Vertex> regionGraphVertexMapping;
-		for (Vertex member : loopMembers) {
-			Vertex vertex = boost::add_vertex(region);
-			region[vertex] = reverseg[member];
-			regionGraphVertexMapping[region[vertex].vertex] = vertex;
+		for (Vertex member : loopMembersOrigGraph) {
+			Vertex vertex = boost::add_vertex(g[member], region);
+			region[vertex].vertex = member;
+			regionGraphVertexMapping[member] = vertex;
 		}
 
 		for (Vertex member : BGLIterable(boost::vertices(region))) {
@@ -274,7 +301,7 @@ class WTOStrategy : public Strategy {
 					continue; // Edge to outside of region
 				}
 				Vertex target = targetit->second;
-				boost::add_edge(member, target, region);
+				boost::add_edge(member, target, g[e], region);
 			}
 		}
 		Vertex regionHead = regionGraphVertexMapping[orighead];
@@ -282,24 +309,45 @@ class WTOStrategy : public Strategy {
 		boost::add_edge(regionTail, regionHead, region);
 
 		// Modification to g starts here!
-		for (Vertex member : loopMembers) {
-			Vertex origMember = reverseg[member].vertex;
-		        boost::clear_vertex(origMember, g);
-			boost::remove_vertex(origMember, g);
-		}
-
 		Vertex regionVertex = boost::add_vertex(g);
 		g[regionVertex].region = graphp;
 		g[regionVertex].name = regionName;
 
-		for (Vertex target : targetVertices) {
-			boost::add_edge(regionVertex, target, g);
+		std::set<Vertex> loopMembersOrigGraphSet(loopMembersOrigGraph.begin(), loopMembersOrigGraph.end());
+		for (Vertex member : loopMembersOrigGraph) {
+			for (Edge e : BGLIterable(boost::out_edges(member, g))) {
+				Vertex target = boost::target(e, g);
+				if (loopMembersOrigGraphSet.count(target) != 0) {
+					continue;
+				}
+				std::pair<Edge, bool> newedgepair = boost::add_edge(regionVertex, target, g[e], g);
+				Edge & newedge = newedgepair.first;
+				if (!g[newedge].sourceRegion) {
+					g[newedge].sourceRegion = &region;
+					g[newedge].sourceVertex = regionGraphVertexMapping[member];
+				}
+			}
 		}
 
-		for (Vertex source : sourceVertices) {
-			boost::add_edge(source, regionVertex, g);
+		for (Edge edge : BGLIterable(boost::in_edges(orighead, g))) {
+			Vertex source = boost::source(edge, g);
+			Vertex target = boost::target(edge, g);
+			if (source == origtail) {
+				continue;
+			}
+			std::pair<Edge, bool> newedgepair = boost::add_edge(source, regionVertex, g[edge], g);
+			Edge newedge = newedgepair.first;
+			if (!g[newedge].targetRegion) {
+				g[newedge].targetRegion = &region;
+				g[newedge].targetVertex = regionHead;
+			}
 		}
-		
+
+		for (Vertex member : loopMembersOrigGraph) {
+		        boost::clear_vertex(member, g);
+			boost::remove_vertex(member, g);
+		}
+
 		llvm::errs() << "New region: Before reduction:\n";
 		printToDot(region);
 		reduce(region);
@@ -439,6 +487,133 @@ class WTOStrategy : public Strategy {
 	}
 
 };
+
+struct StaticAnalysisVisitor : boost::default_dfs_visitor {
+	VertexColourMap & colourmap;
+	StaticAnalysisVisitor(VertexColourMap & colourmap) :
+			colourmap(colourmap) {}
+
+
+	template <typename Vertex, typename Graph_>
+	void discover_vertex(Vertex v, Graph_ & g) {
+		// basic block update
+		// or region update
+		if (g[v].basicBlock) {
+			discover_simple_verex(v, g, g[v].basicBlock);
+		} else if (g[v].region) {
+			discover_region_verex(v, g, *g[v].region);
+		} else {
+			llvm::errs() << "Unknown tree vertex that is neither simple nor region: " << g[v].name << "\n";
+		}
+	}
+
+	template <typename Vertex, typename Graph_>
+	void discover_simple_verex(Vertex v, Graph_ & g, BasicBlock * block) {
+		g[v].abstractState = block->getAbstractState();
+		block->update(g[v].abstractState);
+	}
+
+	template <typename Vertex, typename Graph_>
+	void discover_region_verex(Vertex v, Graph_ & g, Graph & region) {
+		analyze(region);
+	}
+
+	template <typename Vertex, typename Graph_>
+	void mark_for_revisit(Vertex v, Graph_ &g) {
+		colourmap[v] = boost::color_traits<boost::default_color_type>::white();
+	}
+
+	template <typename Edge, typename Graph_>
+	void tree_edge(Edge e, Graph_ & g) {
+		join_or_widen_over_edge(e, g);
+	}
+
+	template <typename Edge, typename Graph_>
+	void forward_or_cross_edge(Edge e, Graph_ & g) {
+		join_or_widen_over_edge(e, g);
+	}
+
+	template <typename Edge, typename Graph_>
+	void back_edge(Edge e, Graph_ & g) {
+		// Should alwasys be simple vertices
+		Vertex dest = boost::target(e,g);
+		int & joinCount = g[dest].joinCount;
+		++joinCount;
+		bool is_widen = (joinCount >= WideningThreshold);
+		join_or_widen_over_edge(e, g, is_widen);
+	}
+
+
+	template <typename Edge, typename Graph_>
+	void join_or_widen_over_edge(Edge e, Graph_ & g, bool is_widen=false) {
+		BasicBlock * source = getSourceBasicBlock(e, g);
+		AbstractState & state = getSourceAbstractState(e, g);
+		BasicBlock * target = getTargetBasicBlock(e, g);
+		bool isChanged = join_or_widen_basic_blocks(source, target, state, is_widen);
+		if (isChanged) {
+			mark_for_revisit(boost::target(e, g), g);
+		}
+	}
+
+	template <typename Edge, typename Graph_>
+	BasicBlock * getSourceBasicBlock(Edge e, Graph_ & g) {
+		const VertexProperty & vprops = getSourceVertexProperty(e, g);
+		assert(vprops.basicBlock);
+		llvm::errs() << "Debug 2: Fetching bb: " << (void*)vprops.basicBlock << ": " << vprops.basicBlock->getName() << "\n";
+		return vprops.basicBlock;
+	}
+
+	template <typename Edge, typename Graph_>
+	BasicBlock * getTargetBasicBlock(Edge e, Graph_ & g) {
+		const VertexProperty & vprops = getTargetVertexProperty(e, g);
+		assert(vprops.basicBlock);
+		llvm::errs() << "Debug 3: Fetching bb: " << (void*)vprops.basicBlock << ": " << vprops.basicBlock->getName() << "\n";
+		return vprops.basicBlock;
+	}
+
+	template <typename Edge, typename Graph_>
+	AbstractState & getSourceAbstractState(Edge e, Graph_ & g) {
+		const VertexProperty & vprops = getSourceVertexProperty(e, g);
+		return vprops.abstractState;
+	}
+
+	template <typename Edge, typename Graph_>
+	const VertexProperty & getTargetVertexProperty(Edge e, Graph_ & g) {
+		const EdgeProperty & eprop = g[e];
+		if (eprop.targetRegion) {
+			const Graph & region = *eprop.targetRegion;
+			return region[eprop.targetVertex];
+		}
+		return g[boost::target(e, g)];
+	}
+
+	template <typename Edge, typename Graph_>
+	const VertexProperty & getSourceVertexProperty(Edge e, Graph_ & g) {
+		const EdgeProperty & eprop = g[e];
+		if (eprop.sourceRegion) {
+			const Graph & region = *eprop.sourceRegion;
+			return region[eprop.sourceVertex];
+		}
+		return g[boost::source(e, g)];
+	}
+
+	bool join_or_widen_basic_blocks(BasicBlock * source, BasicBlock * dest, AbstractState & state, bool is_widen=false) {
+		AbstractState incoming = dest->getAbstractStateWithAssumptions(*source, state);
+		bool isChanged;
+		if (is_widen) {
+			isChanged = dest->getAbstractState().widen(incoming);
+		} else {
+			isChanged = dest->getAbstractState().join(incoming);
+		}
+		return isChanged;
+	}
+};
+
+void analyze(Graph & g) {
+	VertexColourMap colourmap;
+	StaticAnalysisVisitor visitor(colourmap);
+	boost::depth_first_search(g, boost::visitor(visitor).color_map(boost::associative_property_map<VertexColourMap>(colourmap)));
+}
 
 template <typename Graph>
 void printToDotBody(Graph & g) {
