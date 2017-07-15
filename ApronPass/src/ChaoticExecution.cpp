@@ -510,9 +510,9 @@ struct StaticAnalysisVisitor : boost::default_dfs_visitor {
 		// basic block update
 		// or region update
 		if (g[v].basicBlock) {
-			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex start simple: " << g[v].name << ": " << g[v].abstractState;
+			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex start simple: " << g[v].name << "\n";
 			discover_simple_verex(v, g, g[v].basicBlock);
-			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex done simple: " << g[v].name << ": " << g[v].abstractState;
+			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex done simple: " << g[v].name << "\n";
 		} else if (g[v].region) {
 			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex: start region: " << g[v].name << "\n";
 			discover_region_verex(v, g, *g[v].region);
@@ -568,7 +568,7 @@ struct StaticAnalysisVisitor : boost::default_dfs_visitor {
 		if (isChanged) {
 			mark_for_revisit(boost::target(e, g), g);
 		}
-		llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks: " << source->getName() << " -> " << target->getName() << ": " << target->getAbstractState() << "\n";
+		llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks: " << source->getName() << " -> " << target->getName() << "\n";
 		llvm::errs() << "\t\top: " << (is_widen ? "Widen" : "Join") <<
 				" changed: " << isChanged << "\n";
 	}

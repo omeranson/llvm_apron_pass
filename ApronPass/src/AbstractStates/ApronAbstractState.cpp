@@ -207,7 +207,6 @@ void ApronAbstractState::minimize(const std::string & var) {
 void ApronAbstractState::minimize() {
 	m_abstract1 = ap_abstract1_minimize_environment(apron_manager, true,
 			&m_abstract1);
-	minimizeState();
 }
 
 void ApronAbstractState::minimizeState() {
