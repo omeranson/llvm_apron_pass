@@ -275,6 +275,11 @@ bool AbstractState::reduce(std::vector<std::string> & userBuffers) {
 	return isChanged;
 }
 
+
+bool AbstractState::isBottom() const {
+	return m_mayPointsTo.isBottom() && m_apronAbstractState.isBottom();
+}
+
 bool AbstractState::operator==(const AbstractState & other) const {
 	return ((m_mayPointsTo == other.m_mayPointsTo) &&
 			(m_apronAbstractState == other.m_apronAbstractState) &&

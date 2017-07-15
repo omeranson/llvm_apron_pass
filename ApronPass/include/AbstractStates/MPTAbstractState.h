@@ -93,6 +93,7 @@ public:
 	MPTItemAbstractState * find(const std::string& name);
 	MPTItemAbstractState & extend(const std::string& name);
 
+	virtual bool isBottom() const;
 	bool operator==(const MPTAbstractState& other) const;
 	bool operator!=(const MPTAbstractState& other) const;
 };

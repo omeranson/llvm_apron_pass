@@ -157,7 +157,7 @@ public:
 	//virtual bool meet(AbstractState &);
 	//virtual bool unify(AbstractState &);
 	//virtual bool isTop();
-	//virtual bool isBottom();
+	virtual bool isBottom() const;
 	virtual bool operator==(const AbstractState &) const;
 	virtual bool operator!=(const AbstractState &) const;
 

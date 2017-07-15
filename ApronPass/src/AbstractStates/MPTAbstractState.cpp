@@ -207,6 +207,10 @@ MPTItemAbstractState * MPTAbstractState::find(const std::string& name) {
 	return &it->second;
 }
 
+bool MPTAbstractState::isBottom() const {
+	return m_mayPointsTo.empty();
+}
+
 bool MPTAbstractState::operator==(const MPTAbstractState& other) const {
 	return (m_mayPointsTo == other.m_mayPointsTo);
 }

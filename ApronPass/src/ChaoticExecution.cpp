@@ -10,6 +10,7 @@
 #include <CallGraph.h>
 #include <ChaoticExecution.h>
 
+extern bool Debug;
 extern unsigned UpdateCountMax;
 extern unsigned WideningThreshold;
 
@@ -135,10 +136,13 @@ class WTOStrategy : public Strategy {
 		Graph g = buildGraph();
 		llvm::errs() << "Original graph:\n";
 		printToDot(g);
+		initializeRootAbstractState(g);
 		reduce(g);
 		llvm::errs() << "Reduced graph:\n";
 		printToDot(g);
 		analyze(g);
+		//llvm::errs() << "Analyzed graph:\n";
+		//printToDot(g);
 	}
 
 	virtual Graph buildGraph() {
@@ -150,7 +154,6 @@ class WTOStrategy : public Strategy {
 		for (llvm::BasicBlock & llvmbb : *llvmFunction) {
 			BasicBlock * bb = factory.getBasicBlock(&llvmbb);
 			Vertex v = boost::add_vertex(g);
-			llvm::errs() << "Debug 1: Putting bb: " << (void*)bb << ": " << bb->getName() << "\n";
 			g[v].basicBlock = bb;
 			g[v].name = bb->getName();
 			bbVertexMap[bb] = v;
@@ -164,6 +167,13 @@ class WTOStrategy : public Strategy {
 		return g;
 	}
 
+	virtual void initializeRootAbstractState(Graph & g) {
+		BasicBlock * root = callGraph().getRoot();
+		std::vector<std::string> userPointers = root->getFunction()->getUserPointers();
+		AbstractState state(userPointers);
+		root->getAbstractState() = state;
+	}
+
 	virtual void reduce(Graph & g) {
 		while (true) {
 			std::list<Edge> backEdges = getBackEdges(g);
@@ -172,14 +182,18 @@ class WTOStrategy : public Strategy {
 				backEdges.pop_front();
 				Vertex source = boost::source(backEdge, g);
 				Vertex target = boost::target(backEdge, g);
-				llvm::errs() << "Debug: Reducing backedge: " << g[source].name <<
-						" -> " << g[target].name << "\n";
+				if (Debug) {
+					llvm::errs() << "Debug: Reducing backedge: " << g[source].name <<
+							" -> " << g[target].name << "\n";
+				}
 				if (reduceLoop(backEdge, g)) {
 					break;
 				}
 			}
 			if (backEdges.empty()) {
-				llvm::errs() << "Debug: no more backedges\n";
+				if (Debug) {
+					llvm::errs() << "Debug: no more backedges\n";
+				}
 				return;
 			}
 		}
@@ -348,8 +362,6 @@ class WTOStrategy : public Strategy {
 			boost::remove_vertex(member, g);
 		}
 
-		llvm::errs() << "New region: Before reduction:\n";
-		printToDot(region);
 		reduce(region);
 		return true;
 	}
@@ -493,15 +505,18 @@ struct StaticAnalysisVisitor : boost::default_dfs_visitor {
 	StaticAnalysisVisitor(VertexColourMap & colourmap) :
 			colourmap(colourmap) {}
 
-
 	template <typename Vertex, typename Graph_>
 	void discover_vertex(Vertex v, Graph_ & g) {
 		// basic block update
 		// or region update
 		if (g[v].basicBlock) {
+			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex start simple: " << g[v].name << ": " << g[v].abstractState;
 			discover_simple_verex(v, g, g[v].basicBlock);
+			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex done simple: " << g[v].name << ": " << g[v].abstractState;
 		} else if (g[v].region) {
+			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex: start region: " << g[v].name << "\n";
 			discover_region_verex(v, g, *g[v].region);
+			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex: done region: " << g[v].name << "\n";
 		} else {
 			llvm::errs() << "Unknown tree vertex that is neither simple nor region: " << g[v].name << "\n";
 		}
@@ -553,13 +568,15 @@ struct StaticAnalysisVisitor : boost::default_dfs_visitor {
 		if (isChanged) {
 			mark_for_revisit(boost::target(e, g), g);
 		}
+		llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks: " << source->getName() << " -> " << target->getName() << ": " << target->getAbstractState() << "\n";
+		llvm::errs() << "\t\top: " << (is_widen ? "Widen" : "Join") <<
+				" changed: " << isChanged << "\n";
 	}
 
 	template <typename Edge, typename Graph_>
 	BasicBlock * getSourceBasicBlock(Edge e, Graph_ & g) {
 		const VertexProperty & vprops = getSourceVertexProperty(e, g);
 		assert(vprops.basicBlock);
-		llvm::errs() << "Debug 2: Fetching bb: " << (void*)vprops.basicBlock << ": " << vprops.basicBlock->getName() << "\n";
 		return vprops.basicBlock;
 	}
 
@@ -567,7 +584,6 @@ struct StaticAnalysisVisitor : boost::default_dfs_visitor {
 	BasicBlock * getTargetBasicBlock(Edge e, Graph_ & g) {
 		const VertexProperty & vprops = getTargetVertexProperty(e, g);
 		assert(vprops.basicBlock);
-		llvm::errs() << "Debug 3: Fetching bb: " << (void*)vprops.basicBlock << ": " << vprops.basicBlock->getName() << "\n";
 		return vprops.basicBlock;
 	}
 
