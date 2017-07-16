@@ -629,7 +629,7 @@ struct StaticAnalysisVisitor : boost::default_dfs_visitor {
 };
 
 struct WTOAnalysis {
-UniqueQueue<Vertex> workQueue;
+std::unordered_set<Vertex> workSet;
 
 void analyze(Graph & g) {
 	std::list<Vertex> topologicalOrder = getTopologicalOrder(g);
@@ -637,23 +637,25 @@ void analyze(Graph & g) {
 	int index = 0;
 	for (Vertex v : topologicalOrder) {
 		indexmap[v] = index++;
-		workQueue.push(v);
+		workSet.insert(v);
 	}
 
-	while (!workQueue.empty()) {
-		Vertex v = workQueue.pop();
-		analyze_vertex(v, g);
-		for (Edge e : BGLIterable(boost::out_edges(v, g))) {
-			Vertex source = boost::source(e, g);
-			Vertex target = boost::target(e, g);
-			bool is_widen = false;
-			if (indexmap[source] >= indexmap[target]) {
-				// back edge
-				int & joinCount = g[target].joinCount;
-				++joinCount;
-				is_widen = (joinCount >= WideningThreshold);
+	while (workSet.count(*topologicalOrder.begin()) != 0) {
+		for (Vertex v : topologicalOrder) {
+			workSet.erase(v);
+			analyze_vertex(v, g);
+			for (Edge e : BGLIterable(boost::out_edges(v, g))) {
+				Vertex source = boost::source(e, g);
+				Vertex target = boost::target(e, g);
+				bool is_widen = false;
+				if (indexmap[source] >= indexmap[target]) {
+					// back edge
+					int & joinCount = g[target].joinCount;
+					++joinCount;
+					is_widen = (joinCount >= WideningThreshold);
+				}
+				join_or_widen_over_edge(e, g, is_widen);
 			}
-			join_or_widen_over_edge(e, g, is_widen);
 		}
 	}
 }
@@ -674,7 +676,7 @@ topo_sort_visitor_allow_back_edges<OutputIterator> getVisitor(OutputIterator & o
 std::list<Vertex> getTopologicalOrder(Graph & g) {
 	std::list<Vertex> topologicalOrder;
 	VertexColourMap colourmap;
-	auto inserter = std::back_inserter(topologicalOrder);
+	auto inserter = std::front_inserter(topologicalOrder);
 	auto visitor = getVisitor(inserter);
 	boost::depth_first_search(g, boost::visitor(visitor).color_map(boost::associative_property_map<VertexColourMap>(colourmap)));
 	return topologicalOrder;
@@ -682,8 +684,6 @@ std::list<Vertex> getTopologicalOrder(Graph & g) {
 
 template <typename Vertex, typename Graph_>
 void analyze_vertex(Vertex v, Graph_ & g) {
-	// basic block update
-	// or region update
 	if (g[v].basicBlock) {
 		llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex start simple: " << g[v].name << "\n";
 		discover_simple_verex(v, g, g[v].basicBlock);
@@ -726,7 +726,7 @@ void join_or_widen_over_edge(Edge e, Graph_ & g, bool is_widen=false) {
 
 template <typename Vertex, typename Graph_>
 void mark_for_revisit(Vertex v, Graph_ &g) {
-	workQueue.push(v);
+	workSet.insert(v);
 }
 
 template <typename Edge, typename Graph_>
