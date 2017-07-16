@@ -642,7 +642,9 @@ void analyze(Graph & g) {
 
 	while (workSet.count(*topologicalOrder.begin()) != 0) {
 		for (Vertex v : topologicalOrder) {
-			workSet.erase(v);
+			if (workSet.erase(v) == 0) {
+				continue;
+			}
 			analyze_vertex(v, g);
 			for (Edge e : BGLIterable(boost::out_edges(v, g))) {
 				Vertex source = boost::source(e, g);
