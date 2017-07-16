@@ -564,11 +564,13 @@ struct StaticAnalysisVisitor : boost::default_dfs_visitor {
 		BasicBlock * source = getSourceBasicBlock(e, g);
 		AbstractState & state = getSourceAbstractState(e, g);
 		BasicBlock * target = getTargetBasicBlock(e, g);
+		llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks enter: " << source->getName() << " -> " << target->getName() << "\n";
+		llvm::errs() << "\t\top: " << (is_widen ? "Widen" : "Join") << "\n";
 		bool isChanged = join_or_widen_basic_blocks(source, target, state, is_widen);
 		if (isChanged) {
 			mark_for_revisit(boost::target(e, g), g);
 		}
-		llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks: " << source->getName() << " -> " << target->getName() << "\n";
+		llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks done: " << source->getName() << " -> " << target->getName() << "\n";
 		llvm::errs() << "\t\top: " << (is_widen ? "Widen" : "Join") <<
 				" changed: " << isChanged << "\n";
 	}
