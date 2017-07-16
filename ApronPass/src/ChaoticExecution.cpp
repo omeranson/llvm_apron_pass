@@ -110,29 +110,6 @@ class DFSStrategy : public Strategy {
 };
 
 class WTOStrategy : public Strategy {
-	virtual std::map<BasicBlock*, int> indexBasicBlocks() {
-		BasicBlockManager & factory = BasicBlockManager::getInstance();
-		std::map<BasicBlock *, int> indexes;
-		int runningIndex = 0;
-		Function * function = callGraph().m_function;
-		llvm::Function * llvmFunction = function->getLLVMFunction();
-		for (llvm::BasicBlock & llvmbb : *llvmFunction) {
-			BasicBlock * bb = factory.getBasicBlock(&llvmbb);
-			indexes[bb] = runningIndex++;
-		}
-		return indexes;
-	}
-
-	virtual std::multimap<int,int> buildEdges(std::map<BasicBlock*,int> & indexes) {
-		std::multimap<int,int> edges;
-		for (std::pair<BasicBlock *, BasicBlock *> edge : callGraph().m_nexts) {
-			int srcIndex = indexes[edge.first];
-			int destIndex = indexes[edge.second];
-			edges.insert(std::make_pair(srcIndex, destIndex));
-		}
-		return edges;
-	}
-	
 	virtual void execute() {
 		Graph g = buildGraph();
 		llvm::errs() << "Original graph:\n";
@@ -146,6 +123,7 @@ class WTOStrategy : public Strategy {
 		//printToDot(g);
 	}
 
+	// XXX Move to parent class? To library?
 	virtual Graph buildGraph() {
 		Graph g;
 		BasicBlockManager & factory = BasicBlockManager::getInstance();
@@ -168,6 +146,7 @@ class WTOStrategy : public Strategy {
 		return g;
 	}
 
+	// XXX Move to parent class? To library?
 	virtual void initializeRootAbstractState(Graph & g) {
 		BasicBlock * root = callGraph().getRoot();
 		std::vector<std::string> userPointers = root->getFunction()->getUserPointers();
@@ -375,10 +354,6 @@ class WTOStrategy : public Strategy {
 		}
 	};
 
-
-	//virtual std::set<Vertex> getLoopMembers(Edge & backEdge, Graph & g) {
-	//}
-
 	std::set<Vertex> getIncomingVertices(Graph & g, std::set<Vertex> & loopMembers) {
 		std::set<Vertex> result;
 		for (Vertex v : loopMembers) {
@@ -453,20 +428,9 @@ class WTOStrategy : public Strategy {
 				inLoop = true;
 			}
 		}
-
-		//template <typename Edge, typename Graph_>
-		//void back_edge(Edge edge, Graph_ & g) {
-		//	if ((!inLoop) || (finished)) {
-		//		return;
-		//	}
-		//	llvm::errs() << "Found nested loop?: " <<
-		//			g[boost::source(edge, g)].name << " -> " <<
-		//			g[boost::target(edge, g)].name << "\n";
-		//}
 	};
 
 	virtual Graph reverse(Graph & orig, std::map<Vertex, Vertex> & mapping) {
-		// NOTE: g is already the copy
 		Graph g;
 		for (Vertex v : BGLIterable(boost::vertices(orig))) {
 			Vertex newv = boost::add_vertex(g);
@@ -499,133 +463,6 @@ class WTOStrategy : public Strategy {
 		return g;
 	}
 
-};
-
-struct StaticAnalysisVisitor : boost::default_dfs_visitor {
-	VertexColourMap & colourmap;
-	StaticAnalysisVisitor(VertexColourMap & colourmap) :
-			colourmap(colourmap) {}
-
-	template <typename Vertex, typename Graph_>
-	void discover_vertex(Vertex v, Graph_ & g) {
-		// basic block update
-		// or region update
-		if (g[v].basicBlock) {
-			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex start simple: " << g[v].name << "\n";
-			discover_simple_verex(v, g, g[v].basicBlock);
-			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex done simple: " << g[v].name << "\n";
-		} else if (g[v].region) {
-			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex: start region: " << g[v].name << "\n";
-			discover_region_verex(v, g, *g[v].region);
-			llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex: done region: " << g[v].name << "\n";
-		} else {
-			llvm::errs() << "Unknown tree vertex that is neither simple nor region: " << g[v].name << "\n";
-		}
-	}
-
-	template <typename Vertex, typename Graph_>
-	void discover_simple_verex(Vertex v, Graph_ & g, BasicBlock * block) {
-		g[v].abstractState = block->getAbstractState();
-		block->update(g[v].abstractState);
-	}
-
-	template <typename Vertex, typename Graph_>
-	void discover_region_verex(Vertex v, Graph_ & g, Graph & region) {
-		analyze(region);
-	}
-
-	template <typename Vertex, typename Graph_>
-	void mark_for_revisit(Vertex v, Graph_ &g) {
-		colourmap[v] = boost::color_traits<boost::default_color_type>::white();
-	}
-
-	template <typename Edge, typename Graph_>
-	void tree_edge(Edge e, Graph_ & g) {
-		join_or_widen_over_edge(e, g);
-	}
-
-	template <typename Edge, typename Graph_>
-	void forward_or_cross_edge(Edge e, Graph_ & g) {
-		join_or_widen_over_edge(e, g);
-	}
-
-	template <typename Edge, typename Graph_>
-	void back_edge(Edge e, Graph_ & g) {
-		// Should alwasys be simple vertices
-		Vertex dest = boost::target(e,g);
-		int & joinCount = g[dest].joinCount;
-		++joinCount;
-		bool is_widen = (joinCount >= WideningThreshold);
-		join_or_widen_over_edge(e, g, is_widen);
-	}
-
-
-	template <typename Edge, typename Graph_>
-	void join_or_widen_over_edge(Edge e, Graph_ & g, bool is_widen=false) {
-		BasicBlock * source = getSourceBasicBlock(e, g);
-		AbstractState & state = getSourceAbstractState(e, g);
-		BasicBlock * target = getTargetBasicBlock(e, g);
-		llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks enter: " << source->getName() << " -> " << target->getName() << "\n";
-		llvm::errs() << "\t\top: " << (is_widen ? "Widen" : "Join") << "\n";
-		bool isChanged = join_or_widen_basic_blocks(source, target, state, is_widen);
-		if (isChanged) {
-			mark_for_revisit(boost::target(e, g), g);
-		}
-		llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks done: " << source->getName() << " -> " << target->getName() << "\n";
-		llvm::errs() << "\t\top: " << (is_widen ? "Widen" : "Join") <<
-				" changed: " << isChanged << "\n";
-	}
-
-	template <typename Edge, typename Graph_>
-	BasicBlock * getSourceBasicBlock(Edge e, Graph_ & g) {
-		const VertexProperty & vprops = getSourceVertexProperty(e, g);
-		assert(vprops.basicBlock);
-		return vprops.basicBlock;
-	}
-
-	template <typename Edge, typename Graph_>
-	BasicBlock * getTargetBasicBlock(Edge e, Graph_ & g) {
-		const VertexProperty & vprops = getTargetVertexProperty(e, g);
-		assert(vprops.basicBlock);
-		return vprops.basicBlock;
-	}
-
-	template <typename Edge, typename Graph_>
-	AbstractState & getSourceAbstractState(Edge e, Graph_ & g) {
-		const VertexProperty & vprops = getSourceVertexProperty(e, g);
-		return vprops.abstractState;
-	}
-
-	template <typename Edge, typename Graph_>
-	const VertexProperty & getTargetVertexProperty(Edge e, Graph_ & g) {
-		const EdgeProperty & eprop = g[e];
-		if (eprop.targetRegion) {
-			const Graph & region = *eprop.targetRegion;
-			return region[eprop.targetVertex];
-		}
-		return g[boost::target(e, g)];
-	}
-
-	template <typename Edge, typename Graph_>
-	const VertexProperty & getSourceVertexProperty(Edge e, Graph_ & g) {
-		const EdgeProperty & eprop = g[e];
-		if (eprop.sourceRegion) {
-			const Graph & region = *eprop.sourceRegion;
-			return region[eprop.sourceVertex];
-		}
-		return g[boost::source(e, g)];
-	}
-
-	bool join_or_widen_basic_blocks(BasicBlock * source, BasicBlock * dest, AbstractState & state, bool is_widen=false) {
-		AbstractState incoming = dest->getAbstractStateWithAssumptions(*source, state);
-		bool isChanged;
-		if (is_widen) {
-			isChanged = dest->getAbstractState().widen(incoming);
-		} else {
-			isChanged = dest->getAbstractState().join(incoming);
-		}
-		return isChanged;
-	}
 };
 
 struct WTOAnalysis {
