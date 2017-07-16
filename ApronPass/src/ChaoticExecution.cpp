@@ -4,6 +4,7 @@
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/depth_first_search.hpp>
+#include <boost/graph/topological_sort.hpp>
 #include <llvm/IR/Function.h>
 
 #include <BasicBlock.h>
@@ -627,10 +628,162 @@ struct StaticAnalysisVisitor : boost::default_dfs_visitor {
 	}
 };
 
+struct WTOAnalysis {
+UniqueQueue<Vertex> workQueue;
+
 void analyze(Graph & g) {
+	std::list<Vertex> topologicalOrder = getTopologicalOrder(g);
+	VertexIndexMap indexmap;
+	int index = 0;
+	for (Vertex v : topologicalOrder) {
+		indexmap[v] = index++;
+		workQueue.push(v);
+	}
+
+	while (!workQueue.empty()) {
+		Vertex v = workQueue.pop();
+		analyze_vertex(v, g);
+		for (Edge e : BGLIterable(boost::out_edges(v, g))) {
+			Vertex source = boost::source(e, g);
+			Vertex target = boost::target(e, g);
+			bool is_widen = false;
+			if (indexmap[source] >= indexmap[target]) {
+				// back edge
+				int & joinCount = g[target].joinCount;
+				++joinCount;
+				is_widen = (joinCount >= WideningThreshold);
+			}
+			join_or_widen_over_edge(e, g, is_widen);
+		}
+	}
+}
+
+template <typename OutputIterator>
+struct topo_sort_visitor_allow_back_edges : boost::topo_sort_visitor<OutputIterator> {
+	topo_sort_visitor_allow_back_edges(OutputIterator & oit) : boost::topo_sort_visitor<OutputIterator>(oit) {}
+
+    template <typename Edge, typename Graph>
+    void back_edge(const Edge&, Graph&) { /* Ignore */ }
+};
+
+template <typename OutputIterator>
+topo_sort_visitor_allow_back_edges<OutputIterator> getVisitor(OutputIterator & oit) {
+	return topo_sort_visitor_allow_back_edges<OutputIterator>(oit);
+}
+
+std::list<Vertex> getTopologicalOrder(Graph & g) {
+	std::list<Vertex> topologicalOrder;
 	VertexColourMap colourmap;
-	StaticAnalysisVisitor visitor(colourmap);
+	auto inserter = std::back_inserter(topologicalOrder);
+	auto visitor = getVisitor(inserter);
 	boost::depth_first_search(g, boost::visitor(visitor).color_map(boost::associative_property_map<VertexColourMap>(colourmap)));
+	return topologicalOrder;
+}
+
+template <typename Vertex, typename Graph_>
+void analyze_vertex(Vertex v, Graph_ & g) {
+	// basic block update
+	// or region update
+	if (g[v].basicBlock) {
+		llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex start simple: " << g[v].name << "\n";
+		discover_simple_verex(v, g, g[v].basicBlock);
+		llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex done simple: " << g[v].name << "\n";
+	} else if (g[v].region) {
+		llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex: start region: " << g[v].name << "\n";
+		discover_region_verex(v, g, *g[v].region);
+		llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex: done region: " << g[v].name << "\n";
+	} else {
+		llvm::errs() << "Unknown tree vertex that is neither simple nor region: " << g[v].name << "\n";
+	}
+}
+
+template <typename Vertex, typename Graph_>
+void discover_simple_verex(Vertex v, Graph_ & g, BasicBlock * block) {
+	g[v].abstractState = block->getAbstractState();
+	block->update(g[v].abstractState);
+}
+
+template <typename Vertex, typename Graph_>
+void discover_region_verex(Vertex v, Graph_ & g, Graph & region) {
+	analyze(region);
+}
+
+template <typename Edge, typename Graph_>
+void join_or_widen_over_edge(Edge e, Graph_ & g, bool is_widen=false) {
+	BasicBlock * source = getSourceBasicBlock(e, g);
+	AbstractState & state = getSourceAbstractState(e, g);
+	BasicBlock * target = getTargetBasicBlock(e, g);
+	llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks enter: " << source->getName() << " -> " << target->getName() << "\n";
+	llvm::errs() << "\t\top: " << (is_widen ? "Widen" : "Join") << "\n";
+	bool isChanged = join_or_widen_basic_blocks(source, target, state, is_widen);
+	if (isChanged) {
+		mark_for_revisit(boost::target(e, g), g);
+	}
+	llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks done: " << source->getName() << " -> " << target->getName() << "\n";
+	llvm::errs() << "\t\top: " << (is_widen ? "Widen" : "Join") <<
+			" changed: " << isChanged << "\n";
+}
+
+template <typename Vertex, typename Graph_>
+void mark_for_revisit(Vertex v, Graph_ &g) {
+	workQueue.push(v);
+}
+
+template <typename Edge, typename Graph_>
+BasicBlock * getSourceBasicBlock(Edge e, Graph_ & g) {
+	const VertexProperty & vprops = getSourceVertexProperty(e, g);
+	assert(vprops.basicBlock);
+	return vprops.basicBlock;
+}
+
+template <typename Edge, typename Graph_>
+BasicBlock * getTargetBasicBlock(Edge e, Graph_ & g) {
+	const VertexProperty & vprops = getTargetVertexProperty(e, g);
+	assert(vprops.basicBlock);
+	return vprops.basicBlock;
+}
+
+template <typename Edge, typename Graph_>
+AbstractState & getSourceAbstractState(Edge e, Graph_ & g) {
+	const VertexProperty & vprops = getSourceVertexProperty(e, g);
+	return vprops.abstractState;
+}
+
+template <typename Edge, typename Graph_>
+const VertexProperty & getTargetVertexProperty(Edge e, Graph_ & g) {
+	const EdgeProperty & eprop = g[e];
+	if (eprop.targetRegion) {
+		const Graph & region = *eprop.targetRegion;
+		return region[eprop.targetVertex];
+	}
+	return g[boost::target(e, g)];
+}
+
+template <typename Edge, typename Graph_>
+const VertexProperty & getSourceVertexProperty(Edge e, Graph_ & g) {
+	const EdgeProperty & eprop = g[e];
+	if (eprop.sourceRegion) {
+		const Graph & region = *eprop.sourceRegion;
+		return region[eprop.sourceVertex];
+	}
+	return g[boost::source(e, g)];
+}
+
+bool join_or_widen_basic_blocks(BasicBlock * source, BasicBlock * dest, AbstractState & state, bool is_widen=false) {
+	AbstractState incoming = dest->getAbstractStateWithAssumptions(*source, state);
+	bool isChanged;
+	if (is_widen) {
+		isChanged = dest->getAbstractState().widen(incoming);
+	} else {
+		isChanged = dest->getAbstractState().join(incoming);
+	}
+	return isChanged;
+}
+};
+
+void analyze(Graph & g) {
+	WTOAnalysis().analyze(g);
+
 }
 
 template <typename Graph>
