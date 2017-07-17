@@ -374,7 +374,12 @@ protected:
 public:
 	BinaryOperationValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual ap_texpr1_t * createOperandTreeExpression(AbstractState & state, int idx);
-	virtual bool isSkip();
+	virtual bool isSkip() {
+		return true;
+	}
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state) {
+		return createRHSTreeExpression(state);
+	}
 };
 
 llvm::BinaryOperator * BinaryOperationValue::asBinaryOperator()  {
@@ -412,10 +417,6 @@ std::string BinaryOperationValue::getValueString()  {
 	return oss.str();
 }
 
-bool BinaryOperationValue::isSkip() {
-	return false;
-}
-
 ap_texpr1_t * BinaryOperationValue::createOperandTreeExpression(AbstractState & state, int idx) {
 	Value * operand = getOperandValue(idx);
 	return operand->createTreeExpression(state);
@@ -450,6 +451,9 @@ protected:
 public:
 	SubtractionOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 	virtual void update(AbstractState & state);
+	virtual bool isSkip() {
+		return false;
+	}
 };
 
 void SubtractionOperationValue::update(AbstractState & state) {
@@ -484,7 +488,6 @@ void SubtractionOperationValue::update(AbstractState & state) {
 		MPTItemAbstractState::updateToIntersection(*leftPT, *rightPT);
 		return;
 	}
-	return BinaryOperationValue::update(state);
 }
 
 class MultiplicationOperationValue : public BinaryOperationValue {
@@ -543,8 +546,39 @@ protected:
 	virtual std::string getOperationSymbol()  { return " >> "; }
 	virtual ap_texpr_op_t getTreeOperation()  { return AP_TEXPR_MOD; }
 	virtual bool updateByInverseMultiplication(AbstractState & state);
-	virtual bool updateByInverseOfSHL(AbstractState & state);
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state) {
+		if (isInverseOfSHL(state)) {
+			InstructionValue * sourceValue = static_cast<InstructionValue*>(getOperandValue(0));
+			Value * sourceSourceValue = sourceValue->getOperandValue(0);
+			ap_texpr1_t * sourceSourceExpr = sourceSourceValue->createTreeExpression(state);
+			return sourceSourceExpr;
+		}
+		return state.m_apronAbstractState.asTexpr(getName());
+	}
+	virtual bool isInverseOfSHL(AbstractState & state) {
+		Value * countValue = getOperandValue(1);
+		llvm::Value * source = asInstruction()->getOperand(0);
+		llvm::BinaryOperator * sourceBO = llvm::dyn_cast<llvm::BinaryOperator>(source);
+		if (!sourceBO) {
+			return false;
+		}
+		if (sourceBO->getOpcode() != llvm::Instruction::Shl) {
+			return false;
+		}
+		InstructionValue * sourceValue = static_cast<InstructionValue*>(getOperandValue(0));
+		Value * shlCountValue = sourceValue->getOperandValue(1);
+		ap_texpr1_t * countExpr = countValue->createTreeExpression(state);
+		ap_texpr1_t * shlCountExpr = shlCountValue->createTreeExpression(state);
+		bool iseq = ap_texpr1_equal(countExpr, shlCountExpr);
+		ap_texpr1_free(countExpr);
+		ap_texpr1_free(shlCountExpr);
+		if (!iseq) {
+			return false;
+		}
+		return true;
+	}
 public:
+	virtual bool isSkip() { return false; }
 	SHROperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 	virtual void update(AbstractState & state);
 };
@@ -585,34 +619,8 @@ bool SHROperationValue::updateByInverseMultiplication(AbstractState & state) {
 	return true;
 }
 
-bool SHROperationValue::updateByInverseOfSHL(AbstractState & state) {
-	Value * countValue = getOperandValue(1);
-	llvm::Value * source = asInstruction()->getOperand(0);
-	llvm::BinaryOperator * sourceBO = llvm::dyn_cast<llvm::BinaryOperator>(source);
-	if (!sourceBO) {
-		return false;
-	}
-	if (sourceBO->getOpcode() != llvm::Instruction::Shl) {
-		return false;
-	}
-	InstructionValue * sourceValue = static_cast<InstructionValue*>(getOperandValue(0));
-	Value * shlCountValue = sourceValue->getOperandValue(1);
-	ap_texpr1_t * countExpr = countValue->createTreeExpression(state);
-	ap_texpr1_t * shlCountExpr = shlCountValue->createTreeExpression(state);
-	bool iseq = ap_texpr1_equal(countExpr, shlCountExpr);
-	ap_texpr1_free(countExpr);
-	ap_texpr1_free(shlCountExpr);
-	if (!iseq) {
-		return false;
-	}
-	Value * sourceSourceValue = sourceValue->getOperandValue(0);
-	ap_texpr1_t * sourceSourceExpr = sourceSourceValue->createTreeExpression(state);
-	state.m_apronAbstractState.assign(getName(), sourceSourceExpr);
-	return true;
-}
-
 void SHROperationValue::update(AbstractState & state) {
-	if (updateByInverseOfSHL(state)) {
+	if (isInverseOfSHL(state)) {
 		return;
 	}
 	if (updateByInverseMultiplication(state)) {
@@ -625,7 +633,7 @@ class ConstantValue : public Value {
 protected:
 	virtual std::string getValueString() ;
 	virtual std::string getConstantString()  = 0;
-	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state)=0;
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state)=0;
 public:
 	ConstantValue(llvm::Value * value) : Value(value) {}
 	virtual bool isConstant() const;
@@ -642,7 +650,7 @@ bool ConstantValue::isConstant() const {
 class ConstantIntValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
-	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 public:
 	ConstantIntValue(llvm::Value * value) : ConstantValue(value) {}
 	virtual unsigned getBitSize();
@@ -655,11 +663,11 @@ std::string ConstantIntValue::getConstantString()  {
 }
 
 ap_texpr1_t * ConstantIntValue::createTreeExpression(
-		ApronAbstractState & state) {
+		AbstractState & state) {
 	llvm::ConstantInt & intValue = llvm::cast<llvm::ConstantInt>(*m_value);
 	const llvm::APInt & apint = intValue.getValue();
 	int64_t svalue = apint.getSExtValue();
-	ap_texpr1_t * result = state.asTexpr(svalue);
+	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr(svalue);
 	return result;
 }
 
@@ -670,7 +678,7 @@ unsigned ConstantIntValue::getBitSize() {
 class ConstantFloatValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
-	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 public:
 	ConstantFloatValue(llvm::Value * value) : ConstantValue(value) {}
 };
@@ -690,18 +698,18 @@ std::string ConstantFloatValue::getConstantString()  {
 }
 
 ap_texpr1_t * ConstantFloatValue::createTreeExpression(
-		ApronAbstractState & state) {
+		AbstractState & state) {
 	llvm::ConstantFP & fpValue = llvm::cast<llvm::ConstantFP>(*m_value);
 	const llvm::APFloat & apfloat = fpValue.getValueAPF();
 	double value = apfloat.convertToDouble();
-	ap_texpr1_t * result = state.asTexpr(value);
+	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr(value);
 	return result;
 }
 
 class ConstantNullValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() ;
-	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
 public:
 	ConstantNullValue(llvm::Value * value) : ConstantValue(value) {
 		llvm::errs() << "Null ptr: llvm name: " << value->getName() << " my name: " << getName() << "\n";
@@ -722,16 +730,16 @@ std::string ConstantNullValue::getConstantString() {
 	return "null";
 }
 
-ap_texpr1_t * ConstantNullValue::createTreeExpression(ApronAbstractState & state) {
-	ap_texpr1_t * result = state.asTexpr((int64_t)0);
+ap_texpr1_t * ConstantNullValue::createTreeExpression(AbstractState & state) {
+	ap_texpr1_t * result = state.m_apronAbstractState.asTexpr((int64_t)0);
 	return result;
 }
 
 class ConstantUndefValue : public ConstantValue {
 protected:
 	virtual std::string getConstantString() { return "undef"; }
-	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state) {
-		return state.asTexpr((int64_t)0);
+	virtual ap_texpr1_t * createTreeExpression(AbstractState & state) {
+		return state.m_apronAbstractState.asTexpr((int64_t)0);
 	}
 public:
 	ConstantUndefValue(llvm::Value * value) : ConstantValue(value) {}
@@ -1249,6 +1257,9 @@ void CallValue::updateForStrncpyFromUser(AbstractState & state) {
 class LogicalBinaryOperationValue : public BinaryOperationValue {
 protected:
 	virtual ap_texpr_op_t getTreeOperation() { abort(); /* Can't be done */ }
+	virtual ap_texpr1_t * createRHSTreeExpression(AbstractState & state) {
+		return state.m_apronAbstractState.asTexpr(getName());
+	}
 public:
 	LogicalBinaryOperationValue(llvm::Value * value) : BinaryOperationValue(value) {}
 	virtual bool isSkip();
@@ -1727,36 +1738,7 @@ public:
 	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false);
 	virtual bool isSkip() { return false; }
 	virtual void update(AbstractState & state) {
-		std::string & var = getName();
-		bool isKnown = state.m_apronAbstractState.isKnown(var);
-		const std::string * name = &var;
-		if (isKnown) {
-			static const std::string tmpname = "__tmp_andop_update";
-			name = &tmpname;
-		}
-		state.m_apronAbstractState.extend(*name);
-		ap_texpr1_t * this_texpr = state.m_apronAbstractState.asTexpr(*name);
-		ap_texpr1_t * op0 = createOperandTreeExpression(state, 0);
-		ap_texpr1_t * op1 = createOperandTreeExpression(state, 1);
-		state.m_apronAbstractState.extendEnvironment(this_texpr);
-		state.m_apronAbstractState.extendEnvironment(op0);
-		state.m_apronAbstractState.extendEnvironment(op1);
-		ap_texpr1_t * texpr = ap_texpr1_binop(
-					AP_TEXPR_SUB, op0, ap_texpr1_copy(this_texpr),
-					AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_tcons1_t cons0 = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
-		texpr = ap_texpr1_binop(
-					AP_TEXPR_SUB, op1, this_texpr,
-					AP_RTYPE_INT, AP_RDIR_ZERO);
-		ap_tcons1_t cons1 = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
-		state.m_apronAbstractState.start_meet_aggregate();
-		state.m_apronAbstractState.meet(cons0);
-		state.m_apronAbstractState.meet(cons1);
-		state.m_apronAbstractState.finish_meet_aggregate();
-		if (isKnown) {
-			state.m_apronAbstractState.forget(var);
-			state.m_apronAbstractState.rename(*name, var);
-		}
+		havoc(state);
 	}
 
 };
@@ -1997,7 +1979,7 @@ std::string CastOperationValue::getValueString() {
 }
 
 bool CastOperationValue::isSkip() {
-	return false;
+	return !isPointer();
 }
 
 ap_texpr1_t * CastOperationValue::createRHSTreeExpression(AbstractState & state) {
@@ -2009,17 +1991,12 @@ void CastOperationValue::update(AbstractState & state) {
 	if (isPointer()) {
 		Value * src = getOperandValue(0);
 		assignMayPointsTo(state, src);
-		return;
 	}
-	UnaryOperationValue::update(state);
 }
 
 ap_texpr1_t * CastOperationValue::createTreeExpression(AbstractState & state) {
 	Value * value = getOperandValue(0);
-	if (value->isConstant()) {
-		return value->createTreeExpression(state);
-	}
-	return UnaryOperationValue::createTreeExpression(state);
+	return value->createTreeExpression(state);
 }
 
 class BranchInstructionValue : public TerminatorInstructionValue, public ConditionalMixin<llvm::BranchInst> {
@@ -2200,12 +2177,8 @@ bool Value::isSkip() {
 	return false;
 }
 
-ap_texpr1_t * Value::createTreeExpression(ApronAbstractState & state) {
-	return state.asTexpr(getName());
-}
-
 ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
-	return createTreeExpression(state.m_apronAbstractState);
+	return state.m_apronAbstractState.asTexpr(getName());
 }
 
 void Value::havoc(AbstractState & state) {

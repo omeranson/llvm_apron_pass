@@ -52,7 +52,6 @@ public:
 	virtual bool isConstant() const;
 
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
-	virtual ap_texpr1_t * createTreeExpression(ApronAbstractState & state);
 	virtual void havoc(AbstractState & state);
 	virtual void assign0(AbstractState & state);
 
