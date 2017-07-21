@@ -285,8 +285,10 @@ void BasicBlock::processInstruction(AbstractState & state,
 	InstructionValue * instructionValue =
 			static_cast<InstructionValue*>(value);
 	instructionValue->update(state);
-	if (state.m_apronAbstractState.isTop()) {
-		llvm::errs() << "Warning: Instruction " << value->getName() << " caused state to be top\n";
+	if (Debug) {
+		if (state.m_apronAbstractState.isTop()) {
+			llvm::errs() << "Warning: Instruction " << value->getName() << " caused state to be top\n";
+		}
 	}
 }
 
