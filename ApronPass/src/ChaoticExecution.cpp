@@ -467,6 +467,7 @@ class WTOStrategy : public Strategy {
 
 struct WTOAnalysis {
 std::unordered_set<Vertex> workSet;
+std::map<BasicBlock *, int> m_joinCount;
 
 void analyze(Graph & g) {
 	std::list<Vertex> topologicalOrder = getTopologicalOrder(g);
@@ -487,12 +488,13 @@ void analyze(Graph & g) {
 				Vertex source = boost::source(e, g);
 				Vertex target = boost::target(e, g);
 				bool is_widen = false;
-				if (indexmap[source] >= indexmap[target]) {
+				//if (indexmap[source] >= indexmap[target]) {
 					// back edge
-					int & joinCount = g[target].joinCount;
+					BasicBlock * targetbb = getTargetBasicBlock(e, g);
+					int & joinCount = m_joinCount[targetbb];
 					++joinCount;
-					is_widen = (joinCount >= WideningThreshold);
-				}
+					is_widen = is_widen || (joinCount >= WideningThreshold);
+				//}
 				join_or_widen_over_edge(e, g, is_widen);
 			}
 		}
