@@ -65,6 +65,8 @@ public:
 	virtual bool isTop();
 	virtual bool isBottom();
 
+	virtual std::list<Value*> values();
+	virtual std::list<Value*> phivalues();
 	// @deprecated
 	virtual ap_manager_t * getManager();
 	// @deprecated

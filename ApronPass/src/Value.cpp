@@ -62,6 +62,9 @@ class NopInstructionValue : public InstructionValue {
 public:
 	NopInstructionValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual bool isSkip() { return true; }
+	virtual void popLifetimeValues(std::set<Value *> & lifetimeValues) {
+		// NOP
+	}
 };
 
 class AllocaValue : public InstructionValue {
@@ -138,6 +141,9 @@ public:
 	StoreValue(llvm::Value * value) : InstructionValue(value) {}
 	virtual void update(AbstractState & state);
 	virtual bool isSkip();
+	virtual void popLifetimeValues(std::set<Value *> & lifetimeValues) {
+		// NOP
+	}
 };
 
 llvm::StoreInst * StoreValue::asStoreInst() {
@@ -239,6 +245,9 @@ public:
 	virtual std::string getValueString();
 	virtual std::string toString() ;
 	virtual MPTItemAbstractState * mayPointsTo(AbstractState & state, bool isCreate=false);
+	virtual void popLifetimeValues(std::set<Value *> & lifetimeValues) {
+		lifetimeValues.insert(this);
+	}
 };
 std::string VariableValue::getValueString() {
 	return getName();
@@ -379,6 +388,12 @@ public:
 	}
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state) {
 		return createRHSTreeExpression(state);
+	}
+	virtual void popLifetimeValues(std::set<Value *> & lifetimeValues) {
+		Value * operand0 = getOperandValue(0);
+		Value * operand1 = getOperandValue(1);
+		operand0->popLifetimeValues(lifetimeValues);
+		operand1->popLifetimeValues(lifetimeValues);
 	}
 };
 
@@ -806,6 +821,17 @@ public:
 	virtual std::string getValueString();
 	virtual bool isSkip();
 	virtual void update(AbstractState & state);
+	virtual void popLifetimeValues(std::set<Value *> & lifetimeValues) {
+		lifetimeValues.insert(this);
+		if (isSkip()) {
+			return;
+		}
+		int numArgOperands = asCallInst()->getNumArgOperands();
+		for (int idx = 0; idx < numArgOperands; idx++) {
+			Value * op = getOperandValue(idx);
+			op->popLifetimeValues(lifetimeValues);
+		}
+	}
 };
 
 llvm::CallInst * CallValue::asCallInst() {
@@ -1784,6 +1810,24 @@ public:
 	virtual std::string getValueString();
 	virtual bool isSkip();
 	virtual void updateAssumptions(BasicBlock * source, BasicBlock * dest, AbstractState & state);
+	virtual void popLifetimeValues(std::set<Value *> & lifetimeValues) {
+		if (!lifetimeValues.insert(this).second) {
+			return;
+		}
+		llvm::PHINode * phiNode = asPHINode();
+		llvm::PHINode::block_iterator it;
+		ValueFactory * factory = ValueFactory::getInstance();
+		for (it = phiNode->block_begin(); it != phiNode->block_end(); it++) {
+			llvm::BasicBlock * bb = *it;
+			llvm::Value * llvmValue = phiNode->getIncomingValueForBlock(bb);
+			Value * value = factory->getValue(llvmValue);
+			if (llvm::isa<llvm::PHINode>(*llvmValue)) {
+				lifetimeValues.insert(value);
+			} else {
+				value->popLifetimeValues(lifetimeValues);
+			}
+		}
+	}
 };
 
 llvm::PHINode * PhiValue::asPHINode() {
@@ -1866,6 +1910,12 @@ public:
 	virtual std::string getValueString();
 	virtual bool isSkip();
 	virtual void update(AbstractState & state);
+	virtual void popLifetimeValues(std::set<Value *> & lifetimeValues) {
+		lifetimeValues.insert(this);
+		getCondition(m_value)->popLifetimeValues(lifetimeValues);
+		getTrueValue()->popLifetimeValues(lifetimeValues);
+		getFalseValue()->popLifetimeValues(lifetimeValues);
+	}
 };
 
 llvm::SelectInst * SelectValueInstruction::asSelectInst() {
@@ -1931,7 +1981,6 @@ void SelectValueInstruction::update(AbstractState & state) {
 //	} else if (falseValue->isConstant()) {
 //		state.m_apronAbstractState.assign(getName(), trueValue->createTreeExpression(state));
 //	} else {
-		state.m_apronAbstractState.minimize();
 		AbstractState trueState = updateJoinMember(state, trueValue, false, isKnown);
 		AbstractState falseState = updateJoinMember(state, falseValue, true, isKnown);
 		trueState.join(falseState);
@@ -1967,6 +2016,10 @@ public:
 	virtual bool isSkip();
 	virtual void update(AbstractState & state);
 	virtual ap_texpr1_t * createTreeExpression(AbstractState & state);
+	virtual void popLifetimeValues(std::set<Value *> & lifetimeValues) {
+		Value * value = getOperandValue(0);
+		value->popLifetimeValues(lifetimeValues);
+	}
 };
 
 std::string CastOperationValue::getValueString() {
@@ -2179,6 +2232,10 @@ bool Value::isSkip() {
 
 ap_texpr1_t * Value::createTreeExpression(AbstractState & state) {
 	return state.m_apronAbstractState.asTexpr(getName());
+}
+
+void Value::popLifetimeValues(std::set<Value *> & lifetimeValues) {
+	lifetimeValues.insert(this);
 }
 
 void Value::havoc(AbstractState & state) {

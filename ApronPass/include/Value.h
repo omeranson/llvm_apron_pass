@@ -66,6 +66,8 @@ public:
 	virtual unsigned getByteSize();
 	virtual unsigned getPointerBitSize();
 	virtual unsigned getPointerByteSize();
+
+	virtual void popLifetimeValues(std::set<Value *> & lifetimeValues);
 };
 
 std::ostream& operator<<(std::ostream& os,  Value& value);

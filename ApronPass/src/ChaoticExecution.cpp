@@ -7,9 +7,11 @@
 #include <boost/graph/topological_sort.hpp>
 #include <llvm/IR/Function.h>
 
+#include <Value.h>
 #include <BasicBlock.h>
 #include <CallGraph.h>
 #include <ChaoticExecution.h>
+#include <Function.h>
 
 extern bool Debug;
 extern unsigned UpdateCountMax;
@@ -27,7 +29,7 @@ typedef std::map<Vertex, boost::default_color_type> VertexColourMap;
 
 template <typename Graph>
 void printToDot(Graph & g);
-void analyze(Graph & g);
+void analyze(Graph & g, Function * function);
 
 struct VertexProperty {
 	Graph * region = 0;
@@ -118,7 +120,7 @@ class WTOStrategy : public Strategy {
 		reduce(g);
 		llvm::errs() << "Reduced graph:\n";
 		printToDot(g);
-		analyze(g);
+		analyze(g, callGraph().m_function);
 		//llvm::errs() << "Analyzed graph:\n";
 		//printToDot(g);
 	}
@@ -468,21 +470,25 @@ class WTOStrategy : public Strategy {
 struct WTOAnalysis {
 std::unordered_set<Vertex> workSet;
 
-void analyze(Graph & g) {
+void analyze(Graph & g, Function * function) {
 	std::list<Vertex> topologicalOrder = getTopologicalOrder(g);
 	VertexIndexMap indexmap;
+	std::map<Vertex, std::set<Value*> > lifetimeValues;
 	int index = 0;
 	for (Vertex v : topologicalOrder) {
 		indexmap[v] = index++;
 		workSet.insert(v);
 	}
 
+	populate_lifetime_values(lifetimeValues, g, topologicalOrder);
+
 	while (workSet.count(*topologicalOrder.begin()) != 0) {
 		for (Vertex v : topologicalOrder) {
 			if (workSet.erase(v) == 0) {
 				continue;
 			}
-			analyze_vertex(v, g);
+			analyze_vertex(v, g, function);
+			remove_lifetime_ended_values(lifetimeValues, v, g, function);
 			for (Edge e : BGLIterable(boost::out_edges(v, g))) {
 				Vertex source = boost::source(e, g);
 				Vertex target = boost::target(e, g);
@@ -497,6 +503,49 @@ void analyze(Graph & g) {
 			}
 		}
 	}
+}
+
+void populate_lifetime_values(
+		std::map<Vertex, std::set<Value*> > & lifetimeValues, Graph & g, std::list<Vertex> & topologicalOrder) {
+	std::set<Value * > values;
+
+	Vertex first = *topologicalOrder.begin();
+	VertexProperty & vprop = g[first];
+	BasicBlock * bb = vprop.basicBlock;
+	assert(bb);
+	std::list<Value *> phivalues = bb->phivalues();
+	for (Value * phivalue : phivalues) {
+		phivalue->popLifetimeValues(values);
+	}
+
+	for (auto it = topologicalOrder.rbegin(), ie = topologicalOrder.rend(); 
+			it != ie; it++) {
+		Vertex v = *it;
+		populate_lifetime_values_vertex(values, v, g);
+		lifetimeValues[v] = values;
+	}
+}
+
+void populate_lifetime_values_vertex(std::set<Value*> & lifetimeValues,
+		Vertex v, Graph & g) {
+	VertexProperty & vprop = g[v];
+	BasicBlock * bb = vprop.basicBlock;
+	if (bb) {
+		std::list<Value*> values = bb->values();
+		for (Value * value : values) {
+			value->popLifetimeValues(lifetimeValues);
+		}
+		return;
+	}
+	Graph * region = vprop.region;
+	if (region) {
+		for (Vertex v1 : BGLIterable(boost::vertices(*region))) {
+			populate_lifetime_values_vertex(lifetimeValues, v1, *region);
+		}
+		return;
+	}
+	llvm::errs() << "Bad vertex: " << vprop.name << "\n";
+	abort();
 }
 
 template <typename OutputIterator>
@@ -522,14 +571,14 @@ std::list<Vertex> getTopologicalOrder(Graph & g) {
 }
 
 template <typename Vertex, typename Graph_>
-void analyze_vertex(Vertex v, Graph_ & g) {
+void analyze_vertex(Vertex v, Graph_ & g, Function * function) {
 	if (g[v].basicBlock) {
 		llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex start simple: " << g[v].name << "\n";
 		discover_simple_verex(v, g, g[v].basicBlock);
 		llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex done simple: " << g[v].name << "\n";
 	} else if (g[v].region) {
 		llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex: start region: " << g[v].name << "\n";
-		discover_region_verex(v, g, *g[v].region);
+		discover_region_verex(v, g, *g[v].region, function);
 		llvm::errs() << "Debug: StaticAnalysisVisitor::discover_vertex: done region: " << g[v].name << "\n";
 	} else {
 		llvm::errs() << "Unknown tree vertex that is neither simple nor region: " << g[v].name << "\n";
@@ -543,8 +592,8 @@ void discover_simple_verex(Vertex v, Graph_ & g, BasicBlock * block) {
 }
 
 template <typename Vertex, typename Graph_>
-void discover_region_verex(Vertex v, Graph_ & g, Graph & region) {
-	analyze(region);
+void discover_region_verex(Vertex v, Graph_ & g, Graph & region, Function * function) {
+	analyze(region, function);
 }
 
 template <typename Edge, typename Graph_>
@@ -561,6 +610,39 @@ void join_or_widen_over_edge(Edge e, Graph_ & g, bool is_widen=false) {
 	llvm::errs() << "Debug: StaticAnalysisVisitor::join_or_widen_basic_blocks done: " << source->getName() << " -> " << target->getName() << "\n";
 	llvm::errs() << "\t\top: " << (is_widen ? "Widen" : "Join") <<
 			" changed: " << isChanged << "\n";
+}
+
+void remove_lifetime_ended_values(std::map<Vertex, std::set<Value*> > & lifetimeValues,
+		Vertex v, Graph & g, Function * function) {
+	std::set<Value*> & vLifetimeVals = lifetimeValues[v];
+	const VertexProperty & vprops = g[v];
+	if (vprops.region) {
+		return;
+	}
+	AbstractState & abstractState = vprops.abstractState;
+	ApronAbstractState & aas = abstractState.m_apronAbstractState;
+	for (std::string varname : ApronAbstractState::Variables(aas)) {
+		if (isForgetVarname(varname, vLifetimeVals, function)) {
+			llvm::errs() << "Debug: remove_lifetime_ended_values: removing: " << varname << "\n";
+			aas.forget(varname);
+		}
+	}
+	// XXX In theory, we should also minimize
+}
+
+bool isForgetVarname(std::string & varname, std::set<Value*> & vLifetimeVals, Function * function) {
+	if (function->isVarInOut(varname.c_str())) {
+		return false;
+	}
+	if (function->isOffsetVariable(varname.c_str())) {
+		return false;
+	}
+	for (Value * value : vLifetimeVals) {
+		if (varname == value->getName()) {
+			return false;
+		}
+	}
+	return true;
 }
 
 template <typename Vertex, typename Graph_>
@@ -620,8 +702,8 @@ bool join_or_widen_basic_blocks(BasicBlock * source, BasicBlock * dest, Abstract
 }
 };
 
-void analyze(Graph & g) {
-	WTOAnalysis().analyze(g);
+void analyze(Graph & g, Function * function) {
+	WTOAnalysis().analyze(g, function);
 
 }
 

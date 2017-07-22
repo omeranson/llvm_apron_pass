@@ -214,6 +214,30 @@ bool BasicBlock::isBottom() {
 	return aas.isBottom();
 }
 
+std::list<Value*> BasicBlock::values() {
+	std::list<Value*> result;
+	ValueFactory * factory = ValueFactory::getInstance();
+	for (auto it = m_basicBlock->begin(); it != m_basicBlock->end(); it ++) {
+		llvm::Instruction & inst = *it;
+		Value * value = factory->getValue(&inst);
+		result.push_back(value);
+	}
+	return result;
+}
+
+std::list<Value*> BasicBlock::phivalues() {
+	std::list<Value*> result;
+	ValueFactory * factory = ValueFactory::getInstance();
+	for (llvm::Instruction & inst : *m_basicBlock) {
+		if (!llvm::isa<llvm::PHINode>(inst)) {
+			break;
+		}
+		Value * value = factory->getValue(&inst);
+		result.push_back(value);
+	}
+	return result;
+}
+
 void BasicBlock::update(AbstractState & state) {
 	++updateCount;
 	/* Process the block. Return true if the block's context is modified.*/
