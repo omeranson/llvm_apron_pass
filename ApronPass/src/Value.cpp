@@ -1764,7 +1764,36 @@ public:
 	virtual void updateConditionalAssumptions(AbstractState & state, bool isNegated=false);
 	virtual bool isSkip() { return false; }
 	virtual void update(AbstractState & state) {
-		havoc(state);
+		std::string & var = getName();
+		bool isKnown = state.m_apronAbstractState.isKnown(var);
+		const std::string * name = &var;
+		if (isKnown) {
+			static const std::string tmpname = "__tmp_andop_update";
+			name = &tmpname;
+		}
+		state.m_apronAbstractState.extend(*name);
+		ap_texpr1_t * this_texpr = state.m_apronAbstractState.asTexpr(*name);
+		ap_texpr1_t * op0 = createOperandTreeExpression(state, 0);
+		ap_texpr1_t * op1 = createOperandTreeExpression(state, 1);
+		state.m_apronAbstractState.extendEnvironment(this_texpr);
+		state.m_apronAbstractState.extendEnvironment(op0);
+		state.m_apronAbstractState.extendEnvironment(op1);
+		ap_texpr1_t * texpr = ap_texpr1_binop(
+					AP_TEXPR_SUB, op0, ap_texpr1_copy(this_texpr),
+					AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t cons0 = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
+		texpr = ap_texpr1_binop(
+					AP_TEXPR_SUB, op1, this_texpr,
+					AP_RTYPE_INT, AP_RDIR_ZERO);
+		ap_tcons1_t cons1 = ap_tcons1_make(AP_CONS_SUPEQ, texpr, state.m_apronAbstractState.zero());
+		state.m_apronAbstractState.start_meet_aggregate();
+		state.m_apronAbstractState.meet(cons0);
+		state.m_apronAbstractState.meet(cons1);
+		state.m_apronAbstractState.finish_meet_aggregate();
+		if (isKnown) {
+			state.m_apronAbstractState.forget(var);
+			state.m_apronAbstractState.rename(*name, var);
+		}
 	}
 
 };
