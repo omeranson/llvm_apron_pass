@@ -52,31 +52,6 @@ struct EdgeProperty {
 	Vertex targetVertex = 0;
 };
 
-template <class T>
-class UniqueQueue {
-protected:
-	std::list<T> m_queue;
-	std::unordered_set<T> m_uniq;
-public:
-	void push(T & t) {
-		auto p = m_uniq.insert(t);
-		if (p.second) {
-			m_queue.push_back(t);
-		}
-	}
-
-	T pop() {
-		T result = m_queue.front();
-		m_queue.pop_front();
-		m_uniq.erase(result);
-		return result;
-	}
-
-	bool empty() {
-		return m_queue.empty();
-	}
-};
-
 template <typename T>
 struct BGLIterableClass {
 	T first;
@@ -769,33 +744,6 @@ ChaoticExecution::ChaoticExecution(CallGraph & callGraph, ChaoticExecution::Stra
 
 void ChaoticExecution::execute() {
 	m_strategy->execute();
-
-/*
-	UniqueQueue<BasicBlock *> worklist;
-	BasicBlock * root = callGraph.getRoot();
-	std::vector<std::string> userPointers = root->getFunction()->getUserPointers();
-	AbstractState state(userPointers);
-	root->getAbstractState() = state;
-	worklist.push(root);
-	while (!worklist.empty()) {
-		BasicBlock * block = worklist.pop();
-		bool wasSeen = isSeen(block);
-		see(block);
-		if (UpdateCountMax != 0) {
-			llvm::errs() << "Skip block " << block->getName() << "? " << block->updateCount << " ? " << UpdateCountMax << " and " << wasSeen << "\n";
-			if (wasSeen && (block->updateCount >= UpdateCountMax)) {
-				llvm::errs() << "Skipping " << block->getName()
-						<< ": Updated more than " << block->updateCount << "\n";
-				continue;
-			}
-		}
-		AbstractState state = block->getAbstractState();
-		block->update(state);
-		llvm::errs() << "Populating successors: " << block->getName() << "\n";
-		populateWithSuccessors(worklist, block, state);
-		llvm::errs() << "Update block: " << block->getName() << "\n";
-	}
-*/
 }
 
 
