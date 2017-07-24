@@ -38,6 +38,7 @@ struct VertexProperty {
 	mutable BasicBlock * basicBlock = 0;
 	mutable AbstractState abstractState;
 	mutable int joinCount = 0;
+	mutable bool isDirty = true;
 };
 
 struct EdgeProperty {
@@ -443,7 +444,6 @@ class WTOStrategy : public Strategy {
 };
 
 struct WTOAnalysis {
-std::unordered_set<Vertex> workSet;
 
 void analyze(Graph & g, Function * function) {
 	std::list<Vertex> topologicalOrder = getTopologicalOrder(g);
@@ -452,16 +452,18 @@ void analyze(Graph & g, Function * function) {
 	int index = 0;
 	for (Vertex v : topologicalOrder) {
 		indexmap[v] = index++;
-		workSet.insert(v);
+		g[v].isDirty = true;
 	}
 
 	populate_lifetime_values(lifetimeValues, g, topologicalOrder);
 
-	while (workSet.count(*topologicalOrder.begin()) != 0) {
+	while (g[*topologicalOrder.begin()].isDirty) {
 		for (Vertex v : topologicalOrder) {
-			if (workSet.erase(v) == 0) {
+			if (!g[v].isDirty) {
 				continue;
 			}
+			g[v].isDirty = false;
+
 			analyze_vertex(v, g, function);
 			remove_lifetime_ended_values(lifetimeValues, v, g, function);
 			for (Edge e : BGLIterable(boost::out_edges(v, g))) {
@@ -622,7 +624,7 @@ bool isForgetVarname(std::string & varname, std::set<Value*> & vLifetimeVals, Fu
 
 template <typename Vertex, typename Graph_>
 void mark_for_revisit(Vertex v, Graph_ &g) {
-	workSet.insert(v);
+	g[v].isDirty = true;
 }
 
 template <typename Edge, typename Graph_>
